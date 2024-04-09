@@ -1,0 +1,1 @@
+# lamt-nixos-config
