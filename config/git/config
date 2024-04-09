@@ -1,0 +1,73 @@
+[init]
+	defaultBranch = main
+
+[core]
+	excludesfile = ~/.globalignore
+	# needs to be empty to use terminal for ask pass
+	askPass = ""
+
+[credential]
+	helper = "store"
+
+[branch]
+	autosetuprebase = always
+
+[push]
+	default = current
+
+[rebase]
+	autostash = true
+	autosquash = true
+
+[commit]
+	gpgsign = true
+
+[diff "gpg"]
+	binary = true
+	# textconv = gpg --no-tty --decrypt
+	textconv = gpg --decrypt --quiet --yes --compress-algo=none --no-encrypt-to --batch --use-agent
+
+[diff]
+    colorMoved = default
+
+[pager]
+	diff = delta
+	log = delta
+	reflog = delta
+	show = delta
+
+[interactive]
+    diffFilter = delta --color-only --features=interactive
+
+[alias]
+    cleanup = "!git branch --merged | grep  -v '\\*\\|master\\|develop' | xargs -n 1 -r git branch -d";
+    prettylog = "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(r) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative";
+    root = "rev-parse --show-toplevel";
+
+[delta]
+    features = decorations
+
+[delta "interactive"]
+    keep-plus-minus-markers = false
+
+[delta "decorations"]
+    commit-decoration-style = blue ol
+    commit-style = raw
+    file-style = omit
+    hunk-header-decoration-style = blue box
+    hunk-header-file-style = red
+    hunk-header-line-number-style = "#067a00"
+    hunk-header-style = file line-number syntax
+
+[user]
+	signingkey = 0xECEF8844ACFAA4D4
+	name = LamT
+	email = lamtt77@gmail.com
+	useConfigOnly = true
+
+[github]
+	user = lamtt77
+
+[safe]
+	directory = /Volumes/Lab/kernel/linux
+	directory = /Volumes/Lab/nix/nixpkgs

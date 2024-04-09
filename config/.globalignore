@@ -1,0 +1,10 @@
+.DS_Store
+tags
+auto-save-list
+__init__.py
+__pycache__
+macos-home/.config/nixpkgs/result
+macos-home/.config/karabiner/automatic_backups/*
+common-home/.vim/autoload/plug.vim.old
+common-home/.config/nvim/autoload/
+common-home/.config/.spacemacs.d/.spacemacs.env

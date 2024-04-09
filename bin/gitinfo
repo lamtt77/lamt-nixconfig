@@ -1,0 +1,11 @@
+#!/usr/bin/env nix-shell
+#! nix-shell -p nix-prefetch-git -i bash
+
+#1/usr/bin/env cached-nix-shell
+
+for repo in $@; do
+  if [[ "$repo" != https://* ]]; then
+    repo="https://github.com/$repo"
+  fi
+  nix-prefetch-git --quiet "$repo"
+done
