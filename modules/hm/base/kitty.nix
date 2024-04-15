@@ -5,12 +5,13 @@ let
   cfg = config.modules.hm.base.kitty;
 in {
   options.modules.hm.base.kitty = with types; {
-    enable = mkEnableOption "Kitty module";
+    enable = mkEnableOption "Kitty Terminal Emulator";
   };
 
   config = mkIf cfg.enable {
     programs.kitty = {
       enable = true;
+
       font = {
         name =
           if pkgs.stdenv.isDarwin

@@ -52,11 +52,11 @@
     lib = nixpkgs.lib.extend
       (final: prev: { my = import ./lib {inherit inputs pkgsall; lib = final;}; });
 
-    inherit (mydefs) username systems;
     inherit (lib) genAttrs attrValues;
     inherit (lib.my) mapModules mapModulesRec mkPkgs mkHome mkHost mkSystem;
 
-    forAllSystems = genAttrs systems;
+    username = mydefs.defaultUsername;
+    forAllSystems = genAttrs mydefs.systems;
     # we should run mkPkgs for nixpkgs and nixpkgs-unstable once and here only!
     pkgsall = forAllSystems (system: mkPkgs system nixpkgs (attrValues self.overlays));
     pkgsall-unstable = forAllSystems (system: mkPkgs system nixpkgs-unstable []);
@@ -139,6 +139,9 @@
       # currently Windows Arm for aarch64 only supports WSL v1,
       # while nixos-wsl requires WSL v2, so this may not be working well
       wsl-aarch64 = mkSystem {system = "aarch64-linux"; host = "wsl"; inherit username; wsl = true;};
+
+      # servers
+      avon = mkSystem {system = "x86_64-linux"; host = "avon"; username = "nixos"; server = true;};
     };
   };
 }

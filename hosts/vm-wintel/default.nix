@@ -1,6 +1,6 @@
 { config, lib, ... }: {
   imports = [
-    ./hardware/vm-wintel.nix
+    ./hardware-vm-wintel.nix
   ];
 
   # Use the GRUB 2 boot loader.

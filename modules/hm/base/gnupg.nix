@@ -15,6 +15,7 @@ in {
   options.modules.hm.base.gnupg = with types; {
     enable = mkEnableOption "GnuPG module";
     cacheTTL = mkOption { type = int; default = 3600; }; # 1h
+    gpg-agent.enable = mkEnableOption "";
   };
 
   config = mkIf cfg.enable {
@@ -45,7 +46,7 @@ in {
     };
 
     # this is for supporting darwin/cross platform
-    xdg.configFile = {
+    xdg.configFile = mkIf (cfg.gpg-agent.enable) {
       "gnupg/gpg-agent.conf" = {
         text = ''
           enable-ssh-support

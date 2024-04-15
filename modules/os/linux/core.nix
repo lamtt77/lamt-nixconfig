@@ -1,23 +1,11 @@
-{ pkgs, inputs, username, ... }:
+{ inputs, pkgs, username, ... }:
 
-let
-  inherit (inputs.self) mydefs;
-in {
+{
   # Be careful updating this.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  time.timeZone = "Australia/Sydney";
-
-  # NOTE Define a user account. Don't forget to set an initial password with ‘passwd’.
-  # OR this will have an empty password (locked-in status, only accept ssh key authorization)
-  # users.mutableUsers = false;
-  users.users.${username} = {
-    isNormalUser = true;
-    home = "/home/${username}";
-    extraGroups = [ "docker" "wheel" ]; # Enable ‘sudo’ for the user.
-    shell = pkgs.zsh;
-    openssh.authorizedKeys.keys = mydefs.ssh-authorizedKeys;
-  };
+  # Add ~/.local/bin to PATH
+  environment.localBinInPath = true;
 
   security = {
     sudo.wheelNeedsPassword = false;
@@ -34,24 +22,6 @@ in {
     chrony.enable = true;
     journald.extraConfig = "SystemMaxUse=250M";
   };
-
-  # https://github.com/nix-community/home-manager/pull/2408
-  environment.pathsToLink = [ "/share/fish" ];
-  # Add ~/.local/bin to PATH
-  environment.localBinInPath = true;
-
-  # Since we're using fish as our shell
-  # programs.fish.enable = true;
-  programs.zsh.enable = true;
-
-  # List packages installed in system profile. To search, run: $ nix search wget
-  environment.systemPackages = with pkgs; [
-    killall
-    niv
-    rxvt_unicode
-    xclip
-    cifs-utils
-  ];
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions

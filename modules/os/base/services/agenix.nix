@@ -29,7 +29,7 @@ in {
         then filterAttrs (n: _: hasPrefix hostname n) (
           mapAttrs' (n: _: nameValuePair (removeSuffix ".age" n) {
             file = "${secretsDir}/${n}";
-            owner = mkDefault "root";
+            owner = mkDefault username;
           }) (import secretsFile))
         else {};
       identityPaths =

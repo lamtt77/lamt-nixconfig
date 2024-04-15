@@ -28,7 +28,6 @@
       fi
     '';
 
-    # loginShell = pkgs.fish;
     pathsToLink = [ "/Applications" ];
   };
 

@@ -1,6 +1,6 @@
 { config, lib, ... }: {
   imports = [
-    ./hardware/vm-esxi.nix
+    ./hardware-vm-esxi.nix
   ];
 
   # Use the systemd-boot EFI boot loader.

@@ -3,10 +3,11 @@
   # nix-config home dir
   myRepoName = "lamt-nixos-config";
   hostip = "172.16.138.1";
+  timeZone = "Australia/Sydney";
 
   # globals
   stateVersion = "23.11";
-  username = "lamt";
+  defaultUsername = "lamt";
   systems = [ "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
 
   # gpg LamT default-key for signing

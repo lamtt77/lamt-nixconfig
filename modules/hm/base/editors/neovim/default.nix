@@ -2,7 +2,8 @@
 
 with lib;
 let
-  sources = inputs.self.nivsrc;
+  inherit (inputs) self;
+  sources = self.nivsrc;
   cfg = config.modules.hm.base.editors.neovim;
 in {
   options = with types; {
@@ -12,6 +13,13 @@ in {
   };
 
   config = mkIf cfg.enable {
+    xdg.configFile = {
+      "nvim/parser/proto.so".source = "${pkgs.tree-sitter-proto}/parser";
+      "nvim/queries/proto/folds.scm".source = "${sources.tree-sitter-proto}/queries/folds.scm";
+      "nvim/queries/proto/highlights.scm".source = "${sources.tree-sitter-proto}/queries/highlights.scm";
+      "nvim/queries/proto/textobjects.scm".source = "${self}/config/textobjects.scm";
+    };
+
     programs.neovim = {
       enable = true;
       package = pkgs.neovim-nightly;

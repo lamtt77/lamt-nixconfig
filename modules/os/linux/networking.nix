@@ -2,7 +2,7 @@
 
 {
   networking = {
-    firewall.enable = lib.mkDefault false;
+    firewall.enable = lib.mkDefault true;
     hostName = lib.mkDefault hostname;
     useDHCP = lib.mkDefault true;
   };
@@ -12,8 +12,6 @@
   services.openssh.settings.PasswordAuthentication = true;
   services.openssh.settings.PermitRootLogin = "yes";
 
-  # Enable tailscale. We manually authenticate when we want with
-  # "sudo tailscale up". If you don't use tailscale, you should comment
-  # out or delete all of this.
+  # Enable tailscale. We manually authenticate when we want with "sudo tailscale up"
   services.tailscale.enable = false;
 }

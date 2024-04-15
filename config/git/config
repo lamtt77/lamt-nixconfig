@@ -60,7 +60,7 @@
     hunk-header-style = file line-number syntax
 
 [user]
-	signingkey = 0xECEF8844ACFAA4D4
+	signingkey = 0xC968951468B463F1
 	name = LamT
 	email = lamtt77@gmail.com
 	useConfigOnly = true

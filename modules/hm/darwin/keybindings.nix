@@ -19,13 +19,13 @@
       # emacs/MacOS complained: NSKeyBindingManager: Bad key binding atom
       # "~\010" = "deleteWordBackward:";  /* Option-backspace */
       # "~\177" = "deleteWordBackward:";  /* Option-delete */
+      # "^/"    = "undo:";
+      # "^g"    = "_cancelKey:";
 
-      "^/"    = "undo:";
       "~/"    = "complete:";
       /* Escape should really be complete: */
       /* "\033" = "complete:";  Escape */
 
-      "^g"    = "_cancelKey:";
       "^a"    = "moveToBeginningOfLine:";
       "^e"    = "moveToEndOfLine:";
 

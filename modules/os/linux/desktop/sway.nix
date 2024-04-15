@@ -1,7 +1,9 @@
-{ config, lib, pkgs, username, isWSL, ... }:
+{ inputs, config, lib, pkgs, username, isWSL, ... }:
 
 with lib;
-let cfg = config.modules.os.linux.desktop.sway;
+let
+  inherit (inputs) self;
+  cfg = config.modules.os.linux.desktop.sway;
 in {
   options.modules.os.linux.desktop.sway = {
     enable = mkEnableOption "";
@@ -70,6 +72,11 @@ in {
     };
 
     home-manager.users.${username} = {
+      xdg.configFile = {
+        "sway".source = "${self}/config/_linux/sway";
+        # "sway/custom.conf".source = "${mkLink}/config/sway/custom.conf";
+      };
+
       wayland.windowManager.sway = {
         enable = true;
         wrapperFeatures.gtk = true;

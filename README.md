@@ -5,10 +5,11 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 
 ## TODO
 + Migrate to my own vim/nvim configuration stored in dotfiles, not-in-hurry as the existing nvim config is working fine
-+ agenix: add full secrets management
 + bootstrap: migrate Makefile/scripts to 'disko' and 'btrfs' with [optional] luks encrypted
 + homelab and backup: migrate my custom scripts to nix
-+ services: add gitea, wireguard, tailscale/headscale, nginx/caddy...
++ services: add tailscale/headscale, caddy...
++ github: build/workflows
++ security hardened
 + cloud: migrate my Digital Ocean hosting to nix
 + nixos-generators: iso/proxmox/esxi/docker images
 + impermanence support
@@ -24,6 +25,8 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 
 ## Quickstart: TODO
 + Comment out 'mysecrets' input in 'flake.nix' for non-secrets deployment
++ Boot with 'EFI' bios
++ Must ensure hardware-configuration fileSystems correct, best is to use /by-label/
 
 ### WSL
 * If starting as root, run the following to init:

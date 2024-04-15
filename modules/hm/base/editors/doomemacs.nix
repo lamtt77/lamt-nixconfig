@@ -11,8 +11,8 @@ with lib;
 let
   cfg = config.modules.hm.base.editors.doomemacs;
   inherit (inputs.self) mydefs;
-  outstorecfg = config.lib.file.mkOutOfStoreSymlink
-    config.home.homeDirectory + "/" + mydefs.myRepoName + "/config";
+  mkLink = config.lib.file.mkOutOfStoreSymlink
+    config.home.homeDirectory + "/" + mydefs.myRepoName;
 in {
   options = with types; {
     modules.hm.base.editors.doomemacs = {
@@ -81,7 +81,7 @@ in {
     # modules.shell.zsh.rcFiles = [ "${configDir}/emacs/aliases.zsh" ];
     # fonts.packages = [ pkgs.emacs-all-the-icons-fonts ];
 
-    xdg.configFile."doom".source = mkIf cfg.doom.enable "${outstorecfg}/doom";
+    xdg.configFile."doom".source = mkIf cfg.doom.enable "${mkLink}/config/doom";
 
     # alias from home-manager.users.${username}.activation
     # home.activation is used instead of system activationScripts which has different name

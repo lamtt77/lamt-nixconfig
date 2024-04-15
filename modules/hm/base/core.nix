@@ -13,8 +13,6 @@ in {
       ${pkgs.nvd}/bin/nvd diff $oldGenPath $newGenPath'';
   };
 
-  xdg.enable = true;
-
   # make cursor not tiny on hidpi screens
   home.pointerCursor = lib.mkIf (isLinux && !isWSL) {
     name = "Vanilla-DMZ";

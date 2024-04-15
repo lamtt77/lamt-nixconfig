@@ -28,6 +28,13 @@ in
       portalPackage = inputs.hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
     };
 
+    nix.settings = {
+      substituters = ["https://hyprland.cachix.org"];
+      trusted-public-keys = [
+        "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
+      ];
+    };
+
     programs = {
       dconf.enable = true;
       file-roller.enable = true;
@@ -88,6 +95,10 @@ in
     };
 
     home-manager.users.${username} = {
+      mkLink = config.lib.file.mkOutOfStoreSymlink
+        config.home.homeDirectory + "/" + inputs.self.mydefs.myRepoName;
+      xdg.configFile."hypr/custom.conf".source = "${mkLink}/config/hypr/custom.conf";
+
       wayland.windowManager.hyprland = {
         enable = true;
         xwayland.enable = true;

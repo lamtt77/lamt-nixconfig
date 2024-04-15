@@ -5,8 +5,8 @@ let
   hostip = mydefs.hostip;
 in {
   imports = [
-    ./hardware/vm-aarch64.nix
-    ../modules/_vmware-guest.nix
+    ./hardware-vm-aarch64.nix
+    ../../modules/_vmware-guest.nix
   ];
 
   # Setup qemu so we can run x86_64 binaries

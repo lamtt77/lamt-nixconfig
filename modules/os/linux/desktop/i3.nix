@@ -1,7 +1,9 @@
-{ config, lib, pkgs, username, ... }:
+{ inputs, config, lib, pkgs, username, ... }:
 
 with lib;
-let cfg = config.modules.os.linux.desktop.i3;
+let
+  inherit (inputs) self;
+  cfg = config.modules.os.linux.desktop.i3;
 in {
   options.modules.os.linux.desktop.i3 = {
     enable = mkEnableOption "";
@@ -37,6 +39,13 @@ in {
     };
 
     home-manager.users.${username} = {
+      xdg.configFile = {
+        "i3".source = "${self}/config/_linux/i3";
+        "rofi".source = "${self}/config/_linux/rofi";
+      };
+
+      home.packages = with pkgs; [ rofi ];
+
       programs.i3status = {
         enable = true;
 
