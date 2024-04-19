@@ -1,7 +1,7 @@
 # all 'parameterized' / hard-coded / constant values should be placing here
 {
-  # nix-config home dir
-  myRepoName = "lamt-nixos-config";
+  # nix config home dir
+  myRepoName = "lamt-nixconfig";
   hostip = "172.16.138.1";
   timeZone = "Australia/Sydney";
 

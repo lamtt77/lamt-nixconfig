@@ -14,11 +14,6 @@
   virtualisation.docker.enable = true;
   virtualisation.vmware.guest.enable = true;
 
-  networking.hostName = "dell-nixos-wintel";
-
-  # networking.interfaces.ens192.useDHCP = lib.mkDefault true;
-  networking.useDHCP = lib.mkDefault true;
-
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 
   services.xserver.enable = true;

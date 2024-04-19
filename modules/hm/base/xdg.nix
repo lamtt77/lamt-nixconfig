@@ -21,7 +21,9 @@ in {
     LANG = "en_US.UTF-8";
     LC_CTYPE = "en_US.UTF-8";
     LC_ALL = "en_US.UTF-8";
-    EDITOR = "nvim";
+    EDITOR = if config.modules.hm.base.editors.neovim.enable
+             then "nvim"
+             else "vim";
     PAGER = "less -FirSwX";
     # MANPAGER = "${manpager}/bin/manpager";
   };
@@ -30,7 +32,6 @@ in {
   home.file.".gdbinit".source = "${self}/config/.gdbinit";
 
   home.file.".inputrc".source = ../../../config/.inputrc;
-  home.file.".globalignore".source = ../../../config/.globalignore;
 
   xresources.extraConfig = builtins.readFile ../../../config/.Xresources;
 

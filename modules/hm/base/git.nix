@@ -9,5 +9,6 @@ in {
 
   config = mkIf cfg.enable {
     xdg.configFile."git".source = ../../../config/git;
+    home.file.".globalignore".source = ../../../config/.globalignore;
   };
 }

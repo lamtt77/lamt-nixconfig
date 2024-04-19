@@ -5,6 +5,8 @@
   modules.os.base.services.agenix.enable = true;
   modules.os.base.services.wireguard.enable = true;
 
+  modules.os.darwin.services.nfsd.enable = true;
+
   # # qemu builder
   # nix.linux-builder = {
   #   enable = true;

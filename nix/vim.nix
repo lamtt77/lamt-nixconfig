@@ -8,10 +8,10 @@ in
 {
   # My vim config
   customVim = with final; {
-    vim-copilot = vimUtils.buildVimPlugin {
-      name = "vim-copilot";
-      src = inputs.vim-copilot;
-    };
+    # vim-copilot = vimUtils.buildVimPlugin {
+    #   name = "vim-copilot";
+    #   src = inputs.vim-copilot;
+    # };
 
     vim-cue = vimUtils.buildVimPlugin {
       name = "vim-cue";

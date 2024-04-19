@@ -91,14 +91,13 @@ remote/copy:
 	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
 		--exclude='.git/' \
 		--exclude='result' \
-		--exclude='flake.lock' \
 		--rsync-path="sudo rsync" \
-		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):/nix-config
+		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):/nixconfig
 
 # run the nixos-rebuild switch command. This does NOT copy files so you have to run remote/copy before.
 remote/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-	sudo NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --flake \"/nix-config#${NIXNAME}\" \
+	sudo NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --flake \"/nixconfig#${NIXNAME}\" \
 	"
 
 # Build a WSL installer

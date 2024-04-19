@@ -12,6 +12,7 @@ let
   inherit (inputs) self;
   # is this combined home-manager mode?
   isCombinedHM = options ? home-manager;
+  myRepoName = self.mydefs.myRepoName;
 in {
   options = with types; {
     user = mkOpt attrs {};
@@ -20,7 +21,7 @@ in {
       dir = mkOpt path
         (removePrefix "/mnt"
           (findFirst pathExists (toString "${self}") [
-            "/mnt/lamt/lamt-nixos-config"
+            "/mnt/${username}/${myRepoName}"
           ]));
       binDir     = mkOpt path "${config.dotfiles.dir}/bin";
       configDir  = mkOpt path "${config.dotfiles.dir}/config";

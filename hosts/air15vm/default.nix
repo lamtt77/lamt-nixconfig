@@ -1,11 +1,11 @@
-{ inputs, pkgs, lib, username, ... }:
+{ inputs, pkgs, lib, config, hostname, username, ... }:
 
 let
   inherit (inputs.self) mydefs;
   hostip = mydefs.hostip;
 in {
   imports = [
-    ./hardware-vm-aarch64.nix
+    ./hardware-air15vm.nix
     ../../modules/_vmware-guest.nix
   ];
 
@@ -41,16 +41,12 @@ in {
 
   modules.os.base.services.agenix.enable = true;
 
+  modules.os.linux.services.openssh.enable = true;
+
   hardware.opengl.enable = true;
   modules.os.linux.desktop.i3.enable = true;
   # modules.os.linux.desktop.sway.enable = true;
   # modules.os.linux.desktop.hyprland.enable = true;
-
-  networking.hostName = "air15-nixos";
-
-  # Interface is this on M1
-  # networking.interfaces.ens160.useDHCP = true;
-  networking.useDHCP = lib.mkDefault true;
 
   environment.systemPackages = with pkgs; [
     (writeShellScriptBin "xrandr-auto" ''
@@ -81,17 +77,25 @@ in {
   #   ];
   # };
 
-  # smb: not-in-used
-  # fileSystems."/mnt/share" = {
-  #   device = "//${hostip}/${user}";
+  # # smb share
+  # fileSystems."/mnt/${username}" = let
+  #   credentials = config.age.secrets."${hostname}_smb-secrets".path;
+  # in {
+  #   device = "//${hostip}/${username}";
   #   fsType = "cifs";
-  #   options = ["credentials=/etc/nixos/smb-secrets,uid=501,gid=100"];
+  #   # https://www.freedesktop.org/software/systemd/man/latest/systemd.mount.html
+  #   options = [
+  #     "nofail,_netdev"
+  #     # "uid=1000,gid=100,dir_mode=0755,file_mode=0755"
+  #     "uid=1000,gid=100"
+  #     "vers=3.0,credentials=${credentials}"
+  #   ];
   # };
 
   # use nfsd instead of vmware hgfs for much less CPU usage, thus increase 10x performnace for big directories
   # host must turn on nfsd daemon
   fileSystems."/mnt/${username}" = {
-    device = "${hostip}:/Users/${username}";
+    device = "${hostip}:/Users/${username}/lab";
     fsType = "nfs";
     options = [
       "vers=3"

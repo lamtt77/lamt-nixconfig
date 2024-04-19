@@ -16,7 +16,7 @@ in {
 
   modules.hm.base.pass.enable = true;
   modules.hm.base.gnupg.enable = true;
-  modules.hm.base.gnupg.gpg-agent.enable = true;
+  modules.hm.base.gnupg.enableSSHSupport = true;
 
 
   modules.hm.base.editors.doomemacs.enable = true;
@@ -32,6 +32,7 @@ in {
     home-manager
     niv
     cachix
+    killall
 
     asciinema
     bat
@@ -47,15 +48,12 @@ in {
     tree
     watch
 
-    tree-sitter                 # only needed for nvim :TSInstallFromGrammar
-
     ansible
     delta # for highlight git
     eza # Better ls
 
-    gopls
-
-    nodejs # required for Copilot.vim
+    tree-sitter                 # only needed for nvim :TSInstallFromGrammar
+    nodejs
     zigpkgs.master
     python3
     ruby
@@ -75,16 +73,28 @@ in {
     diffutils
     findutils
 
-    gnugrep # doom-emacs vertico, support for PCRE lookaheads
-    gnupg
-    pinentry_mac
     pngpaste
-    tailscale # this is automatically setup on Linux
+  ]) ++ (lib.optionals (isLinux) [
+    xclip # required for neovim
   ]) ++ (lib.optionals (isLinux && !isWSL) [
     chromium
     firefox
     valgrind
     xfce.xfce4-terminal
     zathura
+
+    bfg-repo-cleaner # remove large files from git history
+    gopls
+
+    # aws
+    awscli2
+    ssm-session-manager-plugin # Amazon SSM Session Manager Plugin
+    aws-iam-authenticator
+    eksctl
+
+    # cloud tools that nix do not have cache for.
+    terraform
+    terraformer # generate terraform configs from existing cloud resources
+    packer # machine image builder
   ]);
 }

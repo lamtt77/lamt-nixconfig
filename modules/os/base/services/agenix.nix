@@ -24,8 +24,9 @@ in {
       home = config.users.users.${username}.home;
     in {
       secrets =
+        # just load the age files belonging to this specific hostname,
+        # else it can't decrypt!
         if pathExists secretsFile
-          # just load the age files belonging to this specific hostname, else it can't decrypt!
         then filterAttrs (n: _: hasPrefix hostname n) (
           mapAttrs' (n: _: nameValuePair (removeSuffix ".age" n) {
             file = "${secretsDir}/${n}";

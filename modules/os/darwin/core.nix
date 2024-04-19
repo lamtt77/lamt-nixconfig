@@ -10,6 +10,10 @@
   # this may requires nix-channel
   programs.nix-index.enable = true;
 
+  # Store management, currently, only nix-darwin supports interval attrs
+  nix.gc.interval.Hour = 3;
+  nix.optimise.interval.Hour = 4;
+
   environment = {
     extraInit = ''
       # install homebrew if not found

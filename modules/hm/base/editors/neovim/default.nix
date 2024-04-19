@@ -28,7 +28,7 @@ in {
       extraConfig = (import ./_vim-config.nix) {inherit sources;};
 
       plugins = with pkgs; [
-        customVim.vim-copilot
+        # customVim.vim-copilot
         customVim.vim-cue
         customVim.vim-fish
         customVim.vim-fugitive
@@ -44,6 +44,7 @@ in {
         customVim.nvim-comment
         customVim.nvim-conform
         customVim.nvim-lspconfig
+        customVim.nvim-magma
         customVim.nvim-plenary # required for telescope
         customVim.nvim-telescope
         customVim.nvim-treesitter

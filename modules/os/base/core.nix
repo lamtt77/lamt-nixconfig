@@ -6,6 +6,8 @@ in
   inputs.self.libx.mkUser { inherit username pkgs; darwin = pkgs.stdenv.isDarwin; } // {
 
   time.timeZone = inputs.self.mydefs.timeZone;
+  # systemd.services.systemd-timesyncd.wantedBy = [ "multi-user.target" ];
+  # systemd.timers.systemd-timesyncd = { timerConfig.OnCalendar = "hourly"; };
 
   nix = {
     package = pkgs.unstable.nixUnstable;
@@ -21,10 +23,10 @@ in
       flake-registry = ${inputs.flake-registry}/flake-registry.json
     '';
 
-    gc = {
-      automatic = true;
-      options = "--delete-older-than 15d";
-    };
+    # Store management
+    gc.automatic = true;
+    gc.options = "--delete-older-than 15d";
+    optimise.automatic = true;
 
     settings = {
       max-jobs = 8;
@@ -34,7 +36,6 @@ in
       allowed-users = users;
 
       use-xdg-base-directories = true;
-      auto-optimise-store = true;
 
       substituters = ["https://nix-community.cachix.org"];
       trusted-public-keys = [

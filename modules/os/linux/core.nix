@@ -7,6 +7,8 @@
   # Add ~/.local/bin to PATH
   environment.localBinInPath = true;
 
+  i18n.defaultLocale = "en_US.UTF-8";
+
   security = {
     sudo.wheelNeedsPassword = false;
     polkit.enable = true;

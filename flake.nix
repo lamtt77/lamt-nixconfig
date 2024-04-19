@@ -22,7 +22,6 @@
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # hyprland.url = "github:hyprwm/Hyprland/v0.34.0";
     hyprland.url = "github:hyprwm/Hyprland";
 
     emacs-overlay.url = "github:nix-community/emacs-overlay";
@@ -36,6 +35,7 @@
     zig.inputs.nixpkgs.follows = "nixpkgs-unstable";
 
     # LamT secrets stuff, remove this for building without secrets / agenix module
+    # OR sudo nixos-rebuild switch --override-input mysecrets "" --flake '.#gaming'
     mysecrets.url = "git+ssh://git@tea.lamhub.com/lamtt77/lamt-secrets.git";
     mysecrets.flake = false;
 
@@ -43,8 +43,6 @@
     nvim-conform.flake = false;
     nvim-treesitter.url = "github:nvim-treesitter/nvim-treesitter/v0.9.1";
     nvim-treesitter.flake = false;
-    vim-copilot.url = "github:github/copilot.vim/v1.11.1";
-    vim-copilot.flake = false;
   };
 
   outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, darwin, hyprland, ... }@inputs: let
@@ -92,8 +90,8 @@
       customVim = (import ./nix/vim.nix {inherit inputs;});
     };
 
-    # formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixpkgs-fmt);
-    formatter = forAllSystems (system: pkgsall.${system}.nixpkgs-fmt);
+    # formatter = forAllSystems (system: pkgsall.${system}.nixpkgs-fmt);
+    formatter = forAllSystems (system: pkgsall.${system}.nixfmt-rfc-style);
 
     # Accessible through 'nix develop' or 'nix-shell' (legacy)
     devShells = forAllSystems (system: {
@@ -130,7 +128,7 @@
 
     # nix build .#nixosConfigurations.macair15-m2.config.system.build.toplevel
     nixosConfigurations = {
-      vm-aarch64 = mkSystem {system = "aarch64-linux"; host = "vm-aarch64"; inherit username;};
+      air15vm = mkSystem {system = "aarch64-linux"; host = "air15vm"; inherit username;};
       vm-esxi = mkSystem {system = "x86_64-linux"; host = "vm-esxi"; inherit username;};
       vm-wintel = mkSystem {system = "x86_64-linux"; host = "vm-wintel"; inherit username;};
 
@@ -142,6 +140,9 @@
 
       # servers
       avon = mkSystem {system = "x86_64-linux"; host = "avon"; username = "nixos"; server = true;};
+
+      # game stuffs
+      gaming = mkSystem {system = "x86_64-linux"; host = "gaming"; username = "vivi"; server = true;};
     };
   };
 }

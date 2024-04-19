@@ -7,7 +7,7 @@ with lib.my;
       # not needed anymore after the introduction of pkgsall!
       # { nixpkgs.overlays = builtins.attrValues inputs.self.overlays; }
 
-      ../home/users/${username}
+      ../profiles/${username}
     ] ++ (mapModulesRec' ../modules/hm/base import)
     ++ lib.optionals (darwin) (mapModulesRec' ../modules/hm/darwin import)
     ++ lib.optionals (!darwin) (mapModulesRec' ../modules/hm/linux import);
@@ -55,12 +55,16 @@ with lib.my;
       })
 
       (mkIf (!darwin) {
-        # NOTE Define a user account. Don't forget to set an initial password with ‘passwd’.
-        # OR this will have an empty password (locked-in status, only accept ssh key authorization)
+        # NOTE this will have no password (locked-in, only accept ssh key authorization)
+        # uncomment if you want to declaritively set password, follow these steps:
+        #   1. mkpasswd -m sha-512 --salt "Anything"
+        #   2. hashedPassword = the newly created password
         # users.mutableUsers = false;
+
         users.${username} = {
           isNormalUser = true;
           home = "/home/${username}";
+          # TODO move "docker" setting to its module
           extraGroups = [ "docker" "wheel" ]; # Enable ‘sudo’ for the user.
           openssh.authorizedKeys.keys = mydefs.ssh-authorizedKeys;
         } // lib.optionalAttrs (isDefaultUser) {

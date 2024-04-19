@@ -1,4 +1,4 @@
-{ username, ... }:
+{ ... }:
 
 {
   hardware.opengl.enable = true;

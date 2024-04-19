@@ -69,5 +69,5 @@
 	user = lamtt77
 
 [safe]
-	directory = /Volumes/Lab/kernel/linux
-	directory = /Volumes/Lab/nix/nixpkgs
+	# only enable when needed
+	# directory = *

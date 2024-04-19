@@ -44,7 +44,10 @@ in {
         "rofi".source = "${self}/config/_linux/rofi";
       };
 
-      home.packages = with pkgs; [ rofi ];
+      home.packages = with pkgs; [
+        rofi
+        # xss-lock                # for screen-saver
+      ];
 
       programs.i3status = {
         enable = true;

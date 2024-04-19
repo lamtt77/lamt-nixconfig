@@ -7,6 +7,7 @@
   modules.hm.base.gnupg.enable = true;
 
   programs.fzf.enable = true;
+
   home.packages = with pkgs; [
     htop
     ranger highlight

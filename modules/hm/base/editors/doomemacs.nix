@@ -9,6 +9,7 @@
 
 with lib;
 let
+  isDarwin = pkgs.stdenv.isDarwin;
   cfg = config.modules.hm.base.editors.doomemacs;
   inherit (inputs.self) mydefs;
   mkLink = config.lib.file.mkOutOfStoreSymlink
@@ -73,10 +74,12 @@ in {
       ctags
       nil
       # nixd
-    ] ++ (lib.optionals (!isWSL) [
+    ] ++ lib.optionals (!isDarwin) [
+      gnugrep # doom-emacs vertico, support for PCRE lookaheads
+    ] ++ lib.optionals (!isWSL) [
       # :lang latex & :lang org (latex previews)
       texlive.combined.scheme-medium
-    ]);
+    ];
 
     # modules.shell.zsh.rcFiles = [ "${configDir}/emacs/aliases.zsh" ];
     # fonts.packages = [ pkgs.emacs-all-the-icons-fonts ];

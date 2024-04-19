@@ -6,6 +6,7 @@
 
   modules.os.base.services.agenix.enable = true;
 
+  modules.os.linux.services.openssh.enable = true;
   modules.os.linux.services.fail2ban.enable = true;
   modules.os.linux.services.nginx.enable = true;
   modules.os.linux.services.gitea.enable = true;
@@ -20,11 +21,6 @@
 
   virtualisation.docker.enable = true;
   virtualisation.vmware.guest.enable = true;
-
-  networking.hostName = "avon";
-
-  # networking.interfaces.ens192.useDHCP = lib.mkDefault true;
-  networking.useDHCP = lib.mkDefault true;
 
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
