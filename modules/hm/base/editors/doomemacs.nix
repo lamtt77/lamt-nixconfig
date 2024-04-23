@@ -37,7 +37,7 @@ in {
       ## Emacs itself
       binutils       # native-comp needs 'as', provided by this
       # 29.3 + native-comp
-      ((emacsPackagesFor emacs-unstable).emacsWithPackages
+      ((emacsPackagesFor emacs29).emacsWithPackages
         (epkgs: [ epkgs.vterm epkgs.pdf-tools ] ))
       # this required emacs-overlay, pureGTK is suitable for wayland-only environment
       # ((emacsPackagesFor emacsPgtkNativeComp).emacsWithPackages

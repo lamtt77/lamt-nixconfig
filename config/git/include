@@ -1,0 +1,21 @@
+[core]
+	excludesfile = ~/.globalignore
+	# needs to be empty to use terminal for ask pass
+	askPass = ""
+
+[diff "gpg"]
+	binary = true
+	# textconv = gpg --no-tty --decrypt
+	textconv = gpg --decrypt --quiet --yes --compress-algo=none --no-encrypt-to --batch --use-agent
+
+[diff]
+    colorMoved = default
+
+[alias]
+    cleanup = "!git branch --merged | grep  -v '\\*\\|master\\|develop' | xargs -n 1 -r git branch -d";
+    prettylog = "log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(r) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative";
+    root = "rev-parse --show-toplevel";
+
+[safe]
+	# only enable when needed
+	# directory = *

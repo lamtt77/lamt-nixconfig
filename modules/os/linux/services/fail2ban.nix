@@ -17,11 +17,12 @@ in {
         maxtime = "168h";
         factor = "4";
       };
-      # jails.DEFAULT = ''
-      #   blocktype = DROP
-      #   bantime = 1h
-      #   findtime = 1h
-      # '';
+      jails.gitea = ''
+        enabled = true
+        filter = gitea
+        banaction = %(banaction_allports)s
+        maxretry = 5
+      '';
     };
 
     # Extra filters
@@ -33,5 +34,8 @@ in {
         journalmatch = _SYSTEMD_UNIT=gitea.service
       '';
     };
+
+    # Limit stack size to reduce memory usage
+    systemd.services.fail2ban.serviceConfig.LimitSTACK = 256 * 1024;
   };
 }

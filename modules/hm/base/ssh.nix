@@ -1,12 +1,13 @@
 # this may not work if we use gpg-agent as the default
 
-{ ... }:
+{ config, lib, ... }:
 
+with lib;
 {
-  programs.ssh = {
-    enable = true;
+  config = mkIf config.programs.ssh.enable {
 
-    extraConfig = ''
+    programs.ssh = {
+      extraConfig = ''
       # a private key used during authentication will be added to the running ssh-agent
       # AddKeysToAgent yes
 
@@ -33,5 +34,7 @@
         User stack
         ForwardAgent yes
     '';
+    };
+
   };
 }

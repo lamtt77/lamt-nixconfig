@@ -142,16 +142,16 @@ in
   };
 
   tree-sitter-proto = final.callPackage
-    (sources.nixpkgs + /pkgs/development/tools/parsing/tree-sitter/grammar.nix) { } {
+    (inputs.nixpkgs + /pkgs/development/tools/parsing/tree-sitter/grammar.nix) { } {
     language = "proto";
     version  = "0.1.0";
-    source   = sources.tree-sitter-proto;
+    src      = sources.tree-sitter-proto;
   };
 
   tree-sitter-hcl = final.callPackage
-    (sources.nixpkgs + /pkgs/development/tools/parsing/tree-sitter/grammar.nix) { } {
+    (inputs.nixpkgs + /pkgs/development/tools/parsing/tree-sitter/grammar.nix) { } {
     language = "hcl";
     version  = "0.1.0";
-    source   = sources.tree-sitter-hcl;
+    src      = sources.tree-sitter-hcl;
   };
 }

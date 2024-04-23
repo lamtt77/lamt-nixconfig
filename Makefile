@@ -68,11 +68,12 @@ users.users.root.initialPassword = \"root\";\n \
 # after bootstrap0, run this to finalize. After this, do everything else
 # in the Remote Machine unless secrets change.
 remote/bootstrap:
-	NIXUSER=root $(MAKE) remote/copy
+	NIXUSER=root $(MAKE) remote/sudocopy
 	NIXUSER=root $(MAKE) remote/switch
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
 	sudo reboot; \
 	"
+
 # copy our secrets into the Remote Machine
 remote/secrets:
 	# GPG keyring
@@ -87,17 +88,25 @@ remote/secrets:
 		$(HOME)/.ssh/ $(NIXUSER)@$(NIXADDR):~/.ssh
 
 # copy the Nix configurations into the Remote Machine.
-remote/copy:
+remote/sudocopy:
 	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
 		--exclude='.git/' \
 		--exclude='result' \
 		--rsync-path="sudo rsync" \
+        --delete \
 		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):/nixconfig
+
+remote/copy:
+	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
+		--exclude='.git/' \
+		--exclude='result' \
+        --delete \
+		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):~/lamt-nixconfig
 
 # run the nixos-rebuild switch command. This does NOT copy files so you have to run remote/copy before.
 remote/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-	sudo NIXPKGS_ALLOW_UNSUPPORTED_SYSTEM=1 nixos-rebuild switch --flake \"/nixconfig#${NIXNAME}\" \
+	sudo nixos-rebuild switch --flake \"/nixconfig#${NIXNAME}\" \
 	"
 
 # Build a WSL installer

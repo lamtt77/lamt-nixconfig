@@ -5,7 +5,7 @@ let
   cfg = config.modules.hm.base.bash;
 in {
   options.modules.hm.base.bash = with types; {
-    enable = mkEnableOption "Bash shell";
+    enable = mkEnableOption "Bash Shell";
   };
 
   config = mkIf cfg.enable {
@@ -13,7 +13,6 @@ in {
       enable = true;
       shellOptions = [];
       historyControl = [ "ignoredups" "ignorespace" ];
-      initExtra = builtins.readFile ../../../config/.bashrc;
 
       shellAliases = {
         ga = "git add";

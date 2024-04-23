@@ -33,11 +33,14 @@ in {
     niv
     cachix
     killall
+    unzip
+
+    # simple tool for making locally-trusted development certificates
+    mkcert
 
     asciinema
     bat
     fd
-    gh
     htop
     jq
     nvd
@@ -49,8 +52,9 @@ in {
     watch
 
     ansible
-    delta # for highlight git
+
     eza # Better ls
+    neofetch
 
     tree-sitter                 # only needed for nvim :TSInstallFromGrammar
     nodejs

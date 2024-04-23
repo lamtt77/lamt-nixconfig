@@ -1,17 +1,19 @@
 # troubleshooting issues: such as no pinentry
 # pkill gpg-agent OR killall gpg-agent
 # gpg-agent --daemon
+#
+# feature: work on both Linux and MacOS, unlike the stock home-manager
 
 { inputs, config, lib, pkgs, ... }:
 
 with lib;
 let
   inherit (inputs) self;
-  inherit (self.mydefs) gpg-default-key gpg-sshKeys;
+  inherit (self.mydefs) gpg-defaultKey gpg-sshKeygrip;
   cfg = config.modules.hm.base.gnupg;
   pinentry-program = if pkgs.stdenv.isDarwin
                      then "${pkgs.unstable.pinentry_mac}/Applications/pinentry-mac.app/Contents/MacOS/pinentry-mac"
-                     else "${pkgs.unstable.pinentry-tty}/bin/pinentry";
+                     else "${pkgs.unstable.pinentry-curses}/bin/pinentry";
 in {
   options.modules.hm.base.gnupg = with types; {
     enable = mkEnableOption "GnuPG module";
@@ -20,20 +22,20 @@ in {
   };
 
   config = mkIf cfg.enable {
+    home.sessionVariables = {
+      SSH_AUTH_SOCK = "$(gpgconf --list-dirs agent-ssh-socket)";
+    };
+
     programs = let
       fixGpg = ''
-        export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
         gpgconf --launch gpg-agent
-      '';
-      fixGpgFish = ''
-        set -gx SSH_AUTH_SOCK $(gpgconf --list-dirs agent-ssh-socket)
-        gpgconf --launch gpg-agent
+        gpg-connect-agent updatestartuptty /bye >/dev/null
       '';
     in {
       # Start gpg-agent if it's not running or tunneled in
       bash.profileExtra = fixGpg;
       zsh.initExtra = fixGpg;
-      fish.shellInit = fixGpgFish;
+      fish.shellInit = fixGpg;
 
       gpg = {
         enable = true;
@@ -53,7 +55,7 @@ in {
           }
         ];
         settings = {
-          default-key = gpg-default-key;
+          default-key = gpg-defaultKey;
         };
       };
     };
@@ -70,7 +72,7 @@ in {
 
       "gnupg/sshcontrol" = {
         text = ''
-          ${gpg-sshKeys}
+          ${gpg-sshKeygrip}
       '';
       };
     };

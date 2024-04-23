@@ -10,7 +10,8 @@ with lib.my;
       ../profiles/${username}
     ] ++ (mapModulesRec' ../modules/hm/base import)
     ++ lib.optionals (darwin) (mapModulesRec' ../modules/hm/darwin import)
-    ++ lib.optionals (!darwin) (mapModulesRec' ../modules/hm/linux import);
+    ++ lib.optionals (!darwin) (mapModulesRec' ../modules/hm/linux import)
+    ++ lib.optionals (wsl) (mapModulesRec' ../modules/hm/wsl import);
   };
 
   nixos-modules = { system, host, darwin, wsl, server }: [

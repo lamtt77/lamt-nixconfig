@@ -13,6 +13,14 @@ in {
       ${pkgs.nvd}/bin/nvd diff $oldGenPath $newGenPath'';
   };
 
+  # bare minimum pacpages
+  home.packages = with pkgs; [
+    git
+    gnumake
+    vim
+    wget
+  ];
+
   # make cursor not tiny on hidpi screens
   home.pointerCursor = lib.mkIf (isLinux && !isWSL) {
     name = "Vanilla-DMZ";

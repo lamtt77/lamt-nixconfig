@@ -28,21 +28,19 @@ in {
     # MANPAGER = "${manpager}/bin/manpager";
   };
 
-  # just to demo the usage of inputs.self, can't use vim->gf to go to the file directly with this'
   home.file.".gdbinit".source = "${self}/config/.gdbinit";
+  home.file.".inputrc".source = "${self}/config/.inputrc";
 
-  home.file.".inputrc".source = ../../../config/.inputrc;
-
-  xresources.extraConfig = builtins.readFile ../../../config/.Xresources;
+  xresources.extraConfig = builtins.readFile "${self}/config/.Xresources";
 
   xdg.configFile = {
     "lf".source = "${mkLink}/config/lf";
     "ranger".source = "${mkLink}/config/ranger";
   } // lib.optionalAttrs isDarwin {
-    "karabiner".source = ../../../config/karabiner;
+    "karabiner".source = "${self}/config/karabiner";
     # Rectangle.app. This has to be imported manually using the app itself.
-    "rectangle".source = ../../../config/_darwin/rectangle;
+    "rectangle".source = "${self}/config/_darwin/rectangle";
   } // lib.optionalAttrs isLinux {
-    "ghostty".source = ../../../config/_linux/ghostty;
+    "ghostty".source = "${self}/config/_linux/ghostty";
   };
 }

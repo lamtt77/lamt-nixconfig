@@ -107,7 +107,9 @@
        ;;taskrunner        ; taskrunner for all your projects
        terraform         ; infrastructure as code
        ;;tmux              ; an API for interacting with tmux
-       tree-sitter       ; syntax and parsing, sitting in a tree...
+       ;; FIXME tsc-dyn.so: cannot open shared object file: No such file or directory
+       ;; see:  https://github.com/emacs-tree-sitter/elisp-tree-sitter/issues/268
+       (:if IS-MAC tree-sitter)       ; syntax and parsing, sitting in a tree...
        ;;upload            ; map local to remote projects via ssh/ftp
 
        :os

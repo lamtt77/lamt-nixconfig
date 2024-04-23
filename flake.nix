@@ -83,7 +83,9 @@
 
       agenix = inputs.agenix.overlays.default;
 
-      emacs = inputs.emacs-overlay.overlay;
+      # use prebuilt emacs to reduce my built-time
+      # emacs = inputs.emacs-overlay.overlay;
+
       neovim = inputs.neovim-nightly-overlay.overlay;
       zig = inputs.zig.overlays.default;
 
