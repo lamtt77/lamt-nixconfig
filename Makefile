@@ -38,8 +38,8 @@ endif
 #
 # Format and setup a brand new Remote Host. One-time/liner installation from github :)
 # NixOS Minimum ISO required to be on the CD drive.
-#
-# Set your own password for the root user before running this for ssh connectivity.
+# Set a temp password for the root user before bootstrap for ssh connectivity,
+# the password is only valid during installation session.
 #
 # Remove 'ssh-keyscan' if you do not want/have secrets deployment, it's OK to keep as-is
 # Forwarding ssh-agent '-A' is only required for my secrets private repo deployment,
@@ -61,7 +61,7 @@ remote/bootstrap:
 		mount /dev/disk/by-label/boot /mnt/boot; \
 		nixos-generate-config --root /mnt; \
 		mkdir -p /root/.ssh && ssh-keyscan -H tea.lamhub.com > /root/.ssh/known_hosts; \
-        nix-shell -p git --command \"nixos-install --no-root-passwd \
+        nix-shell -p gitMinimal --command \"nixos-install --no-root-passwd \
 		  --flake github:lamtt77/lamt-nixconfig#${NIXHOST}\" && reboot; \
 	"
 
