@@ -13,5 +13,5 @@
       fsType = "ext4";
     };
 
-  swapDevices = [ ];
+  swapDevices = [];
 }

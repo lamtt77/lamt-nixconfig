@@ -2,7 +2,7 @@
 
 let
   inherit (inputs.self) mydefs;
-  hosturl = mydefs.hosturl;
+  hostURL = mydefs.hostURL;
 in {
   imports = [
     ./hardware-air15vm.nix
@@ -81,7 +81,7 @@ in {
   # fileSystems."/mnt/${username}" = let
   #   credentials = config.age.secrets."${hostname}_smb-secrets".path;
   # in {
-  #   device = "//${hosturl}/${username}";
+  #   device = "//${hostURL}/${username}";
   #   fsType = "cifs";
   #   # https://www.freedesktop.org/software/systemd/man/latest/systemd.mount.html
   #   options = [
@@ -95,7 +95,7 @@ in {
   # use nfsd instead of vmware hgfs for much less CPU usage, thus increase 10x performnace for big directories
   # host must turn on nfsd daemon
   fileSystems."/mnt/${username}" = {
-    device = "${hosturl}:/Users/${username}/lab";
+    device = "${hostURL}:/Users/${username}/lab";
     fsType = "nfs";
     options = [
       "vers=3"

@@ -23,10 +23,46 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 + Remote & Cross Platforms Deployment (TODO)
 + Secrets Management
 
-## Quickstart: TODO
-+ Comment out 'mysecrets' input in 'flake.nix' for non-secrets deployment
-+ Boot with 'EFI' bios
+## Quickstart:
++ Boot with 'EFI' Bios, use NixOS Minimal ISO Boot CD
 + Must ensure hardware-configuration fileSystems correct, best is to use /by-label/
+
+### Non-secrets Host Deployment
++ Method 1: Directly from github: TODO will be ready after migrated to 'disko'
+```
+$ sudo su
+$ passwd <set-temporary-root-psw>
+$ nix-shell -p git --command "nixos-install --no-root-passwd --flake github:lamtt77/lamt-nixconfig#gaming"
+$ reboot
+```
++ Method 2: Locally: from the target host:
+```
+$ sudo su
+$ passwd <set-temporary-root-psw>
+$ ip addr -> note the IP address of this host, example: 192.168.1.100
+```
+From the main deployment machine:
+```
+$ git clone https://github.com/lamtt77/lamt-nixconfig && cd lamt-nixconfig
+$ NIXADDR=192.168.1.100 NIXHOST=gaming NIXUSER=vivi make remote/bootstrap
+```
+
+### Secrets Host Deployment: TODO improve to a more automatic way
++ Follow non-secrets host deployment above, and have some extra-steps:
+From the main deployment machine: go to 'lamt-secrets' repo:
+```
+$ ssh-keyscan -H 192.168.1.101 -> note the ssh-ed25519 pubkey
+Change 'lamt-secrets/agenix/secrets.nix' to add that ssh-ed25519 pubkey, then rekey:
+$ agenix -r
+Commit & push 'lamt-secrets'
+```
+Go back to 'lamt-nixconfig' repo:
+```
+$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos make remote/copy
+$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos make remote/switch/secrets
+Note: from 2nd switch onwards, if secrets not changed, use:
+$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos make remote/switch
+```
 
 ### WSL
 * If starting as root, run the following to init:

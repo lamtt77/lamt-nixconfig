@@ -432,11 +432,11 @@
     "mysecrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1713840989,
-        "narHash": "sha256-NcLTP/S3QFqyNXdUvCFqr7dLY5exYaEkIA7ve0Kbm6U=",
+        "lastModified": 1714028946,
+        "narHash": "sha256-1d/2K1GTyMXqVBCUI3iFKaYFytrFZYlTZD5uxMI7vqM=",
         "ref": "refs/heads/main",
-        "rev": "017bfcc6148e0b7a0830e1fb1a89ee294cf5895a",
-        "revCount": 19,
+        "rev": "6ef94196901be9757dba1d91557d654fbcff2502",
+        "revCount": 22,
         "type": "git",
         "url": "ssh://git@tea.lamhub.com/lamtt77/lamt-secrets.git"
       },

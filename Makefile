@@ -2,12 +2,12 @@
 NIXADDR ?= unset
 NIXPORT ?= 22
 NIXUSER ?= lamt
+# The hostname of the nixosConfiguration in the flake
+NIXHOST ?= avon
+SWAPSIZE ?= 4GB
 
-# Get the path to this Makefile and directory
-MAKEFILE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-
-# The name of the nixosConfiguration in the flake
-NIXNAME ?= macair15-m2
+# Get the path to this Makefile and Flake directory
+FLAKE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 SSH_OPTIONS=-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
 
@@ -16,32 +16,39 @@ UNAME := $(shell uname)
 
 switch:
 ifeq ($(UNAME), Darwin)
-	nix build --extra-experimental-features "nix-command flakes" ".#darwinConfigurations.${NIXNAME}.system"
-	./result/sw/bin/darwin-rebuild switch --flake "$$(pwd)#${NIXNAME}"
+	nix build --extra-experimental-features "nix-command flakes" ".#darwinConfigurations.${NIXHOST}.system"
+	./result/sw/bin/darwin-rebuild switch --flake "$$(pwd)#${NIXHOST}"
 else
-	sudo nixos-rebuild switch --flake ".#${NIXNAME}"
+	sudo nixos-rebuild switch --flake ".#${NIXHOST}"
 endif
 
 # should only run with home-manager standalone config
 switch/hm:
-	home-manager switch --flake ".#${NIXUSER}_${NIXNAME}"
+	home-manager switch --flake ".#${NIXUSER}_${NIXHOST}"
 
 test:
 ifeq ($(UNAME), Darwin)
-	nix build ".#darwinConfigurations.${NIXNAME}.system"
-	./result/sw/bin/darwin-rebuild check --flake "$$(pwd)#${NIXNAME}"
+	nix build ".#darwinConfigurations.${NIXHOST}.system"
+	./result/sw/bin/darwin-rebuild check --flake "$$(pwd)#${NIXHOST}"
 else
-	sudo nixos-rebuild test --flake ".#$(NIXNAME)"
+	sudo nixos-rebuild test --flake ".#$(NIXHOST)"
 endif
 
-# bootstrap a brand new Remote Machine. The one should have NixOS ISO on the CD drive
-# and just set the password of the root user to "root". This will install
-# NixOS. After installing NixOS, you must reboot and set the root password for the next step.
-remote/bootstrap0:
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
+# This will ERASE all data of the REMOTE machine's hard disk! Use at your OWN RISK!!!
+#
+# Format and setup a brand new Remote Host. One-time/liner installation from github :)
+# NixOS Minimum ISO required to be on the CD drive.
+#
+# Set your own password for the root user before running this for ssh connectivity.
+#
+# Remove 'ssh-keyscan' if you do not want/have secrets deployment, it's OK to keep as-is
+# Forwarding ssh-agent '-A' is only required for my secrets private repo deployment,
+# this deployment machine should already have the private-key installed.
+remote/bootstrap:
+	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
 		parted /dev/sda -- mklabel gpt; \
-		parted /dev/sda -- mkpart primary 512MB -8GB; \
-		parted /dev/sda -- mkpart primary linux-swap -8GB 100\%; \
+		parted /dev/sda -- mkpart primary 512MB -${SWAPSIZE}; \
+		parted /dev/sda -- mkpart primary linux-swap -${SWAPSIZE} 100\%; \
 		parted /dev/sda -- mkpart ESP fat32 1MB 512MB; \
 		parted /dev/sda -- set 3 esp on; \
 		sleep 1; \
@@ -53,60 +60,42 @@ remote/bootstrap0:
 		mkdir -p /mnt/boot; \
 		mount /dev/disk/by-label/boot /mnt/boot; \
 		nixos-generate-config --root /mnt; \
-		sed --in-place '/system\.stateVersion = .*/a \
-nix.package = pkgs.nixUnstable;\n \
-nix.extraOptions = \"experimental-features = nix-command flakes\";\n \
-environment.systemPackages = with pkgs; [git gnumake vim];\n \
-services.openssh.enable = true;\n \
-services.openssh.settings.PasswordAuthentication = true;\n \
-services.openssh.settings.PermitRootLogin = \"yes\";\n \
-users.users.root.initialPassword = \"root\";\n \
-		' /mnt/etc/nixos/configuration.nix; \
-		nixos-install --no-root-passwd && reboot; \
+		mkdir -p /root/.ssh && ssh-keyscan -H tea.lamhub.com > /root/.ssh/known_hosts; \
+        nix-shell -p git --command \"nixos-install --no-root-passwd \
+		  --flake github:lamtt77/lamt-nixconfig#${NIXHOST}\" && reboot; \
 	"
 
-# after bootstrap0, run this to finalize. After this, do everything else
-# in the Remote Machine unless secrets change.
-remote/bootstrap:
-	NIXUSER=root $(MAKE) remote/sudocopy
-	NIXUSER=root $(MAKE) remote/switch
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-	sudo reboot; \
-	"
-
-# copy our secrets into the Remote Machine
+# copy our GPG keyring and SSH keys secrets into the Remote Machine
 remote/secrets:
-	# GPG keyring
 	rsync -av -e 'ssh $(SSH_OPTIONS)' \
 		--exclude='.#*' \
 		--exclude='S.*' \
 		--exclude='*.conf' \
 		$(HOME)/.gnupg/ $(NIXUSER)@$(NIXADDR):~/.gnupg
-	# SSH keys
 	rsync -av -e 'ssh $(SSH_OPTIONS)' \
 		--exclude='environment' \
 		$(HOME)/.ssh/ $(NIXUSER)@$(NIXADDR):~/.ssh
 
-# copy the Nix configurations into the Remote Machine.
-remote/sudocopy:
-	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
-		--exclude='.git/' \
-		--exclude='result' \
-		--rsync-path="sudo rsync" \
-        --delete \
-		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):/nixconfig
-
+# copy the Nix configurations into the Remote Machine. For local setup without github
 remote/copy:
 	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
 		--exclude='.git/' \
 		--exclude='result' \
         --delete \
-		$(MAKEFILE_DIR)/ $(NIXUSER)@$(NIXADDR):~/lamt-nixconfig
+		$(FLAKE_DIR)/ $(NIXUSER)@$(NIXADDR):~/lamt-nixconfig
 
-# run the nixos-rebuild switch command. This does NOT copy files so you have to run remote/copy before.
+# This does NOT copy files so you have to run remote/copy before.
 remote/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-	sudo nixos-rebuild switch --flake \"/nixconfig#${NIXNAME}\" \
+	sudo nixos-rebuild switch --flake \"./lamt-nixconfig#${NIXHOST}\" \
+	"
+
+# This only requires for 1st time secrets deployment or when secrets changed
+remote/switch/secrets:
+	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
+	test -f ./.ssh/known_hosts || (mkdir -p ./.ssh && ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
+	cd lamt-nixconfig && nix flake update mysecrets; \
+	sudo nixos-rebuild switch --flake \".#${NIXHOST}\" \
 	"
 
 # Build a WSL installer

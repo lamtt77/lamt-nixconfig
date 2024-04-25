@@ -92,6 +92,11 @@
       customVim = (import ./nix/vim.nix {inherit inputs;});
     };
 
+    # apps run by calling this flake directly
+    # Github: nix run github:lamtt77/lamt-nixconfig#appname
+    # Local: nix run '.#readme'
+    apps = forAllSystems (system: import ./apps { pkgs = pkgsall.${system}; });
+
     # formatter = forAllSystems (system: pkgsall.${system}.nixpkgs-fmt);
     formatter = forAllSystems (system: pkgsall.${system}.nixfmt-rfc-style);
 

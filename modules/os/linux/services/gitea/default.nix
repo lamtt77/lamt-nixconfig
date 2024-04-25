@@ -51,9 +51,9 @@ in {
         database.LOG_SQL = false;
         server.DISABLE_ROUTER_LOG = true;
 
-        server.ROOT_URL = "http://tea.lamhub.com/";
-        server.DOMAIN = "tea.lamhub.com";
-        server.SSH_DOMAIN = "tea.lamhub.com";
+        server.ROOT_URL = "http://${mydefs.teaURL}/";
+        server.DOMAIN = "${mydefs.teaURL}";
+        server.SSH_DOMAIN = "${mydefs.teaURL}";
 
         service.DISABLE_REGISTRATION = true;
         service.ENABLE_BASIC_AUTHENTICATION = false;
@@ -86,28 +86,29 @@ in {
     in {
       enable = true;
       # NOTE: using double-quote will need escape for special characters: slash...
+      # run this 15-min prior to our main system backup task
       systemCronJobs = [''
         # uncomment for testing every 3 minutes
         # */3 * * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-testing-$(date +\%a).zip
-        # Daily at 01:00AM: 7-day rolling backup
-        00 01 * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-daily-$(date +\%a).zip
-        # Weekly on sunday (0)
-        00 00 * * 0  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-weekly-$(date +\%V).zip
-        # Monthly on the first day (1)
-        00 00 1 * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-monthly-$(date +\%b).zip
+        # Daily at 22:45PM: 7-day rolling backup
+        45 22 * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-daily-$(date +\%a).zip
+        # Weekly on sunday (0, 23:15PM)
+        15 23 * * 0  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-weekly-$(date +\%V).zip
+        # Monthly on the first day (1, 01:00AM)
+        00 01 1 * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-monthly-$(date +\%b).zip
       ''];
     };
     # nas nfs share
     fileSystems."/mnt/Backup" = {
-      device = "${mydefs.nas}:/mnt/arthur_z2/Backup";
+      device = "${mydefs.nasBackupDevice}";
       fsType = "nfs";
     };
 
-    services.nginx.virtualHosts."tea.lamhub.com" = {
+    services.nginx.virtualHosts."${mydefs.teaURL}" = {
       http2 = true;
       # forceSSL = true;
       # enableACME = true;
-      root = "/srv/www/tea.lamhub.com";
+      root = "/srv/www/${mydefs.teaURL}";
       locations."/".proxyPass = "http://127.0.0.1:3000";
     };
 
