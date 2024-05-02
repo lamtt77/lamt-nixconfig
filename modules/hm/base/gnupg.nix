@@ -29,7 +29,6 @@ in {
     programs = let
       fixGpg = ''
         gpgconf --launch gpg-agent
-        gpg-connect-agent updatestartuptty /bye >/dev/null
       '';
     in {
       # Start gpg-agent if it's not running or tunneled in

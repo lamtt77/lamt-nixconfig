@@ -1,20 +1,15 @@
-
-{ config, lib, ... }: {
+{ inputs, config, lib, ... }: {
   imports = [
     ./hardware-gaming.nix
+    (import ../_disko/generic.nix {inherit inputs; disks = ["/dev/sda"];})
   ];
+
+  # after resize the disk, it will grow partition automatically.
+  boot.growPartition = true;
 
   modules.os.linux.services.openssh.enable = true;
 
   services.minecraft-server.enable = true; # Setup Minecraft server
-
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # VMware, Parallels both only support this being 0 otherwise you see
-  # "error switching console mode" on boot.
-  boot.loader.systemd-boot.consoleMode = "0";
 
   virtualisation.docker.enable = true;
   virtualisation.vmware.guest.enable = true;

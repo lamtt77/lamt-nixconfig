@@ -26,11 +26,12 @@ rec {
   # gpg-sshKeygrip-old = "5DCD8883C43C139709EF5BB84A85C0A24623A97E";
 
   # openssh authorizedKeys: lamt ssh pubkey
-  ssh-authorizedKeys = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJCiBimBlJYNvMmk8F/UPvBjtgBR8tDIgXyeaUOIEtOA lamt"];
+  mySshAuthKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJCiBimBlJYNvMmk8F/UPvBjtgBR8tDIgXyeaUOIEtOA lamt";
 
   defaultNetworks = ["192.168.1.0/24"];
   myDomain = "lamhub.com";
   teaURL = "tea.${myDomain}";
+  teaPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODyGjuq0vFxJVimNtVhYgVQqmCLNPQHCwJm9tvfSfja";
   hostURL = "air15.lamhub.local";
   nas = "nas.lamhub.local";
   nasBackupDevice = "${nas}:/mnt/arthur_z2/Backup";

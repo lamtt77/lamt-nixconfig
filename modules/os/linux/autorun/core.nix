@@ -1,9 +1,6 @@
 { inputs, pkgs, username, ... }:
 
 {
-  # Be careful updating this.
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-
   # Add ~/.local/bin to PATH
   environment.localBinInPath = true;
 

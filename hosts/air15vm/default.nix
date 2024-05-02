@@ -1,4 +1,4 @@
-{ inputs, pkgs, lib, config, hostname, username, ... }:
+{ inputs, pkgs, username, ... }:
 
 let
   inherit (inputs.self) mydefs;
@@ -6,30 +6,14 @@ let
 in {
   imports = [
     ./hardware-air15vm.nix
+    (import ../_disko/generic.nix {inherit inputs; disks = ["/dev/sda"];})
     ../../modules/_vmware-guest.nix
   ];
 
   # Setup qemu so we can run x86_64 binaries
   boot.binfmt.emulatedSystems = ["x86_64-linux"];
-
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
-
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # VMware, Parallels both only support this being 0 otherwise you see
-  # "error switching console mode" on boot.
-  # boot.loader.systemd-boot.consoleMode = "0";
-
-  boot.loader.systemd-boot = {
-    # we use Git for version control, so we don't need to keep too many generations.
-    configurationLimit = lib.mkDefault 10;
-    # pick the highest resolution for systemd-boot's console.
-    consoleMode = lib.mkDefault "max";
-  };
-
 
   # Disable the default module and import our override. We have
   # customizations to make this work on aarch64.
@@ -40,7 +24,6 @@ in {
   virtualisation.docker.enable = true;
 
   modules.os.base.services.agenix.enable = true;
-
   modules.os.linux.services.openssh.enable = true;
 
   hardware.opengl.enable = true;

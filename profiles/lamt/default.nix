@@ -20,7 +20,7 @@ in {
 
 
   modules.hm.base.editors.doomemacs.enable = true;
-  modules.hm.base.editors.neovim.enable = true;
+  modules.hm.base.editors.neovim.enable = !isWSL;
 
   programs.fzf.enable = true;
 
@@ -76,6 +76,8 @@ in {
     coreutils # replace tools `du` so that `ranger` can call
     diffutils
     findutils
+
+    gnutar
 
     pngpaste
   ]) ++ (lib.optionals (isLinux) [

@@ -22,6 +22,9 @@
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
+    disko.url = "github:nix-community/disko";
+    disko.inputs.nixpkgs.follows = "nixpkgs";
+
     hyprland.url = "github:hyprwm/Hyprland";
 
     emacs-overlay.url = "github:nix-community/emacs-overlay";
@@ -73,7 +76,13 @@
       mapModules ./pkgs (p: pkgsall.${system}.callPackage p {})
     );
 
-    overlays = mapModules ./overlays import // {
+    overlaysDisko = {
+      disko = final: prev: {
+        disko = inputs.disko.packages.${prev.system}.disko;
+      };
+    };
+
+    overlays = self.overlaysDisko // mapModules ./overlays import // {
       # custom packages (additions or modifications/builds)
       default = final: prev: {
         my = self.packages.${prev.system};
@@ -95,7 +104,7 @@
     # apps run by calling this flake directly
     # Github: nix run github:lamtt77/lamt-nixconfig#appname
     # Local: nix run '.#readme'
-    apps = forAllSystems (system: import ./apps { pkgs = pkgsall.${system}; });
+    apps = forAllSystems (system: import ./apps { inherit inputs; pkgs = pkgsall.${system}; });
 
     # formatter = forAllSystems (system: pkgsall.${system}.nixpkgs-fmt);
     formatter = forAllSystems (system: pkgsall.${system}.nixfmt-rfc-style);
@@ -135,6 +144,16 @@
 
     # nix build .#nixosConfigurations.macair15-m2.config.system.build.toplevel
     nixosConfigurations = {
+      # just some testing here
+      installer-base = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {inherit inputs username;};
+        modules = [
+          { nixpkgs.overlays = builtins.attrValues self.overlaysDisko;}
+          ./hosts/installer-base
+        ];
+      };
+
       air15vm = mkSystem {system = "aarch64-linux"; host = "air15vm"; inherit username;};
       vm-esxi = mkSystem {system = "x86_64-linux"; host = "vm-esxi"; inherit username;};
       vm-wintel = mkSystem {system = "x86_64-linux"; host = "vm-wintel"; inherit username;};

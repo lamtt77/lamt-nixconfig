@@ -6,7 +6,6 @@ with lib.my;
     imports = [
       # not needed anymore after the introduction of pkgsall!
       # { nixpkgs.overlays = builtins.attrValues inputs.self.overlays; }
-
       ../profiles/${username}
     ] ++ (mapModulesRec' ../modules/hm/base import)
     ++ lib.optionals (darwin) (mapModulesRec' ../modules/hm/darwin import)
@@ -18,14 +17,11 @@ with lib.my;
     # not needed anymore after the introduction of pkgsall, will be duplicated if added!
     # { nixpkgs.overlays = builtins.attrValues inputs.self.overlays; }
     { nixpkgs.pkgs = pkgsall.${system}; }
+    ../hosts/${host}
 
-    # Bring in WSL if this is a WSL build
     (if wsl then inputs.nixos-wsl.nixosModules.wsl else {})
-
     (if server then ../modules/os/base/_server.nix else ../modules/os/base/_workstation.nix)
     (if darwin then inputs.agenix.darwinModules.default else inputs.agenix.nixosModules.default)
-
-    ../hosts/${host}
   ] ++ (mapModulesRec' ../modules/os/base import)
   ++ lib.optionals (darwin) (mapModulesRec' ../modules/os/darwin import)
   # this will also load regardless of wsl status
@@ -67,7 +63,7 @@ with lib.my;
           home = "/home/${username}";
           # TODO move "docker" setting to its module
           extraGroups = [ "docker" "wheel" ]; # Enable ‘sudo’ for the user.
-          openssh.authorizedKeys.keys = mydefs.ssh-authorizedKeys;
+          openssh.authorizedKeys.keys = [ "${mydefs.mySshAuthKey}" ];
         } // lib.optionalAttrs (isDefaultUser) {
           shell = pkgs.zsh;
         };

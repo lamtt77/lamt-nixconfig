@@ -5,7 +5,7 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 
 ## TODO
 + Migrate to my own vim/nvim configuration stored in dotfiles, not-in-hurry as the existing nvim config is working fine
-+ bootstrap: migrate Makefile/scripts to 'disko' and 'btrfs' with [optional] luks encrypted
++ bootstrap: btrfs with [optional] luks encrypted
 + homelab and backup: migrate my custom scripts to nix
 + services: add tailscale/headscale, caddy...
 + github: build/workflows
@@ -25,25 +25,35 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 
 ## Quickstart:
 + Boot with 'EFI' Bios, use NixOS Minimal ISO Boot CD from https://nixos.org/download/
-+ Must ensure hardware-configuration fileSystems correct, best is to use /by-label/
 
 ### Non-secrets Host Deployment
 Format and build a brand new Host. One-time/liner headless installation!
 
 *WARNING*: This will ERASE all data of the machine's hard disk! Use at your OWN RISK!!!
 
-+ Method 1: Directly from github: TODO will be ready after migrated to 'disko'
++ Method 1: Directly from GitHub:
 ```
 $ sudo su
-$ nix-shell -p git --command "nixos-install --no-root-passwd --flake github:lamtt77/lamt-nixconfig#gaming"
-$ reboot
+$ passwd <set-temp-root-psw>
+$ nix run --extra-experimental-features "nix-command flakes" \
+    github:lamtt77/lamt-nixconfig#installer-staging gaming && reboot
+After logged in back:
+$ cd lamt-nixconfig && nixos-rebuild switch --flake .#gaming
+```
+OR one-liner for powerful machine: may get out-of-memory (OOM) issue while building
+```
+$ nix run --extra-experimental-features "nix-command flakes" \
+    github:lamtt77/lamt-nixconfig#installer gaming
 ```
 Optional:
+* Connect & setup the above in a remote ssh terminal (for copy & paste)
+* Clear nix cache if getting old code:
 ```
-$ passwd <set-temp-root-psw>, then connect & setup the above in a remote ssh terminal (for copy & paste)
-Remove --no-root-passwd option to set a password for root when setup completed. This can be use if you have an issue with connecting to the host using pubkey.
+$ rm -rf ~/.cache/nix/
 ```
+
 + Method 2: Locally:
+
 From the target host:
 ```
 $ sudo su
@@ -53,7 +63,7 @@ $ ip addr -> note the IP address of this host, example: 192.168.1.100
 From the main deployment machine:
 ```
 $ git clone https://github.com/lamtt77/lamt-nixconfig && cd lamt-nixconfig
-$ NIXADDR=192.168.1.100 NIXHOST=gaming NIXUSER=vivi make remote/bootstrap
+$ NIXADDR=192.168.1.100 NIXHOST=gaming make remote/bootstrap
 ```
 
 ### Secrets Host Deployment: TODO improve to a more automatic way
@@ -118,7 +128,17 @@ $ wsl -d NixOS
 ```
 $ su lamt
 ```
-* Note: method 2 can be built by 'nix build' from other wsl distro such as Ubuntu...
+* Note: method 2 can be built by 'nix build' from any x86_64-linux host or any wsl distro such as Ubuntu... with nix pre-installed
+
+* Cross-platform tarball build issue:
+Currently, cross build the tarball from aarch64-linux is having the below issue:
+```
+$ make wsl
+...
+installing the boot loader...
+chroot: failed to run command ‘/nix/var/nix/profiles/system/activate’: No such file or directory
+chroot: failed to run command ‘/nix/var/nix/profiles/system/sw/bin/bash’: No such file or directory
+```
 
 ## Credits
 + [Virtual Machine as MacOS terminal workflow] https://github.com/mitchellh/nixos-config

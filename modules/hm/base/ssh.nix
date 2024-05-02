@@ -1,4 +1,5 @@
 # this may not work if we use gpg-agent as the default
+# Solution: READ: https://unix.stackexchange.com/questions/554153/what-is-the-proper-configuration-for-gpg-ssh-and-gpg-agent-to-use-gpg-auth-sub
 
 { config, lib, ... }:
 
@@ -10,6 +11,10 @@ with lib;
       extraConfig = ''
       # a private key used during authentication will be added to the running ssh-agent
       # AddKeysToAgent yes
+
+      Match host * exec "gpg-connect-agent UPDATESTARTUPTTY /bye"
+      # support ssh agent forwarding from gpg-agent
+      StreamLocalBindUnlink yes
 
       # UseKeychain yes
 

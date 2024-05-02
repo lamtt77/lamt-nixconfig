@@ -29,8 +29,8 @@ in
     optimise.automatic = true;
 
     settings = {
-      max-jobs = 8;
-      cores = 8;
+      max-jobs = "auto";
+      # cores = 8;
 
       trusted-users = users;
       allowed-users = users;
@@ -45,7 +45,9 @@ in
   };
 
   system = {
+    # Let 'nixos-version --json' know about the Git revision of this flake.
     configurationRevision = with inputs; mkIf (self ? rev) self.rev;
+
     activationScripts.diff = {
       supportsDryActivation = true;
       text = ''
