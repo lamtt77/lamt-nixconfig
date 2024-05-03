@@ -10,7 +10,7 @@ in
   # systemd.timers.systemd-timesyncd = { timerConfig.OnCalendar = "hourly"; };
 
   nix = {
-    package = pkgs.unstable.nixUnstable;
+    package = pkgs.unstable.nixVersions.latest;
 
     # Allows Nix to execute builds inside cgroups
     extraOptions = ''

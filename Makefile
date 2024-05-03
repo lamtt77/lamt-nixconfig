@@ -8,13 +8,13 @@ NIXCFG ?= lamt-nixconfig
 
 GH_REPO ?= github:lamtt77/$(NIXCFG)
 TEA_REPO ?= git+ssh://git@tea.lamhub.com/lamtt77/$(NIXCFG)
-LOCAL_REPO ?= path:///root/$(NIXCFG)
+LOCAL_REPO ?= path:/root/$(NIXCFG)
 ifeq ($(NIXREPO), tea)
-	NIXREPO = $(TEA_REPO)
+	MYREPO = $(TEA_REPO)
 else ifeq ($(NIXREPO), local)
-	NIXREPO = $(LOCAL_REPO)
+	MYREPO = $(LOCAL_REPO)
 else
-	NIXREPO = $(GH_REPO)
+	MYREPO = $(GH_REPO)
 endif
 
 # Get the path to this Makefile and Flake directory
@@ -48,7 +48,7 @@ endif
 # This will ERASE all data of the REMOTE machine's hard disk! Use at your OWN RISK!!!
 #
 # Format and setup a brand new Remote Host. One-time/liner installation from github :)
-# NixOS Minimum ISO required to be on the CD drive.
+# NixOS Minimal ISO required to be on the CD drive.
 # Set a temp password for the root user before bootstrap for ssh connectivity,
 # the password is only valid during installation session.
 #
@@ -56,52 +56,39 @@ endif
 # Forwarding ssh-agent '-A' is only required for my secrets private repo deployment,
 # this deployment machine should already have the private-key installed.
 #
+# NixOS Minimal does not have git, which is required for nixos-install
 # git+ssh also requires git pre-installed
 #
-# Low performance system may have out of memory (OOM) issue during Stage1, if so,
-# simly do one more time 'remote/switch' with NIXUSER=root
+# Low performance system may have out of memory (OOM) issue during Stage1, or sometime
+# ssh may disconnect abnormally, if so simply do one more time 'remote/bootstrap1'
 #
 # After Stage1 completed, optionally reboot then 'remote/switch' with NIXUSER=<youruser>
 remote/bootstrap:
-	echo "====>Stage0: Staging..."
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		test -f ./.ssh/known_hosts || (mkdir -p ./.ssh && \
-		  ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
-        nix-shell -p gitMinimal --run 'nix run \
-          --extra-experimental-features \"nix-command flakes\" \
-          \"${NIXREPO}#installer-staging\" ${NIXHOST}' && reboot; \
-    "
-	echo "====>Stage1: Rebooting for Host Swiching/Activating... Ctrl-C to terminate"
-	sleep 10
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		cd ${NIXCFG} && nix flake lock; \
-		nixos-rebuild switch --flake .#${NIXHOST}; \
-	"
-	until !!; do sleep 5; done
-	echo "DONE! It's recommended to reboot at first use and rebuild switch to your user"
-
-# NixOS Minimal ISO Boot CD does not have git, which is required for nixos-install
-remote/bootstrap/initlocal:
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-        nix profile --verbose --extra-experimental-features \"nix-command flakes\" \
-          install nixpkgs#rsync; \
-	"
-	NIXUSER=root $(MAKE) remote/copy
+ifeq ($(NIXREPO), local)
+	NIXUSER=root $(MAKE) remote/copyscp
+endif
+	$(MAKE) remote/bootstrap0 || true
+	@echo "====>Stage1: Rebooting..."; sleep 30
+	$(MAKE) remote/bootstrap1
 
 # staging still works best for all configurations, especially for low performance system
 remote/bootstrap0:
-	echo "====>Stage0: Staging..."
+	@echo "====>Stage0: Staging..."
 	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
 		test -f ./.ssh/known_hosts || (mkdir -p ./.ssh && \
 		  ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
         nix-shell -p gitMinimal --run 'nix run \
           --extra-experimental-features \"nix-command flakes\" \
-          \"${NIXREPO}#installer-staging\" ${NIXHOST}' && reboot; \
+          \"${MYREPO}#installer-staging\" ${NIXHOST}' && reboot; \
     "
 
+# NOTE: keep trying ssh connection for 60x5 seconds after reboot
+# If Stage1 completed, 'root' will be blocked from ssh login, use your user instead
+# Can safely re-run 'remote/bootstrap1' if ssh disconnected
+# It's recommended to reboot at first use and rebuild switch to your user"
 remote/bootstrap1:
-	echo "====>Stage1: Host Swiching/Activating..."
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
+	@echo "====>Stage1: Host Swiching/Activating... Ctrl-C to terminate"
+	ssh -A -o ConnectTimeout=300 $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
 		cd ${NIXCFG} && nix flake lock; \
 		nixos-rebuild switch --flake .#${NIXHOST}; \
 	"
@@ -112,7 +99,7 @@ remote/bootstrap/chroot:
 	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
         nix-shell -p gitMinimal --run 'nix run \
           --extra-experimental-features \"nix-command flakes\" \
-          \"${NIXREPO}#installer-nixos-enter\" ${NIXHOST}' && reboot; \
+          \"${MYREPO}#installer-nixos-enter\" ${NIXHOST}' && reboot; \
     "
 
 # not-in-used, need to disable disko & set fileSystems manually for each host if used
@@ -146,13 +133,21 @@ remote/copy:
 	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
 		--exclude='.git/' \
 		--exclude='result' \
+		--exclude='.DS_Store' \
         --delete \
 		$(FLAKE_DIR)/ $(NIXUSER)@$(NIXADDR):./$(NIXCFG)
+
+# NixOS Minimal does not have 'rsync', and 'scp' does not support exclude files, thus this tmpdir trick
+remote/copyscp:
+	@tmpdir=`mktemp --tmpdir -d`; trap 'rm -rf "$$tmpdir"' EXIT; echo $$tmpdir; \
+	rsync -a --exclude='.git' --exclude='result' --exclude='.DS_Store' --delete \
+		$(FLAKE_DIR)/ $$tmpdir/$(NIXCFG); \
+	scp -r $(SSH_OPTIONS) -p$(NIXPORT) $$tmpdir/$(NIXCFG) $(NIXUSER)@$(NIXADDR):./
 
 # This does NOT copy files so you have to run remote/copy before.
 remote/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-	sudo nixos-rebuild switch --flake \"./$(NIXCFG)#${NIXHOST}\" \
+		sudo nixos-rebuild switch --flake \"./$(NIXCFG)#${NIXHOST}\" \
 	"
 
 # This only requires for 1st time secrets deployment or when secrets changed

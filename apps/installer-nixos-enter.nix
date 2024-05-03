@@ -3,12 +3,13 @@
 { inputs, pkgs, ...}:
 let
   inherit (inputs) self;
+  inherit (inputs.self) mydefs;
 in {
   type = "app";
 
-  # bash script, NOTE: nixos_system build is very resource demanding, slow system may hang!
-  # please use staging/remote build for slow system
-  program = builtins.toString (pkgs.writeShellScript "installer" ''
+  # bash script, NOTE: nixos_system build is very resource demanding,
+  # slow system may hang! please use staging/remote build for slow system
+  program = builtins.toString (pkgs.writeShellScript "installer-nixos-enter" ''
     if [ "$(id -u)" != "0" ]; then
         echo "The installer must be run as root" 1>&2
         exit 1
@@ -53,8 +54,10 @@ in {
 
     # important: chroot to newly created /mnt or getting out of disk-space issue
     echo "====>Doing nixos-enter to avoid reboot..."
-    mkdir -p /mnt/root/lamt-nixconfig && cp -r ${self}/* /mnt/root/lamt-nixconfig
-    NIXHOST=$host nixos-enter --command 'cd /root/lamt-nixconfig; \
+    test -d /mnt/root/${mydefs.myRepoName} && rm -rf /mnt/root/${mydefs.myRepoName}
+    cp -r ${self} /mnt/root/${mydefs.myRepoName}
+
+    NIXHOST=$host nixos-enter --command 'cd /root/${mydefs.myRepoName}; \
       nixos-rebuild switch --flake .#$NIXHOST'
   '');
 }

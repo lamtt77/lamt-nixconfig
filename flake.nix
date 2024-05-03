@@ -8,6 +8,7 @@
 
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-wsl.inputs.flake-utils.follows = "flake-utils";
 
     home-manager.url = "github:nix-community/home-manager/release-23.11";
     # home-manager.url = "github:nix-community/home-manager/master";
@@ -16,26 +17,38 @@
     darwin.url = "github:LnL7/nix-darwin";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
 
+    flake-utils.url = "github:numtide/flake-utils";
+
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+
     flake-registry.url = "github:nixos/flake-registry";
     flake-registry.flake = false;
 
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
+    agenix.inputs.darwin.follows = "darwin";
+    agenix.inputs.home-manager.follows = "home-manager";
 
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
 
     hyprland.url = "github:hyprwm/Hyprland";
+    hyprland.inputs.nixpkgs.follows = "nixpkgs";
 
     emacs-overlay.url = "github:nix-community/emacs-overlay";
     emacs-overlay.inputs.nixpkgs.follows = "nixpkgs-unstable";
+    emacs-overlay.inputs.nixpkgs-stable.follows = "nixpkgs";
+    emacs-overlay.inputs.flake-utils.follows = "flake-utils";
 
     neovim-nightly-overlay.url = "github:nix-community/neovim-nightly-overlay";
     neovim-nightly-overlay.inputs.nixpkgs.follows = "nixpkgs-unstable";
+    neovim-nightly-overlay.inputs.flake-parts.follows = "flake-parts";
 
     # Other packages
     zig.url = "github:mitchellh/zig-overlay";
     zig.inputs.nixpkgs.follows = "nixpkgs-unstable";
+    zig.inputs.flake-utils.follows = "flake-utils";
 
     # LamT secrets stuff, remove this for building without secrets / agenix module
     # OR sudo nixos-rebuild switch --override-input mysecrets "" --flake '.#gaming'
