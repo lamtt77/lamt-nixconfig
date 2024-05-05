@@ -1,40 +1,41 @@
-{ config, pkgs, lib, inputs, ... }:
-
+{ inputs, config, pkgs, lib, ... }:
+let
+  inherit (inputs) self;
+in
 with lib;
 {
-  # nix-darwin only has 'variables' attribute!
-  environment.variables.DOTFILES = config.dotfiles.dir;
-  environment.variables.DOTFILES_BIN = config.dotfiles.binDir;
-
   environment = {
     etc = {
       nixpkgs.source = inputs.nixpkgs;
+      nixpkgs-unstable.source = inputs.nixpkgs-unstable;
       darwin.source = inputs.darwin;
       home-manager.source = inputs.home-manager;
-      # self.source = inputs.self;
     };
 
     shells = with pkgs; [ bashInteractive zsh ];
   };
 
   nix = let
-    filteredInputs = filterAttrs (n: _: n != "self") inputs;
-    registryInputs = mapAttrs (_: v: { flake = v; }) filteredInputs;
     filteredNixPathInputs = filterAttrs (n: _: n != "nixpkgs"
+                                               && n != "nixpkgs-unstable"
                                                && n != "darwin"
-                                               && n != "home-manager") filteredInputs;
+                                               && n != "home-manager") inputs;
     nixPathInputs  = mapAttrsToList (n: v: "${n}=${v}") filteredNixPathInputs;
   in {
+    extraOptions = ''
+      keep-outputs = true
+      keep-derivations = true
+    '';
+
     nixPath = nixPathInputs ++ [
-      "nixpkgs-overlays=${config.dotfiles.dir}/overlays"
-      "dotfiles=${config.dotfiles.dir}"
+      "nixpkgs-overlays=${self}/overlays"
       "nixpkgs=/etc/${config.environment.etc.nixpkgs.target}"
+      "nixpkgs-unstable=/etc/${config.environment.etc.nixpkgs-unstable.target}"
       "darwin=/etc/${config.environment.etc.darwin.target}"
       "home-manager=/etc/${config.environment.etc.home-manager.target}"
     ];
 
-    # make `nix run nixpkgs#nixpkgs` use the same nixpkgs as the one used by this flake.
-    # nix.registry.nixpkgs.flake = inputs.nixpkgs;
-    registry = registryInputs // { dotfiles.flake = inputs.self; };
+    # take all inputs to registry for development workstation
+    registry = mapAttrs (_: v: { flake = v; }) inputs;
   };
 }

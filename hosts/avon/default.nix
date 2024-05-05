@@ -1,7 +1,9 @@
 { inputs, config, lib, ... }: {
   imports = [
     ./hardware-avon.nix
-    (import ../_disko/legacy.nix {inherit inputs; disks = ["/dev/sda"];})
+    (import ../_disko/generic.nix {inherit inputs; disks = ["/dev/sda"];})
+    # uncomment this just for avon built before disko
+    # (import ../_disko/legacy.nix {inherit inputs; disks = ["/dev/sda"];})
   ];
 
   # after resize the disk, it will grow partition automatically.

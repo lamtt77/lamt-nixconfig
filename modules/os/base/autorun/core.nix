@@ -6,26 +6,20 @@ in
   inputs.self.libx.mkUser { inherit username pkgs; darwin = pkgs.stdenv.isDarwin; } // {
 
   time.timeZone = inputs.self.mydefs.timeZone;
-  # systemd.services.systemd-timesyncd.wantedBy = [ "multi-user.target" ];
-  # systemd.timers.systemd-timesyncd = { timerConfig.OnCalendar = "hourly"; };
+
+  # uncomment this to enable nixpath and flake registry for all servers
+  # modules.os.base.nixpath-registry.nixpkgs.enable = true;
 
   nix = {
     package = pkgs.unstable.nixVersions.latest;
 
-    # Allows Nix to execute builds inside cgroups
     extraOptions = ''
       builders-use-substitutes = true
       experimental-features = nix-command flakes
-      keep-outputs = true
-      keep-derivations = true
-
       # Prevent Nix from fetching the registry every time
       flake-registry = ${inputs.flake-registry}/flake-registry.json
     '';
 
-    # Store management
-    gc.automatic = true;
-    gc.options = "--delete-older-than 15d";
     optimise.automatic = true;
 
     settings = {
@@ -47,12 +41,5 @@ in
   system = {
     # Let 'nixos-version --json' know about the Git revision of this flake.
     configurationRevision = with inputs; mkIf (self ? rev) self.rev;
-
-    activationScripts.diff = {
-      supportsDryActivation = true;
-      text = ''
-        ${pkgs.nvd}/bin/nvd --nix-bin-dir=${pkgs.nix}/bin diff /run/current-system "$systemConfig"
-      '';
-    };
   };
 }

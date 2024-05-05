@@ -1,4 +1,4 @@
-{ inputs, config, lib, pkgs, username, isWSL, ... }:
+{ inputs, lib, pkgs, username, isWSL, ... }:
 
 let
   stateVersion = inputs.self.mydefs.stateVersion;
@@ -9,8 +9,6 @@ in {
     inherit stateVersion username;
 
     homeDirectory = if isDarwin then "/Users/${username}" else "/home/${username}";
-    activation.report-changes = config.lib.dag.entryAnywhere ''
-      ${pkgs.nvd}/bin/nvd diff $oldGenPath $newGenPath'';
   };
 
   # bare minimum pacpages

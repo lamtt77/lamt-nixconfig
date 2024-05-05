@@ -104,6 +104,12 @@ $ sh <(curl -L https://nixos.org/nix/install)
 ```
 
 ### WSL
+Enable WSL if not done yet (check status with 'wsl --status')
+```
+$ wsl --install --no-distribution
+```
+For more info, refer to: https://learn.microsoft.com/en-us/windows/wsl/basic-commands
+
 #### Method 1: https://github.com/nix-community/NixOS-WSL
 * Download the pre-built at https://github.com/nix-community/NixOS-WSL/releases/latest
 ```

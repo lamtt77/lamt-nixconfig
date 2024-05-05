@@ -10,6 +10,8 @@ in {
   # bash script, NOTE: nixos_system build is very resource demanding,
   # slow system may hang! please use staging/remote build for slow system
   program = builtins.toString (pkgs.writeShellScript "installer-nixos-enter" ''
+    set -e
+
     if [ "$(id -u)" != "0" ]; then
         echo "The installer must be run as root" 1>&2
         exit 1
@@ -50,7 +52,7 @@ in {
       \.\/extra-config.nix\n\
     ' /mnt/etc/nixos/configuration.nix
 
-    nixos-install --no-root-password
+    nixos-install --no-root-password --no-channel-copy
 
     # important: chroot to newly created /mnt or getting out of disk-space issue
     echo "====>Doing nixos-enter to avoid reboot..."

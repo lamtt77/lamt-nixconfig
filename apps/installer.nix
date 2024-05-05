@@ -9,6 +9,8 @@ in {
   # bash script, NOTE: nixos_system build is very resource demanding, slow system may hang!
   # please use staging/remote build for slow system
   program = builtins.toString (pkgs.writeShellScript "installer" ''
+    set -e
+
     if [ "$(id -u)" != "0" ]; then
         echo "The installer must be run as root" 1>&2
         exit 1

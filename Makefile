@@ -6,6 +6,11 @@ NIXUSER ?= lamt
 NIXHOST ?= avon
 NIXCFG ?= lamt-nixconfig
 
+FORCE ?=
+ifeq ($(FORCE), yes)
+	FORCE = -- --force
+endif
+
 GH_REPO ?= github:lamtt77/$(NIXCFG)
 TEA_REPO ?= git+ssh://git@tea.lamhub.com/lamtt77/$(NIXCFG)
 LOCAL_REPO ?= path:/root/$(NIXCFG)
@@ -79,21 +84,20 @@ remote/bootstrap0:
 		  ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
         nix-shell -p gitMinimal --run 'nix run \
           --extra-experimental-features \"nix-command flakes\" \
-          \"${MYREPO}#installer-staging\" ${NIXHOST}' && reboot; \
+          \"${MYREPO}#installer-staging\" ${FORCE} ${NIXHOST}' && reboot; \
     "
 
-# NOTE: keep trying ssh connection for 60x5 seconds after reboot
 # If Stage1 completed, 'root' will be blocked from ssh login, use your user instead
 # Can safely re-run 'remote/bootstrap1' if ssh disconnected
-# It's recommended to reboot at first use and rebuild switch to your user"
+# It's recommended to reboot at first use and rebuild switch to your user
 remote/bootstrap1:
 	@echo "====>Stage1: Host Swiching/Activating... Ctrl-C to terminate"
-	ssh -A -o ConnectTimeout=300 $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
+	until ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
 		cd ${NIXCFG} && nix flake lock; \
-		nixos-rebuild switch --flake .#${NIXHOST}; \
-	"
+		nixos-rebuild switch --flake .#${NIXHOST} || true; \
+	"; do sleep 3; done
 
-# experimenting: only one stage required, reboot is not needed!
+# experimental: only one stage required
 # TODO: figure out how to forward ssh agent to 'chroot' for secrets deployment
 remote/bootstrap/chroot:
 	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \

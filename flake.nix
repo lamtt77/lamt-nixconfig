@@ -145,6 +145,7 @@
       # };
     };
 
+    # nix build .#darwinConfigurations.macair15-m2.system
     darwinConfigurations = {
       macair15-m2 = mkHost {
         system = "aarch64-darwin"; host = "macair15-m2"; inherit username; darwin = true;

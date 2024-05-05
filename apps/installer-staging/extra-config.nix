@@ -1,5 +1,14 @@
-{ pkgs, ...}:
-{
+{ pkgs, ...}: let
+  # there is no inputs when calling from /etc/nixos/configuration.nix
+  # note that the current dir in this case should be /etc/nixos, a bit hacky :)
+  mydefs = import ./defines.nix;
+in {
+  # create zram swap now, so it will be ready after the 1st reboot
+  imports = [ ./zramswap.nix ];
+
+  # Be careful updating this.
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+
   environment.systemPackages = with pkgs; [
     rsync
     gitMinimal
@@ -16,14 +25,13 @@
     settings.PasswordAuthentication = true;
     knownHosts = {
       "github.com".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
-      "tea.lamhub.com".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODyGjuq0vFxJVimNtVhYgVQqmCLNPQHCwJm9tvfSfja";
+      "tea.lamhub.com".publicKey = mydefs.teaPublicKey;
     };
   };
 
   programs.ssh.startAgent = true;
 
-  # TODO harded-code here because there is no inputs when calling from /etc/nixos/configuration.nix
   users.users.root = {
-    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJCiBimBlJYNvMmk8F/UPvBjtgBR8tDIgXyeaUOIEtOA lamt" ];
+    openssh.authorizedKeys.keys = [ "${mydefs.mySshAuthKey}" ];
   };
 }

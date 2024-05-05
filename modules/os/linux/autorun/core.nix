@@ -12,6 +12,9 @@
     rtkit.enable = true;
   };
 
+  # systemd.services.systemd-timesyncd.wantedBy = [ "multi-user.target" ];
+  # systemd.timers.systemd-timesyncd = { timerConfig.OnCalendar = "hourly"; };
+
   # Create dirs for home-manager
   systemd.tmpfiles.rules = [
     "d /nix/var/nix/profiles/per-user/${username} 0755 ${username} root"
