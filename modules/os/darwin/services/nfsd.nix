@@ -14,7 +14,7 @@ in {
   };
   config = mkIf cfg.enable {
     environment.etc = {
-      "exports".source = config.age.secrets."${hostname}_nfsd-exports".path;
+      "exports".source = config.age.secrets."${hostname}/nfsd-exports".path;
     };
   };
 }

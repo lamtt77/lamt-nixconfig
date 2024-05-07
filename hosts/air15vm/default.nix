@@ -62,7 +62,7 @@ in {
 
   # # smb share
   # fileSystems."/mnt/${username}" = let
-  #   credentials = config.age.secrets."${hostname}_smb-secrets".path;
+  #   credentials = config.age.secrets."${hostname}/smb-secrets".path;
   # in {
   #   device = "//${hostURL}/${username}";
   #   fsType = "cifs";

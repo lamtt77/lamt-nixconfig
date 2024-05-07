@@ -6,6 +6,9 @@ NIXUSER ?= lamt
 NIXHOST ?= avon
 NIXCFG ?= lamt-nixconfig
 
+SSH_COPY_ID = yes
+SECRETS ?= no
+
 FORCE ?=
 ifeq ($(FORCE), yes)
 	FORCE = -- --force
@@ -69,6 +72,9 @@ endif
 #
 # After Stage1 completed, optionally reboot then 'remote/switch' with NIXUSER=<youruser>
 remote/bootstrap:
+ifeq ($(SSH_COPY_ID), yes)
+	ssh-copy-id $(SSH_OPTIONS) -p$(NIXPORT) root@${NIXADDR}
+endif
 ifeq ($(NIXREPO), local)
 	NIXUSER=root $(MAKE) remote/copyscp
 endif
@@ -92,12 +98,16 @@ remote/bootstrap0:
 # It's recommended to reboot at first use and rebuild switch to your user
 remote/bootstrap1:
 	@echo "====>Stage1: Host Swiching/Activating... Ctrl-C to terminate"
-	until ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		cd ${NIXCFG} && nix flake lock; \
-		nixos-rebuild switch --flake .#${NIXHOST} || true; \
-	"; do sleep 3; done
+	until ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) true; do sleep 3; done
+ifeq ($(SECRETS), yes)
+	NIXUSER=root $(MAKE) remote/copy/agenix
+endif
+	NIXUSER=root $(MAKE) remote/build
+	NIXUSER=root $(MAKE) remote/switch
 
 # experimental: only one stage required
+# mkdir -p /mnt/tmp && export TMPDIR=/mnt/tmp; \
+# READ: https://stackoverflow.com/questions/76591674/nix-gives-no-space-left-on-device-even-though-nix-has-lots
 # TODO: figure out how to forward ssh agent to 'chroot' for secrets deployment
 remote/bootstrap/chroot:
 	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
@@ -106,34 +116,21 @@ remote/bootstrap/chroot:
           \"${MYREPO}#installer-nixos-enter\" ${NIXHOST}' && reboot; \
     "
 
-# not-in-used, need to disable disko & set fileSystems manually for each host if used
-# it's actually faster than disko because the later needs to build derivation
-# it's however a lot more manual & less flexible than disko
-# mkdir -p /mnt/tmp && export TMPDIR=/mnt/tmp; \
-# READ: https://stackoverflow.com/questions/76591674/nix-gives-no-space-left-on-device-even-though-nix-has-lots
-remote/bootstrap/legacy:
-	NIXUSER=root $(MAKE) remote/copy
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-		parted /dev/sda -- mklabel gpt; \
-		parted /dev/sda -- mkpart primary 512MB 100\%; \
-		parted /dev/sda -- mkpart ESP fat32 1MB 512MB; \
-		parted /dev/sda -- set 2 esp on; \
-		sleep 1; \
-		mkfs.ext4 -L nixos /dev/sda1; \
-		mkfs.fat -F 32 -n boot /dev/sda2; \
-		sleep 1; \
-		mount /dev/disk/by-label/nixos /mnt; \
-		mkdir -p /mnt/boot; \
-		mount /dev/disk/by-label/boot /mnt/boot; \
-		nixos-generate-config --root /mnt; \
-		test -f ./.ssh/known_hosts || (mkdir -p ./.ssh && \
-          ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
-        mkdir -p /mnt/tmp && export TMPDIR=/mnt/tmp; \
-        nixos-install --no-root-passwd --flake path:/root/${NIXCFG}#${NIXHOST} && reboot; \
+remote/build:
+	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
+		nix build \"./$(NIXCFG)#nixosConfigurations.${NIXHOST}.config.system.build.toplevel\" \
+	"
+# This does NOT copy files so you have to run remote/copy before.
+remote/switch:
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
+		sudo nixos-rebuild switch --flake \"./$(NIXCFG)#${NIXHOST}\" \
 	"
 
 # copy the Nix configurations into the Remote Machine. For local setup without github
 remote/copy:
+ifeq ($(SECRETS), yes)
+	$(MAKE) remote/copy/agenix
+endif
 	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
 		--exclude='.git/' \
 		--exclude='result' \
@@ -141,27 +138,18 @@ remote/copy:
         --delete \
 		$(FLAKE_DIR)/ $(NIXUSER)@$(NIXADDR):./$(NIXCFG)
 
+remote/copy/agenix:
+	cd ../lamt-secrets/agenix; agenix -d ${NIXHOST}/id_agenix.age \
+	  | ssh $(SSH_OPTIONS) -p$(NIXPORT) ${NIXUSER}@${NIXADDR} " \
+      sudo sh -c 'cat > /etc/ssh/id_agenix && chmod 600 /etc/ssh/id_agenix'; \
+    "; cd ../../${NIXCFG}
+
 # NixOS Minimal does not have 'rsync', and 'scp' does not support exclude files, thus this tmpdir trick
 remote/copyscp:
 	@tmpdir=`mktemp --tmpdir -d`; trap 'rm -rf "$$tmpdir"' EXIT; echo $$tmpdir; \
 	rsync -a --exclude='.git' --exclude='result' --exclude='.DS_Store' --delete \
 		$(FLAKE_DIR)/ $$tmpdir/$(NIXCFG); \
 	scp -r $(SSH_OPTIONS) -p$(NIXPORT) $$tmpdir/$(NIXCFG) $(NIXUSER)@$(NIXADDR):./
-
-# This does NOT copy files so you have to run remote/copy before.
-remote/switch:
-	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		sudo nixos-rebuild switch --flake \"./$(NIXCFG)#${NIXHOST}\" \
-	"
-
-# This only requires for 1st time secrets deployment or when secrets changed
-remote/switch/secrets:
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		test -f ./.ssh/known_hosts || (mkdir -p ./.ssh && \
-		  ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
-		cd ${NIXCFG} && nix flake lock; \
-		sudo nixos-rebuild switch --flake \".#${NIXHOST}\" \
-	"
 
 # copy our GPG keyring and SSH keys secrets into the Remote Machine
 remote/secrets:

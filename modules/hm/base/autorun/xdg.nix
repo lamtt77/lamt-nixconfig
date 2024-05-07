@@ -28,8 +28,10 @@ in {
     # MANPAGER = "${manpager}/bin/manpager";
   };
 
-  home.file.".gdbinit".source = "${self}/config/.gdbinit";
-  home.file.".inputrc".source = "${self}/config/.inputrc";
+  home.file = {
+    ".gdbinit".source = "${self}/config/.gdbinit";
+    ".inputrc".source = "${self}/config/.inputrc";
+  };
 
   xresources.extraConfig = builtins.readFile "${self}/config/.Xresources";
 

@@ -66,22 +66,16 @@ $ git clone https://github.com/lamtt77/lamt-nixconfig && cd lamt-nixconfig
 $ NIXADDR=192.168.1.100 NIXHOST=gaming make remote/bootstrap
 ```
 
-### Secrets Host Deployment: TODO improve to a more automatic way
-#### Follow non-secrets host deployment above, and have some extra-steps:
-+ From the main deployment machine: go to 'lamt-secrets' repo:
+### Secrets Host Deployment:
+#### Follow non-secrets host deployment 'Method 2', and set 'SECRETS=yes':
 ```
-$ ssh-keyscan -H 192.168.1.101 -> note the ssh-ed25519 pubkey
-Change 'lamt-secrets/agenix/secrets.nix' to add that ssh-ed25519 pubkey, then rekey:
-$ agenix -r
-Commit & push 'lamt-secrets'
+$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos SECRETS=yes make remote/bootstrap
 ```
-+ Go back to 'lamt-nixconfig' repo:
+#### FORCE: *WARNING: Disko Format Pre-confirmed! Can not be undone!!!*
 ```
-$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos make remote/copy
-$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos make remote/switch/secrets
-Note: from 2nd switch onwards, if secrets not changed, use:
-$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos make remote/switch
+$ NIXADDR=192.168.1.101 NIXHOST=avon NIXUSER=nixos SECRETS=yes FORCE=yes make remote/bootstrap
 ```
+Note: set 'SECRETS=no' will still install the host normally, without secret fields
 
 ### MacOS / Darwin
 * Installer: https://determinate.systems/posts/determinate-nix-installer/

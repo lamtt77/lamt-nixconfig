@@ -3,15 +3,15 @@
 #   25-smtp: no password required for local lan, super unimportant emails only
 #   465-smtps and 587-smtp-tls: auth via dovecot
 
-{ inputs, config, lib, pkgs, ... }:
+{ inputs, config, lib, pkgs, hostname, ... }:
 
 with lib;
 let
   inherit (inputs.self) mydefs;
   cfg = config.modules.os.linux.services.postfix;
-  sslServerCert = config.age.secrets.avon_ssl_cert.path;
-  sslServerKey = config.age.secrets.avon_ssl_key.path;
-  sslCACert = config.age.secrets.avon_ssl_cacert.path;
+  sslServerCert = config.age.secrets."${hostname}/ssl_cert".path;
+  sslServerKey = config.age.secrets."${hostname}/ssl_key".path;
+  sslCACert = config.age.secrets."${hostname}/ssl_cacert".path;
 in {
   options.modules.os.linux.services.postfix = {
     enable = mkEnableOption "";
@@ -19,7 +19,7 @@ in {
 
   config = mkIf cfg.enable {
     networking.firewall.allowedTCPPorts = [ 25 465 587 ];
-    age.secrets.avon_sasl_password.owner = "postfix";
+    age.secrets."${hostname}/sasl_password".owner = "postfix";
 
     user.packages = with pkgs; [ openssl ];
 
@@ -65,8 +65,8 @@ in {
 
         # ref: https://serverfault.com/questions/443652/using-postfix-to-relay-via-multiple-google-apps-accounts
         smtp_sender_dependent_authentication = "yes";
-        sender_dependent_relayhost_maps = "texthash:${config.age.secrets.avon_sender_relay.path}";
-        smtp_sasl_password_maps = "texthash:${config.age.secrets.avon_sasl_password.path}";
+        sender_dependent_relayhost_maps = "texthash:${config.age.secrets."${hostname}/sender_relay".path}";
+        smtp_sasl_password_maps = "texthash:${config.age.secrets."${hostname}/sasl_password".path}";
 
         smtpd_sasl_auth_enable = "yes";
         smtpd_sasl_type = "dovecot";

@@ -21,24 +21,19 @@ in {
       inherit (inputs) mysecrets;
       secretsDir = "${mysecrets}/agenix";
       secretsFile = "${secretsDir}/secrets.nix";
-      home = config.users.users.${username}.home;
+      # home = config.users.users.${username}.home;
     in {
       secrets =
-        # just load the age files belonging to this specific hostname,
-        # else it can't decrypt!
+        # just load the age files from our current hostname, else it can't decrypt!
         if pathExists secretsFile
-        then filterAttrs (n: _: hasPrefix hostname n) (
+        then filterAttrs (n: _: hasPrefix "${hostname}/" n) (
           mapAttrs' (n: _: nameValuePair (removeSuffix ".age" n) {
             file = "${secretsDir}/${n}";
             owner = mkDefault username;
           }) (import secretsFile))
         else {};
-      identityPaths =
-        # default is /etc/ssh/ssh_host_rsa_key and /etc/ssh/ssh_host_ed25519_key
-        options.age.identityPaths.default ++ (filter pathExists [
-          "${home}/.ssh/id_ed25519"
-          "${home}/.ssh/id_rsa"
-        ]);
+       # default is /etc/ssh/ssh_host_rsa_key and /etc/ssh/ssh_host_ed25519_key
+       identityPaths =  ["/etc/ssh/id_agenix"] ++ options.age.identityPaths.default;
     };
   };
 }

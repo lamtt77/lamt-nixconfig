@@ -5,7 +5,7 @@
 #   Config: https://docs.gitea.io/en-us/config-cheat-sheet/
 #   API:    https://docs.gitea.io/en-us/api-usage/
 
-{ inputs, config, lib, pkgs, ... }:
+{ inputs, config, lib, pkgs, hostname, ... }:
 
 with lib;
 let
@@ -17,7 +17,7 @@ in {
   };
 
   config = mkIf cfg.enable {
-    age.secrets.avon_smtp-password.owner = "git";
+    age.secrets."${hostname}/smtp-password".owner = "git";
 
     # Allows git@... clone addresses rather than gitea@...
     users.users.git = {
@@ -75,7 +75,7 @@ in {
           SMTP_PORT = mydefs.relayPort;
         };
       };
-      mailerPasswordFile = config.age.secrets.avon_smtp-password.path;
+      mailerPasswordFile = config.age.secrets."${hostname}/smtp-password".path;
     };
 
     # backup strategy
