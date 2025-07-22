@@ -56,7 +56,7 @@ in {
           tag.gpgSign = true;
         };
         includes = [{ path = "./include"; }];
-        signing.key = "${mydefs.gpg-defaultKey}";
+        signing.key = "${mydefs.gpgDefaultKey}";
       };
     };
 

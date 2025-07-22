@@ -25,8 +25,8 @@ in {
     settings.PasswordAuthentication = false;
     settings.KbdInteractiveAuthentication = false;
     knownHosts = {
-      "github.com".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl";
-      "tea.lamhub.com".publicKey = mydefs.teaPublicKey;
+      "github.com".publicKey = mydefs.githubPubkey;
+      "tea.lamhub.com".publicKey = mydefs.teaPubkey;
     };
   };
 

@@ -74,7 +74,7 @@ in
       dbus = {
         enable = true;
         # Make the gnome keyring work properly
-        packages = [ pkgs.gnome3.gnome-keyring pkgs.gcr ];
+        packages = [ pkgs.gnome-keyring pkgs.gcr ];
       };
 
       gnome = {
@@ -166,7 +166,7 @@ in
 
       qt = {
         enable = true;
-        platformTheme = "gnome";
+        platformTheme.name = "adwaita";
         style.name = "adwaita";
         style.package = pkgs.adwaita-qt;
       };

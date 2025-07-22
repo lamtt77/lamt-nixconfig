@@ -1,4 +1,4 @@
-# LamT: bleeding edge helix :)
+# LamT: deprecated, just for furture reference
 
 final: prev: {
   helix = prev.helix.overrideAttrs (old: rec {

@@ -1,6 +1,5 @@
 lamt-secrets
-lamt-private
 .authinfo.gpg
 
+result*
 .DS_Store
-result

@@ -1,7 +1,7 @@
 { inputs, lib, pkgs, username, ... }:
 
 with lib;
-let users = [ "root" username ];
+let users = [ "root" "@wheel" ];
 in
   inputs.self.libx.mkUser { inherit username pkgs; darwin = pkgs.stdenv.isDarwin; } // {
 
@@ -20,14 +20,13 @@ in
       flake-registry = ${inputs.flake-registry}/flake-registry.json
     '';
 
-    optimise.automatic = true;
+    # optimise.automatic = true;
 
     settings = {
       max-jobs = "auto";
       # cores = 8;
 
       trusted-users = users;
-      allowed-users = users;
 
       use-xdg-base-directories = true;
 

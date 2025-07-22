@@ -1,21 +1,39 @@
 # this may not work if we use gpg-agent as the default
 # Solution: READ: https://unix.stackexchange.com/questions/554153/what-is-the-proper-configuration-for-gpg-ssh-and-gpg-agent-to-use-gpg-auth-sub
 
-{ config, lib, ... }:
-
+{ inputs, pkgs, config, lib, ... }:
+let
+  hostnames = builtins.attrNames inputs.self.nixosConfigurations;
+in
 with lib;
 {
   config = mkIf config.programs.ssh.enable {
-
     programs.ssh = {
+      # TODO: not working yet
+      # matchBlocks = {
+      #   net = {
+      #     host = builtins.concatStringsSep " " hostnames;
+      #     forwardAgent = true;
+      #     remoteForwards = [
+      #       {
+      #         bind.address = let
+      #           bindsockset = pkgs.runCommand "gpgconf" {buildInputs = [pkgs.gnupg];} ''
+      #           gpgconf --list-dir agent-socket > $out
+      #           '';
+      #         in ''${bindsockset}'';
+      #         host.address = let
+      #           hostsockset = pkgs.runCommand "gpgconf" {buildInputs = [pkgs.gnupg];} ''
+      #           gpgconf --list-dir agent-extra-socket > $out
+      #           '';
+      #         in ''${hostsockset}'';
+      #       }
+      #     ];
+      #   };
+      # };
+
       extraConfig = ''
       # a private key used during authentication will be added to the running ssh-agent
       # AddKeysToAgent yes
-
-      Match host * exec "gpg-connect-agent UPDATESTARTUPTTY /bye"
-      # support ssh agent forwarding from gpg-agent
-      StreamLocalBindUnlink yes
-
       # UseKeychain yes
 
       # Host 192.168.*

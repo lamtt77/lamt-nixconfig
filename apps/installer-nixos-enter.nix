@@ -47,7 +47,8 @@ in {
       && ssh-keyscan -H tea.lamhub.com > /mnt/root/.ssh/known_hosts)
 
     nixos-generate-config --force --root /mnt
-    cp ${self}/apps/installer-staging/extra-config.nix /mnt/etc/nixos
+    cp ${self}/{defines.nix,apps/installer-staging/extra-config.nix} /mnt/etc/nixos
+    cp ${self}/modules/os/linux/autorun/zramswap.nix /mnt/etc/nixos
     sed --in-place '/hardware-configuration.nix.*/a\
       \.\/extra-config.nix\n\
     ' /mnt/etc/nixos/configuration.nix

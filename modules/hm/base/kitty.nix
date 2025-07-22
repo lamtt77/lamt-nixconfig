@@ -15,7 +15,7 @@ in {
       font = {
         name =
           if pkgs.stdenv.isDarwin
-          then "Monaco Nerd Font"
+          then "Monaco Nerd Font Mono"
           else "Liberation Mono";
         size =
           if pkgs.stdenv.isDarwin

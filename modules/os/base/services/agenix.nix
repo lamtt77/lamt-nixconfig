@@ -6,7 +6,7 @@ let
 in {
   options = with types; {
     modules.os.base.services.agenix = {
-      enable = mkEnableOption "Agenix module";
+      enable = mkEnableOption "Agenix Module";
     };
   };
 
@@ -18,10 +18,12 @@ in {
     ];
 
     age = let
-      inherit (inputs) mysecrets;
-      secretsDir = "${mysecrets}/agenix";
+      # inherit (inputs) mysecrets;
+      # secretsDir = "${mysecrets}/agenix";
+      # home = config.users.users."${username}".home;
+      inherit (inputs) self;
+      secretsDir = "${self}/secrets/agenix";
       secretsFile = "${secretsDir}/secrets.nix";
-      # home = config.users.users.${username}.home;
     in {
       secrets =
         # just load the age files from our current hostname, else it can't decrypt!
@@ -32,8 +34,8 @@ in {
             owner = mkDefault username;
           }) (import secretsFile))
         else {};
-       # default is /etc/ssh/ssh_host_rsa_key and /etc/ssh/ssh_host_ed25519_key
-       identityPaths =  ["/etc/ssh/id_agenix"] ++ options.age.identityPaths.default;
+      # default: /etc/ssh/ssh_host_rsa_key and /etc/ssh/ssh_host_ed25519_key
+      identityPaths =  ["/etc/ssh/id_agenix"] ++ options.age.identityPaths.default;
     };
   };
 }

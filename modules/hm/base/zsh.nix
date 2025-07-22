@@ -19,7 +19,7 @@ in {
 
     programs.zsh = {
       enable = true;
-      initExtra = builtins.readFile ../../../config/.z4hrc;
+      initContent = builtins.readFile ../../../config/.z4hrc;
       envExtra = builtins.readFile ../../../config/.z4henv;
 
       shellAliases = {

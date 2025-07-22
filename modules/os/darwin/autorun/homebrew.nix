@@ -20,6 +20,7 @@
       "rectangle"
       "screenflow"
       "slack"
+      "the-unarchiver"
       # "spotify"
       # "iterm2"
       # "digikam"

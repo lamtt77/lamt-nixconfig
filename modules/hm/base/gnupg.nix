@@ -9,7 +9,7 @@
 with lib;
 let
   inherit (inputs) self;
-  inherit (self.mydefs) gpg-defaultKey gpg-sshKeygrip;
+  inherit (self.mydefs) gpgDefaultKey gpgSshKeygrip;
   cfg = config.modules.hm.base.gnupg;
   pinentry-program = if pkgs.stdenv.isDarwin
                      then "${pkgs.unstable.pinentry_mac}/Applications/pinentry-mac.app/Contents/MacOS/pinentry-mac"
@@ -17,7 +17,8 @@ let
 in {
   options.modules.hm.base.gnupg = with types; {
     enable = mkEnableOption "GnuPG module";
-    cacheTTL = mkOption { type = int; default = 4*60*60; }; # 4h
+    defaultCacheTTL = mkOption { type = int; default = 34560000; };
+    maxCacheTTL = mkOption { type = int; default = 34560000; };
     enableSSHSupport = mkEnableOption "";
   };
 
@@ -29,12 +30,12 @@ in {
     programs = let
       fixGpg = ''
         gpgconf --launch gpg-agent
+        gpg-connect-agent updatestartuptty /bye >/dev/null
       '';
     in {
       # Start gpg-agent if it's not running or tunneled in
       bash.profileExtra = fixGpg;
-      zsh.initExtra = fixGpg;
-      fish.shellInit = fixGpg;
+      zsh.initContent = fixGpg;
 
       gpg = {
         enable = true;
@@ -54,24 +55,28 @@ in {
           }
         ];
         settings = {
-          default-key = gpg-defaultKey;
+          default-key = gpgDefaultKey;
         };
       };
     };
 
-    # this is for supporting darwin/cross platform
+    # this is for supporting darwin/cross platform, headless pinentry
+    # extra-socket ${config.xdg.configHome}/gnupg/S.gpg-agent.extra
     xdg.configFile = mkIf (cfg.enableSSHSupport) {
       "gnupg/gpg-agent.conf" = {
         text = ''
+          default-cache-ttl ${toString cfg.defaultCacheTTL}
+          max-cache-ttl ${toString cfg.maxCacheTTL}
+          default-cache-ttl-ssh ${toString cfg.defaultCacheTTL}
+          max-cache-ttl-ssh ${toString cfg.maxCacheTTL}
           enable-ssh-support
-          default-cache-ttl ${toString cfg.cacheTTL}
           pinentry-program ${pinentry-program}
       '';
       };
 
       "gnupg/sshcontrol" = {
         text = ''
-          ${gpg-sshKeygrip}
+          ${gpgSshKeygrip}
       '';
       };
     };

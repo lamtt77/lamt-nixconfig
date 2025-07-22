@@ -55,7 +55,7 @@ in {
       dbus = {
         enable = true;
         # Make the gnome keyring work properly
-        packages = [ pkgs.gnome3.gnome-keyring pkgs.gcr ];
+        packages = [ pkgs.gnome-keyring pkgs.gcr ];
       };
 
       gnome = {
@@ -89,7 +89,7 @@ in {
 
       qt = {
         enable = true;
-        platformTheme = "gnome";
+        platformTheme.name = "adwaita";
         style.name = "adwaita";
         style.package = pkgs.adwaita-qt;
       };
@@ -109,7 +109,7 @@ in {
         mako # notification system developed by swaywm maintainer
 
         dracula-theme # gtk theme
-        gnome3.adwaita-icon-theme  # default gnome cursors
+        adwaita-icon-theme  # default gnome cursors
 
         wdisplays # tool to configure displays
         wlr-randr

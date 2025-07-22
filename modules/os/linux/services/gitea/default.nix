@@ -5,7 +5,7 @@
 #   Config: https://docs.gitea.io/en-us/config-cheat-sheet/
 #   API:    https://docs.gitea.io/en-us/api-usage/
 
-{ inputs, config, lib, pkgs, hostname, ... }:
+{ inputs, config, lib, pkgs, username, hostname, ... }:
 
 with lib;
 let
@@ -27,7 +27,7 @@ in {
       isSystemUser = true;
     };
 
-    user.extraGroups = [ "gitea" ];
+    users.users.${username}.extraGroups = [ "gitea" ];
 
     services.gitea = {
       enable = true;

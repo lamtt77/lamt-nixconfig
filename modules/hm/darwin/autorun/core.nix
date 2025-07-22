@@ -2,9 +2,6 @@
 
 {
   home.activation = {
-    report-changes = config.lib.dag.entryAnywhere ''
-      ${pkgs.nvd}/bin/nvd diff $oldGenPath $newGenPath'';
-
     # FIXME once done: https://github.com/nix-community/home-manager/issues/1341
     aliasHomeManagerApplications = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     app_folder="${config.home.homeDirectory}/Applications/Home Manager Trampolines"

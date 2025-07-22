@@ -5,7 +5,6 @@
     enable = true;
     defaultUser = username;
     startMenuLaunchers = true;
-    nativeSystemd = true;
     wslConf.automount.root = "/mnt"; # this is the default behavior
 
     # Enable native Docker support

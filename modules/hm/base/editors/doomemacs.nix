@@ -37,14 +37,14 @@ in {
       ## Emacs itself
       binutils       # native-comp needs 'as', provided by this
       # 29.3 + native-comp
-      ((emacsPackagesFor emacs29).emacsWithPackages
+      ((emacsPackagesFor emacs30).emacsWithPackages
         (epkgs: [ epkgs.vterm epkgs.pdf-tools ] ))
       # this required emacs-overlay, pureGTK is suitable for wayland-only environment
       # ((emacsPackagesFor emacsPgtkNativeComp).emacsWithPackages
 
       ## Doom dependencies
       git
-      (ripgrep.override {withPCRE2 = true;})
+      ripgrep
       gnutls              # for TLS connectivity
 
       ## Optional dependencies
@@ -61,12 +61,11 @@ in {
       sqlite
       # :lang beancount
       beancount
-      # LamT: flake.nix provided unstable
-      unstable.fava  # HACK Momentarily broken on nixos-unstable
+      fava
 
       cmake
       fontconfig
-      nixfmt shfmt
+      shfmt
       shellcheck
       gnuplot
       nodePackages.bash-language-server

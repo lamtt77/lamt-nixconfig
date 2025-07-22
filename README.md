@@ -4,7 +4,6 @@ Moving forward my dotfiles repo will only be using for Arch Linux (its wiki is j
 All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 
 ## TODO
-+ Migrate to my own vim/nvim configuration stored in dotfiles, not-in-hurry as the existing nvim config is working fine
 + bootstrap: btrfs with [optional] luks encrypted
 + homelab and backup: migrate my custom scripts to nix
 + services: add tailscale/headscale, caddy...
@@ -16,18 +15,18 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 + [optional] secure boot: lanzaboote
 
 ## Features
-+ One (or two) command(s) Full System Deployment
++ One-liner system deployment
 + Unified Config for MacOS (apple silicon & intel), Linux and Windows WSL2
 + Modules/Services can easily enable/disable on demand
 + home-manager can act as a stanalone system or as a nixos module
-+ Remote & Cross Platforms Deployment (TODO)
++ Remote & Cross Platforms Deployment (WIP)
 + Secrets Management
 
 ## Quickstart:
 + Boot with 'EFI' Bios, use NixOS Minimal ISO Boot CD from https://nixos.org/download/
 
 ### Non-secrets Host Deployment
-Format and build a brand new Host. One-time/liner headless installation!
+Format and build a brand new Host. One-liner headless installation!
 
 *WARNING*: This will ERASE all data of the machine's hard disk! Use at your OWN RISK!!!
 
@@ -83,14 +82,14 @@ Note: set 'SECRETS=no' will still install the host normally, without secret fiel
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 ```
 After completed, verify with 'nix --version', we are now ready to switch to our config:
-+ Standalone home-manager: I used this option on darwin
++ Standalone home-manager:
+```
+$ NIXHOST=macair15-m2-hm make switch
+$ NIXHOST=macair15-m2-hm make switch/hm
+```
++ Combined home-manager as a nixos module: I used this option
 ```
 $ NIXHOST=macair15-m2 make switch
-$ NIXHOST=macair15-m2 make switch/hm
-```
-+ Combined home-manager as a nixos module: I used this option for the rest (linux & wsl)
-```
-$ NIXHOST=macair15-m2-combined make switch
 ```
 + Note: alternatively, you can use official installer https://nixos.org/download/, I use the installer from determinate systems because it supports unninstall easily.
 ```
@@ -142,5 +141,5 @@ chroot: failed to run command ‘/nix/var/nix/profiles/system/sw/bin/bash’: No
 
 ## Credits
 + [Virtual Machine as MacOS terminal workflow] https://github.com/mitchellh/nixos-config
-+ [handsome libs, doomemacs and modules/services structure] https://github.com/hlissner/dotfiles
++ [util libs, doomemacs and modules structure] https://github.com/hlissner/dotfiles
 + Lots of others' nix configuration around the internet

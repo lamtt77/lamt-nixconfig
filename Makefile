@@ -1,13 +1,41 @@
-# Connectivity info for Linux Remote Machine
+# Connectivity info for Remote Machine
 NIXADDR ?= unset
 NIXPORT ?= 22
 NIXUSER ?= lamt
-# The hostname of the nixosConfiguration in the flake
+# The hostname of the nixos/darwin Configuration in the flake
 NIXHOST ?= avon
 NIXCFG ?= lamt-nixconfig
+TEA_URL ?= tea.lamhub.com
 
-SSH_COPY_ID = yes
+SSH_COPY_ID ?= yes
 SECRETS ?= no
+
+# OS switching
+UNAME := $(shell uname)
+
+# nh output monitoring
+NH ?= yes
+
+OFFLINE ?=
+ifeq ($(OFFLINE), yes)
+	OFFLINE = --option substitute false
+endif
+
+NIXOS_SWITCH ?= sudo nixos-rebuild switch $(OFFLINE) --flake ".\#$(NIXHOST)"
+DARWIN_SWITCH ?= sudo nix run -- nix-darwin switch $(OFFLINE) --flake ".\#${NIXHOST}"
+HM_SWITCH ?= nix run -- home-manager switch $(OFFLINE) --flake ".\#${NIXUSER}"
+
+ifeq ($(NH), yes)
+	NIXOS_SWITCH = nh os switch . --hostname $(NIXHOST)
+	DARWIN_SWITCH = nh darwin switch . --hostname $(NIXHOST)
+	HM_SWITCH = nh home switch .
+endif
+
+ifeq ($(UNAME), Darwin)
+	OS_SWITCH = $(DARWIN_SWITCH)
+else
+	OS_SWITCH = $(NIXOS_SWITCH)
+endif
 
 FORCE ?=
 ifeq ($(FORCE), yes)
@@ -15,7 +43,7 @@ ifeq ($(FORCE), yes)
 endif
 
 GH_REPO ?= github:lamtt77/$(NIXCFG)
-TEA_REPO ?= git+ssh://git@tea.lamhub.com/lamtt77/$(NIXCFG)
+TEA_REPO ?= git+ssh://git@$(TEA_URL)/lamtt77/$(NIXCFG)
 LOCAL_REPO ?= path:/root/$(NIXCFG)
 ifeq ($(NIXREPO), tea)
 	MYREPO = $(TEA_REPO)
@@ -28,41 +56,57 @@ endif
 # Get the path to this Makefile and Flake directory
 FLAKE_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
+FLAKE_FEATURES ?= --extra-experimental-features \"nix-command flakes\"
+
+FLAKE_EXCLUDE ?= --exclude='.git/' --exclude='secrets/' --exclude='result' --exclude='.DS_Store'
+
 SSH_OPTIONS=-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
 
-# We need to do some OS switching below.
-UNAME := $(shell uname)
+copy/secrets:
+	mkdir -p ./secrets/agenix
+	rsync -av \
+        --delete \
+        ../lamt-secrets/agenix/{secrets.nix,$(NIXHOST)} secrets/agenix/
+pre-secrets:
+	test -d .git && test -d secrets && echo PRE-secrets && git add secrets/ || true
+post-secrets:
+	test -d .git && test -d secrets && echo POST-secrets && git rm --cached -r secrets/ || true
 
-switch:
+build0:
 ifeq ($(UNAME), Darwin)
 	nix build --extra-experimental-features "nix-command flakes" ".#darwinConfigurations.${NIXHOST}.system"
-	./result/sw/bin/darwin-rebuild switch --flake "$$(pwd)#${NIXHOST}"
 else
-	sudo nixos-rebuild switch --flake ".#${NIXHOST}"
+	nix build ".#nixosConfigurations.${NIXHOST}.config.system.build.toplevel"
 endif
 
-# should only run with home-manager standalone config
+switch0:
+	$(OS_SWITCH)
+
+# switch home-manager modules only, sudo is not needed
 switch/hm:
-	home-manager switch --flake ".#${NIXUSER}_${NIXHOST}"
+	$(HM_SWITCH)
 
-test:
+test0:
 ifeq ($(UNAME), Darwin)
-	nix build ".#darwinConfigurations.${NIXHOST}.system"
-	./result/sw/bin/darwin-rebuild check --flake "$$(pwd)#${NIXHOST}"
+	sudo nix run -- nix-darwin check --flake ".#${NIXHOST}"
 else
-	sudo nixos-rebuild test --flake ".#$(NIXHOST)"
+	sudo nixos-rebuild test --flake ".#${NIXHOST}"
 endif
+
+# Main entry points, pre/post hack will remain until Nix supported git submodule properly
+# Goal: isolate secrets by each host, nix/store only contains secrets of the running host
+build: pre-secrets build0 post-secrets
+switch: pre-secrets switch0 post-secrets
+test: pre-secrets test0 post-secrets
 
 # This will ERASE all data of the REMOTE machine's hard disk! Use at your OWN RISK!!!
 #
-# Format and setup a brand new Remote Host. One-time/liner installation from github :)
-# NixOS Minimal ISO required to be on the CD drive.
+# Format and setup a brand new Remote Host. One-time/liner installation :)
 # Set a temp password for the root user before bootstrap for ssh connectivity,
 # the password is only valid during installation session.
 #
-# Remove 'ssh-keyscan' if you do not want/have secrets deployment, it's OK to keep as-is
-# Forwarding ssh-agent '-A' is only required for my secrets private repo deployment,
-# this deployment machine should already have the private-key installed.
+# Forwarding ssh-agent '-A' is only required for accessing my private repo, this
+# deployment machine should already have the private-key installed.
 #
 # NixOS Minimal does not have git, which is required for nixos-install
 # git+ssh also requires git pre-installed
@@ -87,23 +131,23 @@ remote/bootstrap0:
 	@echo "====>Stage0: Staging..."
 	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
 		test -f ./.ssh/known_hosts || (mkdir -p ./.ssh && \
-		  ssh-keyscan -H tea.lamhub.com > ./.ssh/known_hosts); \
-        nix-shell -p gitMinimal --run 'nix run \
-          --extra-experimental-features \"nix-command flakes\" \
+		  ssh-keyscan -H ${TEA_URL} > ./.ssh/known_hosts); \
+        nix-shell -p gitMinimal --run 'nix run ${FLAKE_FEATURES} \
           \"${MYREPO}#installer-staging\" ${FORCE} ${NIXHOST}' && reboot; \
     "
 
 # If Stage1 completed, 'root' will be blocked from ssh login, use your user instead
 # Can safely re-run 'remote/bootstrap1' if ssh disconnected
-# It's recommended to reboot at first use and rebuild switch to your user
+# TODO: default to 'yes' when nh moved to nixpkgs stable
 remote/bootstrap1:
 	@echo "====>Stage1: Host Swiching/Activating... Ctrl-C to terminate"
-	until ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) true; do sleep 3; done
+	until ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) true; do sleep 3; done
 ifeq ($(SECRETS), yes)
-	NIXUSER=root $(MAKE) remote/copy/agenix
+	NIXUSER=root $(MAKE) remote/copy/secrets
 endif
 	NIXUSER=root $(MAKE) remote/build
-	NIXUSER=root $(MAKE) remote/switch
+	NIXUSER=root NH=no $(MAKE) remote/switch
+	$(MAKE) remote/cleanup/root
 
 # experimental: only one stage required
 # mkdir -p /mnt/tmp && export TMPDIR=/mnt/tmp; \
@@ -111,49 +155,73 @@ endif
 # TODO: figure out how to forward ssh agent to 'chroot' for secrets deployment
 remote/bootstrap/chroot:
 	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-        nix-shell -p gitMinimal --run 'nix run \
-          --extra-experimental-features \"nix-command flakes\" \
+        nix-shell -p gitMinimal --run 'nix run ${FLAKE_FEATURES} \
           \"${MYREPO}#installer-nixos-enter\" ${NIXHOST}' && reboot; \
     "
 
 remote/build:
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		nix build \"./$(NIXCFG)#nixosConfigurations.${NIXHOST}.config.system.build.toplevel\" \
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
+		cd ${NIXCFG}; \
+		test -d .git && test -d secrets && echo PRE-secrets && git add secrets/; \
+		nix build '.#nixosConfigurations.${NIXHOST}.config.system.build.toplevel'; \
+		test -d .git && test -d secrets && echo POST-secrets && git rm --cached -r secrets/ || true; \
 	"
+
 # This does NOT copy files so you have to run remote/copy before.
 remote/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-		sudo nixos-rebuild switch --flake \"./$(NIXCFG)#${NIXHOST}\" \
+		cd ${NIXCFG}; \
+		test -d .git && test -d secrets && echo PRE-secrets && git add secrets/; \
+		${NIXOS_SWITCH}; \
+		test -d .git && test -d secrets && echo POST-secrets && git rm --cached -r secrets/ || true; \
+	"
+
+remote/copy-switch: remote/copy remote/switch
+
+remote/cleanup/root:
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) "sudo sh -c ' \
+		test -d /root/${NIXCFG} && rm -rf /root/${NIXCFG}; \
+		test -d /root/result && rm /root/result; \
+		nix-collect-garbage -d; ' \
+	"
+
+remote/cleanup:
+	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
+		test -d ./${NIXCFG} && rm -rf ${NIXCFG}; \
+		test -d result && rm result; \
+        nix-collect-garbage -d; \
 	"
 
 # copy the Nix configurations into the Remote Machine. For local setup without github
-remote/copy:
-ifeq ($(SECRETS), yes)
-	$(MAKE) remote/copy/agenix
-endif
-	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
-		--exclude='.git/' \
-		--exclude='result' \
-		--exclude='.DS_Store' \
+remote/copy: remote/copy/secrets
+	rsync -av $(FLAKE_EXCLUDE) -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
         --delete \
 		$(FLAKE_DIR)/ $(NIXUSER)@$(NIXADDR):./$(NIXCFG)
 
-remote/copy/agenix:
-	cd ../lamt-secrets/agenix; agenix -d ${NIXHOST}/id_agenix.age \
-	  | ssh $(SSH_OPTIONS) -p$(NIXPORT) ${NIXUSER}@${NIXADDR} " \
-      sudo sh -c 'cat > /etc/ssh/id_agenix && chmod 600 /etc/ssh/id_agenix'; \
-    "; cd ../../${NIXCFG}
+remote/copy/secrets:
+ifeq ($(SECRETS), yes)
+	cd ../lamt-secrets/agenix; agenix -d $(NIXHOST)/id_agenix.age \
+	    | ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
+        sudo sh -c 'cat > /etc/ssh/id_agenix && chmod 600 /etc/ssh/id_agenix'; \
+    "; cd ../../$(NIXCFG)
+	rsync -av -e 'ssh ${SSH_OPTIONS} -p${NIXPORT}' \
+		--rsync-path="mkdir -p ./${NIXCFG}/secrets/agenix && rsync" \
+        --delete \
+		../lamt-secrets/agenix/{secrets.nix,$(NIXHOST)} \
+        $(NIXUSER)@$(NIXADDR):./$(NIXCFG)/secrets/agenix/
+endif
 
 # NixOS Minimal does not have 'rsync', and 'scp' does not support exclude files, thus this tmpdir trick
 remote/copyscp:
 	@tmpdir=`mktemp --tmpdir -d`; trap 'rm -rf "$$tmpdir"' EXIT; echo $$tmpdir; \
-	rsync -a --exclude='.git' --exclude='result' --exclude='.DS_Store' --delete \
+	rsync -a $(FLAKE_EXCLUDE) \
+        --delete \
 		$(FLAKE_DIR)/ $$tmpdir/$(NIXCFG); \
 	scp -r $(SSH_OPTIONS) -p$(NIXPORT) $$tmpdir/$(NIXCFG) $(NIXUSER)@$(NIXADDR):./
 
 # copy our GPG keyring and SSH keys secrets into the Remote Machine
-remote/secrets:
-	rsync -av -e 'ssh $(SSH_OPTIONS)' \
+remote/keys:
+	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
 		--exclude='.#*' \
 		--exclude='S.*' \
 		--exclude='*.conf' \
@@ -165,4 +233,4 @@ remote/secrets:
 # Build a WSL installer
 .PHONY: wsl
 wsl:
-	 sudo nix run ".#nixosConfigurations.wsl.config.system.build.tarballBuilder"
+	sudo nix run ".#nixosConfigurations.wsl.config.system.build.tarballBuilder"

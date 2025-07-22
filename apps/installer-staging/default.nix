@@ -65,6 +65,7 @@ in {
 
     test -d /mnt/root/${mydefs.myRepoName} && rm -rf /mnt/root/${mydefs.myRepoName}
     cp -r ${self} /mnt/root/${mydefs.myRepoName}
+
     nixos-install --no-root-password --no-channel-copy
   '');
 }

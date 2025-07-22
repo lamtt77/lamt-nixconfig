@@ -10,12 +10,18 @@ in {
   };
 
   config = mkIf cfg.enable {
-    # setup windowing environment
+    # We need an XDG portal for various applications to work properly,
+    # such as Flatpak applications.
+    xdg.portal = {
+      enable = true;
+      extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+      config.common.default = "*";
+    };
+
     services.xserver = {
       enable = true;
-      dpi = 224;
-
       xkb.layout = "us";
+      dpi = 224;
 
       desktopManager = {
         xterm.enable = false;
@@ -27,6 +33,8 @@ in {
         lightdm.enable = true;
         # startx.enable = true;
 
+        # AARCH64: For now, on Apple Silicon, we must manually set the
+        # display resolution. This is a known issue with VMware Fusion.
         sessionCommands = ''
         ${pkgs.xorg.xset}/bin/xset r rate 200 40
       '';

@@ -21,11 +21,6 @@
 ;; available 'Encrypt' keys in the key-ring
 (setq epa-file-encrypt-to '("0x33C207DE4C1A0CC7"))
 
-;; from 'doom doctor', if using fish shell
-;; (setq shell-file-name (executable-find "bash"))
-;; (setq-default vterm-shell (executable-find "fish"))
-;; (setq-default explicit-shell-file-name (executable-find "fish"))
-
 ;; https://github.com/doomemacs/doomemacs/issues/7431
 ;; (setq nerd-icons-font-names '("SymbolsNerdFontMono-Regular.ttf"))
 

@@ -3,7 +3,7 @@
 #   25-smtp: no password required for local lan, super unimportant emails only
 #   465-smtps and 587-smtp-tls: auth via dovecot
 
-{ inputs, config, lib, pkgs, hostname, ... }:
+{ inputs, config, lib, pkgs, username, hostname, ... }:
 
 with lib;
 let
@@ -21,7 +21,7 @@ in {
     networking.firewall.allowedTCPPorts = [ 25 465 587 ];
     age.secrets."${hostname}/sasl_password".owner = "postfix";
 
-    user.packages = with pkgs; [ openssl ];
+    users.users.${username}.packages = with pkgs; [ openssl ];
 
     # TODO: extract to dovecot module if planned to use imap and pop3
     services.dovecot2 = {

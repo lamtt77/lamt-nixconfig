@@ -1,7 +1,4 @@
 { pkgs, ... }: {
-  # Auto upgrade nix package and the daemon service.
-  services.nix-daemon.enable = true;
-
   modules.os.base.services.agenix.enable = true;
   modules.os.base.services.wireguard.enable = true;
 
@@ -46,20 +43,6 @@
     if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
       . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
     fi
-    # End Nix
-    '';
-
-  programs.fish.enable = true;
-  programs.fish.shellInit = ''
-    # Homebrew
-    # if test -d '/opt/homebrew'
-    #   eval "$(/opt/homebrew/bin/brew shellenv)"
-    # end
-
-    # Nix
-    if test -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.fish'
-      source '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.fish'
-    end
     # End Nix
     '';
 }

@@ -3,7 +3,6 @@
 with lib;
 let
   cfg = config.modules.hm.base.tmux;
-  sources = inputs.self.nivsrc;
 in {
   options.modules.hm.base.tmux = with types; {
     enable = mkEnableOption "Tmux Multiplexer";
@@ -24,9 +23,6 @@ in {
       set -g @dracula-show-weather false
 
       bind -n C-k send-keys "clear"\; send-keys "Enter"
-
-      run-shell ${sources.tmux-pain-control}/pain_control.tmux
-      run-shell ${sources.tmux-dracula}/dracula.tmux
     '';
     };
   };

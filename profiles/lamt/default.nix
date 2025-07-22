@@ -6,7 +6,6 @@ let
 in {
   modules.hm.base.bash.enable = true;
   modules.hm.base.zsh.enable = true;
-  modules.hm.base.fish.enable = true;
   modules.hm.base.tmux.enable = true;
   modules.hm.base.alacritty.enable = true;
   modules.hm.base.kitty.enable = true;
@@ -18,10 +17,9 @@ in {
   modules.hm.base.gnupg.enable = true;
   modules.hm.base.gnupg.enableSSHSupport = true;
 
-
   modules.hm.base.editors.doomemacs.enable = true;
-  modules.hm.base.editors.neovim.enable = !isWSL;
 
+  programs.ssh.enable = true;
   programs.fzf.enable = true;
 
   programs.go.enable = true;
@@ -30,6 +28,7 @@ in {
 
   home.packages = with pkgs; [
     home-manager
+    nh
     niv
     cachix
     killall
@@ -44,7 +43,7 @@ in {
     htop
     jq
     nvd
-    unstable.ncdu               # https://github.com/NixOS/nixpkgs/issues/290512
+    ncdu
     ripgrep
     stow
     tldr
@@ -56,9 +55,7 @@ in {
     eza # Better ls
     neofetch
 
-    tree-sitter                 # only needed for nvim :TSInstallFromGrammar
     nodejs
-    zigpkgs.master
     python3
     ruby
 
@@ -68,6 +65,9 @@ in {
     borgbackup
     rclone
     restic
+
+    powershell
+    p7zip
 
     # entertainment
     cmus

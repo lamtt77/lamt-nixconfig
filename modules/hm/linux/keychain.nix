@@ -17,11 +17,10 @@ in {
       enable = true;
       enableBashIntegration = true;
       enableZshIntegration = true;
-      enableFishIntegration = true;
       # extraFlags = ["--ignore-missing" "--quiet"];
       # keys = ["id_ed25519" "id_rsa"];
       agents = ["gpg"];
-      keys = ["${mydefs.gpg-sshKey}"];
+      keys = ["${mydefs.gpgSshKey}"];
     };
   };
 }

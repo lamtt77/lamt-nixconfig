@@ -46,7 +46,7 @@ rec {
         else nameValuePair "" null)
       (readDir dir);
 
-  # mapModules' recursive, map to list, include 'default.nix' but except its top-level
+  # mapModules' recursive, map to list, include 'default.nix' except its top-level
   mapModulesRec' = dir: fn:
     let
       dirs =

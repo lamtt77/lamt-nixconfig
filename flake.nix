@@ -2,25 +2,19 @@
   description = "LamT Nix System Configuration";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-23.11";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
-    nixos-wsl.inputs.flake-utils.follows = "flake-utils";
 
-    home-manager.url = "github:nix-community/home-manager/release-23.11";
+    home-manager.url = "github:nix-community/home-manager/release-25.05";
     # home-manager.url = "github:nix-community/home-manager/master";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    darwin.url = "github:LnL7/nix-darwin";
+    darwin.url = "github:nix-darwin/nix-darwin/nix-darwin-25.05";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
-
-    flake-utils.url = "github:numtide/flake-utils";
-
-    flake-parts.url = "github:hercules-ci/flake-parts";
-    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
     flake-registry.url = "github:nixos/flake-registry";
     flake-registry.flake = false;
@@ -39,27 +33,13 @@
     emacs-overlay.url = "github:nix-community/emacs-overlay";
     emacs-overlay.inputs.nixpkgs.follows = "nixpkgs-unstable";
     emacs-overlay.inputs.nixpkgs-stable.follows = "nixpkgs";
-    emacs-overlay.inputs.flake-utils.follows = "flake-utils";
 
-    neovim-nightly-overlay.url = "github:nix-community/neovim-nightly-overlay";
-    neovim-nightly-overlay.inputs.nixpkgs.follows = "nixpkgs-unstable";
-    neovim-nightly-overlay.inputs.flake-parts.follows = "flake-parts";
-
-    # Other packages
-    zig.url = "github:mitchellh/zig-overlay";
-    zig.inputs.nixpkgs.follows = "nixpkgs-unstable";
-    zig.inputs.flake-utils.follows = "flake-utils";
-
-    # LamT secrets stuff, remove this for building without secrets / agenix module
+    # LamT secrets stuff: legacy, changed to manage by make file
     # OR sudo nixos-rebuild switch --override-input mysecrets "" --flake '.#gaming'
-    mysecrets.url = "git+ssh://git@tea.lamhub.com/lamtt77/lamt-secrets.git";
-    mysecrets.flake = false;
-
-    nvim-conform.url = "github:stevearc/conform.nvim/v5.2.1";
-    nvim-conform.flake = false;
-    nvim-treesitter.url = "github:nvim-treesitter/nvim-treesitter/v0.9.1";
-    nvim-treesitter.flake = false;
-  };
+    # mysecrets.url = "git+ssh://git@tea.lamhub.com/lamtt77/lamt-secrets.git";
+    # mysecrets.url = "path:./secrets";
+    # mysecrets.flake = false;
+ };
 
   outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, darwin, hyprland, ... }@inputs: let
     mydefs = import ./defines.nix;
@@ -76,7 +56,6 @@
     pkgsall-unstable = forAllSystems (system: mkPkgs system nixpkgs-unstable []);
   in {
     inherit mydefs;
-    nivsrc = import ./nix/sources.nix;
     libx = lib.my // lib // home-manager.lib; # all libs in one!
     legacyPackages = pkgsall;
 
@@ -107,11 +86,6 @@
 
       # use prebuilt emacs to reduce my built-time
       # emacs = inputs.emacs-overlay.overlay;
-
-      neovim = inputs.neovim-nightly-overlay.overlay;
-      zig = inputs.zig.overlays.default;
-
-      customVim = (import ./nix/vim.nix {inherit inputs;});
     };
 
     # apps run by calling this flake directly
@@ -136,22 +110,22 @@
     # nix build .#homeConfigurations."lamt_macair15-m2".activationPackage
     # '@' character does not work with 'nix repl'
     homeConfigurations = {
-      "${username}_macair15-m2" = mkHome {
+      "${username}" = mkHome {
         system = "aarch64-darwin"; host = "macair15-m2"; inherit username; darwin = true;
       };
       # TODO
-      # "vivi_vm-aarch64" = mkHome {
+      # "vivi" = mkHome {
       #   system = "aarch64-linux"; host = "vm-aarch64"; username = "vivi";
       # };
     };
 
     # nix build .#darwinConfigurations.macair15-m2.system
     darwinConfigurations = {
-      macair15-m2 = mkHost {
+      macair15-m2-alone = mkHost {
         system = "aarch64-darwin"; host = "macair15-m2"; inherit username; darwin = true;
       };
 
-      macair15-m2-combined = mkSystem {
+      macair15-m2 = mkSystem {
         system = "aarch64-darwin"; host = "macair15-m2"; inherit username; darwin = true;
       };
     };
@@ -180,6 +154,9 @@
 
       # servers
       avon = mkSystem {system = "x86_64-linux"; host = "avon"; username = "nixos"; server = true;};
+      avon-tempest = mkSystem {system = "x86_64-linux"; host = "avon-tempest"; username = "nixos"; server = true;};
+      # continuous integraion and utilities
+      utils = mkSystem {system = "x86_64-linux"; host = "utils"; username = "deploy"; server = true;};
 
       # game stuffs
       gaming = mkSystem {system = "x86_64-linux"; host = "gaming"; username = "vivi"; server = true;};
