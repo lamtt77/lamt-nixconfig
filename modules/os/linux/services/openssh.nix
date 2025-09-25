@@ -1,9 +1,12 @@
-{ inputs, config, lib, ... }:
-
-with lib;
-let
+{
+  inputs,
+  config,
+  lib,
+  mydefs,
+  ...
+}:
+with lib; let
   cfg = config.modules.os.linux.services.openssh;
-  inherit (inputs.self) mydefs;
 in {
   options = with types; {
     modules.os.linux.services.openssh = {
@@ -34,6 +37,6 @@ in {
     '';
 
     # programs.ssh.startAgent = true;
-    networking.firewall.allowedTCPPorts = [ 22 ];
+    networking.firewall.allowedTCPPorts = [22];
   };
 }

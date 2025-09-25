@@ -1,7 +1,11 @@
-{ inputs, config, lib, pkgs, username, ... }:
-
-with lib;
-let
+{
+  inputs,
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+with lib; let
   inherit (inputs) self;
   cfg = config.modules.os.linux.desktop.i3;
 in {
@@ -14,47 +18,66 @@ in {
     # such as Flatpak applications.
     xdg.portal = {
       enable = true;
-      extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+      extraPortals = [pkgs.xdg-desktop-portal-gtk];
       config.common.default = "*";
     };
 
-    services.xserver = {
-      enable = true;
-      xkb.layout = "us";
-      dpi = 224;
+    services = {
+      displayManager.defaultSession = "none+i3";
 
-      desktopManager = {
-        xterm.enable = false;
-        wallpaper.mode = "fill";
-      };
+      xserver = {
+        enable = true;
+        xkb.layout = "us";
+        dpi = 224;
 
-      displayManager = {
-        defaultSession = "none+i3";
-        lightdm.enable = true;
-        # startx.enable = true;
+        desktopManager = {
+          xterm.enable = false;
+          wallpaper.mode = "fill";
+        };
 
-        # AARCH64: For now, on Apple Silicon, we must manually set the
-        # display resolution. This is a known issue with VMware Fusion.
-        sessionCommands = ''
-        ${pkgs.xorg.xset}/bin/xset r rate 200 40
-      '';
-      };
+        displayManager = {
+          lightdm.enable = true;
+          # startx.enable = true;
 
-      windowManager = {
-        i3.enable = true;
-        # dwm.enable = true;
+          # AARCH64: For now, on Apple Silicon, we must manually set the
+          # display resolution. This is a known issue with VMware Fusion.
+          sessionCommands = ''
+            ${pkgs.xorg.xset}/bin/xset r rate 200 40
+          '';
+        };
+
+        windowManager = {
+          i3.enable = true;
+          # dwm.enable = true;
+        };
       };
     };
 
-    home-manager.users.${username} = {
+    home-manager.users.${config.user} = {
+      xresources.extraConfig = builtins.readFile "${self}/config/Xresources";
+
       xdg.configFile = {
         "i3".source = "${self}/config/_linux/i3";
         "rofi".source = "${self}/config/_linux/rofi";
       };
 
+      # make cursor not tiny on hidpi screens
+      home.pointerCursor = {
+        name = "Vanilla-DMZ";
+        package = pkgs.vanilla-dmz;
+        size = 128;
+        x11.enable = true;
+      };
+
       home.packages = with pkgs; [
         rofi
         # xss-lock                # for screen-saver
+
+        feh # image viewer
+        xdragon # drag'n'drop from the terminal
+        xclip
+        xdotool
+        xorg.xwininfo
       ];
 
       programs.i3status = {

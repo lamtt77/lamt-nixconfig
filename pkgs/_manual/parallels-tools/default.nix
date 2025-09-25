@@ -1,22 +1,22 @@
 # Credit: https://github.com/wegank/nixos-config/tree/main/hardware/parallels-unfree
-{ stdenv
-, lib
-, makeWrapper
-, p7zip
-, gawk
-, util-linux
-, xorg
-, glib
-, dbus-glib
-, zlib
-, kernel
-, libsOnly ? false
-, fetchurl
-, undmg
-, perl
-, autoPatchelfHook
+{
+  stdenv,
+  lib,
+  makeWrapper,
+  p7zip,
+  gawk,
+  util-linux,
+  xorg,
+  glib,
+  dbus-glib,
+  zlib,
+  kernel,
+  libsOnly ? false,
+  fetchurl,
+  undmg,
+  perl,
+  autoPatchelfHook,
 }:
-
 stdenv.mkDerivation rec {
   version = "18.0.2-53077";
   pname = "prl-tools";
@@ -30,15 +30,17 @@ stdenv.mkDerivation rec {
 
   patches = [./prl-tools-6.0.patch];
 
-  hardeningDisable = [ "pic" "format" ];
+  hardeningDisable = ["pic" "format"];
 
-  nativeBuildInputs = [ p7zip undmg perl autoPatchelfHook ]
-    ++ lib.optionals (!libsOnly) [ makeWrapper ] ++ kernel.moduleBuildDependencies;
+  nativeBuildInputs =
+    [p7zip undmg perl autoPatchelfHook]
+    ++ lib.optionals (!libsOnly) [makeWrapper] ++ kernel.moduleBuildDependencies;
 
-  buildInputs = with xorg; [ libXrandr libXext libX11 libXcomposite libXinerama ]
-    ++ lib.optionals (!libsOnly) [ libXi glib dbus-glib zlib ];
+  buildInputs = with xorg;
+    [libXrandr libXext libX11 libXcomposite libXinerama]
+    ++ lib.optionals (!libsOnly) [libXi glib dbus-glib zlib];
 
-  runtimeDependencies = [ glib xorg.libXrandr ];
+  runtimeDependencies = [glib xorg.libXrandr];
 
   inherit libsOnly;
 
@@ -53,7 +55,7 @@ stdenv.mkDerivation rec {
 
   kernelVersion = lib.optionalString (!libsOnly) kernel.modDirVersion;
   kernelDir = lib.optionalString (!libsOnly) "${kernel.dev}/lib/modules/${kernelVersion}";
-  scriptPath = lib.concatStringsSep ":" (lib.optionals (!libsOnly) [ "${util-linux}/bin" "${gawk}/bin" ]);
+  scriptPath = lib.concatStringsSep ":" (lib.optionals (!libsOnly) ["${util-linux}/bin" "${gawk}/bin"]);
 
   buildPhase = ''
     if test -z "$libsOnly"; then
@@ -78,11 +80,17 @@ stdenv.mkDerivation rec {
         cp prl_fs_freeze/Snapshot/Guest/Linux/prl_freeze/prl_fs_freeze.ko $out/lib/modules/${kernelVersion}/extra
         cp prl_tg/Toolgate/Guest/Linux/prl_tg/prl_tg.ko $out/lib/modules/${kernelVersion}/extra
         ${lib.optionalString stdenv.isAarch64
-        "cp prl_notifier/Installation/lnx/prl_notifier/prl_notifier.ko $out/lib/modules/${kernelVersion}/extra"}
+      "cp prl_notifier/Installation/lnx/prl_notifier/prl_notifier.ko $out/lib/modules/${kernelVersion}/extra"}
       )
     fi
     ( # tools
-      cd tools/tools${if stdenv.isAarch64 then "-arm64" else if stdenv.isx86_64 then "64" else "32"}
+      cd tools/tools${
+      if stdenv.isAarch64
+      then "-arm64"
+      else if stdenv.isx86_64
+      then "64"
+      else "32"
+    }
       mkdir -p $out/lib
       if test -z "$libsOnly"; then
         # install binaries
@@ -108,7 +116,7 @@ stdenv.mkDerivation rec {
   meta = with lib; {
     description = "Parallels Tools for Linux guests";
     homepage = "https://parallels.com";
-    platforms = [ "aarch64-linux" "i686-linux" "x86_64-linux" ];
+    platforms = ["aarch64-linux" "i686-linux" "x86_64-linux"];
     license = licenses.unfree;
   };
 }

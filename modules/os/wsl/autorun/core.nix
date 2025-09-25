@@ -1,9 +1,12 @@
-{ inputs, username, ... }:
-
 {
+  inputs,
+  config,
+  mydefs,
+  ...
+}: {
   wsl = {
     enable = true;
-    defaultUser = username;
+    defaultUser = config.user;
     startMenuLaunchers = true;
     wslConf.automount.root = "/mnt"; # this is the default behavior
 
@@ -20,5 +23,5 @@
   #   autoPrune.enable = true;
   # };
 
-  system.stateVersion = inputs.self.mydefs.stateVersion;
+  system.stateVersion = mydefs.stateVersion;
 }

@@ -1,29 +1,28 @@
-{ inputs, lib, pkgs, username, isWSL, ... }:
+{
+  config,
+  pkgs,
+  mydefs,
+  ...
+}: {
+  config = let
+    inherit (mydefs) stateVersion;
+    inherit (pkgs.stdenv) isDarwin;
+  in {
+    home = {
+      inherit stateVersion;
+      username = config.user;
+      homeDirectory =
+        if isDarwin
+        then "/Users/${config.user}"
+        else "/home/${config.user}";
+    };
 
-let
-  stateVersion = inputs.self.mydefs.stateVersion;
-  isDarwin = pkgs.stdenv.isDarwin;
-  isLinux = pkgs.stdenv.isLinux;
-in {
-  home = {
-    inherit stateVersion username;
-
-    homeDirectory = if isDarwin then "/Users/${username}" else "/home/${username}";
-  };
-
-  # bare minimum pacpages
-  home.packages = with pkgs; [
-    git
-    gnumake
-    vim
-    wget
-  ];
-
-  # make cursor not tiny on hidpi screens
-  home.pointerCursor = lib.mkIf (isLinux && !isWSL) {
-    name = "Vanilla-DMZ";
-    package = pkgs.vanilla-dmz;
-    size = 128;
-    x11.enable = true;
+    # bare minimum pacpages
+    home.packages = with pkgs; [
+      git
+      gnumake
+      vim
+      wget
+    ];
   };
 }

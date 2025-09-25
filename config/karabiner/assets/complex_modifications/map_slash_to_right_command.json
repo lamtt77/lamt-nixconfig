@@ -1,0 +1,14 @@
+{
+    "description": "Map a key to Right Command when held, / when tapped",
+    "manipulators": [
+        {
+            "from": {
+                "key_code": "slash",
+                "modifiers": { "optional": ["any"] }
+            },
+            "to": [{ "key_code": "slash" }],
+            "to_if_held_down": [{ "key_code": "right_command" }],
+            "type": "basic"
+        }
+    ]
+}

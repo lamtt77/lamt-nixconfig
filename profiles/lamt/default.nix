@@ -1,14 +1,21 @@
-{ lib, pkgs, isWSL, ... }:
-
-let
-  isDarwin = pkgs.stdenv.isDarwin;
-  isLinux = pkgs.stdenv.isLinux;
+{
+  lib,
+  pkgs,
+  isWSL,
+  ...
+}: let
+  inherit (pkgs.stdenv) isDarwin;
+  inherit (pkgs.stdenv) isLinux;
 in {
   modules.hm.base.bash.enable = true;
   modules.hm.base.zsh.enable = true;
-  modules.hm.base.tmux.enable = true;
-  modules.hm.base.alacritty.enable = true;
-  modules.hm.base.kitty.enable = true;
+  # programs.nushell.enable = true;
+
+  modules.hm.base.term.tmux.enable = true;
+  modules.hm.base.term.zellij.enable = true;
+  modules.hm.base.term.alacritty.enable = true;
+  modules.hm.base.term.kitty.enable = true;
+  modules.hm.base.term.foot.enable = isLinux;
 
   modules.hm.base.git.enable = true;
   modules.hm.base.direnv.enable = true;
@@ -17,90 +24,128 @@ in {
   modules.hm.base.gnupg.enable = true;
   modules.hm.base.gnupg.enableSSHSupport = true;
 
+  modules.hm.base.yt-dlp.enable = true;
+  modules.hm.base.firefox.enable = !isDarwin;
+
   modules.hm.base.editors.doomemacs.enable = true;
+  modules.hm.base.editors.helix.enable = true;
+  modules.hm.base.editors.vscode.enable = true;
+  modules.hm.base.editors.neovim.enable = true;
+  modules.hm.base.tools.yazi.enable = true;
+  # modules.hm.base.editors.zed.enable = true;
+
+  modules.hm.base.lang.cc.enable = isLinux;
 
   programs.ssh.enable = true;
   programs.fzf.enable = true;
+  programs.man.enable = true;
 
   programs.go.enable = true;
-  programs.helix.enable = !isWSL;
   programs.yazi.enable = true;
 
-  home.packages = with pkgs; [
-    home-manager
-    nh
-    niv
-    cachix
-    killall
-    unzip
+  home.packages = with pkgs;
+    [
+      nh
+      cachix
+      killall
+      unzip
+      chezmoi
+      nix-prefetch-git
 
-    # simple tool for making locally-trusted development certificates
-    mkcert
+      # AI
+      helix-gpt
 
-    asciinema
-    bat
-    fd
-    htop
-    jq
-    nvd
-    ncdu
-    ripgrep
-    stow
-    tldr
-    tree
-    watch
+      (python3.withPackages (ps:
+        with ps; [
+          pip
 
-    ansible
+          # Helix Python LSP requirements
+          python-lsp-ruff
+          python-lsp-server
+        ]))
 
-    eza # Better ls
-    neofetch
+      ookla-speedtest
 
-    nodejs
-    python3
-    ruby
+      imagemagick
+      ffmpeg
+      cargo
+      zig
 
-    lf ctpv
-    ranger highlight
+      docker-compose
 
-    borgbackup
-    rclone
-    restic
+      # simple tool for making locally-trusted development certificates
+      mkcert
 
-    powershell
-    p7zip
+      asciinema
+      bat
+      htop
+      iperf
+      jq
+      lsof
+      ncdu
+      nvd
+      stow
+      tldr
+      tree
+      watch
+      ansible
 
-    # entertainment
-    cmus
-  ] ++ (lib.optionals isDarwin [
-    # standard toolset
-    coreutils # replace tools `du` so that `ranger` can call
-    diffutils
-    findutils
+      eza # Better ls
+      neofetch
 
-    gnutar
+      nodejs
+      ranger
+      highlight
 
-    pngpaste
-  ]) ++ (lib.optionals (isLinux) [
-    xclip # required for neovim
-  ]) ++ (lib.optionals (isLinux && !isWSL) [
-    chromium
-    firefox
-    valgrind
-    xfce.xfce4-terminal
-    zathura
+      borgbackup
+      rclone
+      restic
 
-    bfg-repo-cleaner # remove large files from git history
-    gopls
+      ipmitool
 
-    # aws
-    awscli2
-    ssm-session-manager-plugin # Amazon SSM Session Manager Plugin
-    aws-iam-authenticator
-    eksctl
+      powershell
+      p7zip
 
-    # cloud tools that nix do not have cache for.
-    terraform
-    terraformer # generate terraform configs from existing cloud resources
-    packer # machine image builder
-  ]);
+      # entertainment
+      cmus
+    ]
+    ++ (lib.optionals isDarwin [
+      # standard toolset
+      coreutils # replace tools `du` so that `ranger` can call
+      diffutils
+      findutils
+
+      gnutar
+
+      pngpaste
+    ])
+    ++ (lib.optionals isLinux [
+      # AI
+      unstable.opencode
+
+      xclip
+      maim
+      flameshot
+    ])
+    ++ (lib.optionals (isLinux && !isWSL) [
+      chromium
+      firefox
+      valgrind
+      xfce.xfce4-terminal
+      zathura
+
+      bfg-repo-cleaner # remove large files from git history
+      gopls
+
+      # aws
+      awscli2
+      ssm-session-manager-plugin # Amazon SSM Session Manager Plugin
+      aws-iam-authenticator
+      eksctl
+
+      # cloud tools that nix do not have cache for.
+      terraform
+      terraformer # generate terraform configs from existing cloud resources
+      packer # machine image builder
+    ]);
 }

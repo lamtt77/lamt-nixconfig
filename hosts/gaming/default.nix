@@ -1,7 +1,15 @@
-{ inputs, config, lib, ... }: {
+{
+  inputs,
+  config,
+  lib,
+  ...
+}: {
   imports = [
     ./hardware-gaming.nix
-    (import ../_disko/generic.nix {inherit inputs; disks = ["/dev/sda"];})
+    (import ../_disko/generic.nix {
+      inherit inputs;
+      disks = ["/dev/sda"];
+    })
   ];
 
   # after resize the disk, it will grow partition automatically.

@@ -7,7 +7,7 @@
   systemd.targets.hybrid-sleep.enable = false;
 
   zramSwap = {
-    algorithm = "lz4";
     enable = true;
+    algorithm = "lz4";
   };
 }

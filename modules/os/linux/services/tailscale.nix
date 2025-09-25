@@ -1,7 +1,9 @@
-{ config, lib, ... }:
-
-with lib;
-let
+{
+  config,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.modules.os.linux.services.tailscale;
 in {
   options = with types; {
@@ -17,8 +19,8 @@ in {
     networking = {
       firewall = {
         checkReversePath = "loose";
-        allowedUDPPorts = [ config.services.tailscale.port ];
-        trustedInterfaces = [ "tailscale0" ];
+        allowedUDPPorts = [config.services.tailscale.port];
+        trustedInterfaces = ["tailscale0"];
       };
     };
   };

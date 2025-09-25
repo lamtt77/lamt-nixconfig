@@ -4,12 +4,15 @@
 # Resources
 #   Config: https://docs.gitea.io/en-us/config-cheat-sheet/
 #   API:    https://docs.gitea.io/en-us/api-usage/
-
-{ inputs, config, lib, pkgs, username, hostname, ... }:
-
-with lib;
-let
-  inherit (inputs.self) mydefs;
+{
+  inputs,
+  config,
+  lib,
+  pkgs,
+  mydefs,
+  ...
+}:
+with lib; let
   cfg = config.modules.os.linux.services.gitea;
 in {
   options.modules.os.linux.services.gitea = {
@@ -17,7 +20,7 @@ in {
   };
 
   config = mkIf cfg.enable {
-    age.secrets."${hostname}/smtp-password".owner = "git";
+    sops.secrets."smtp-password".owner = "git";
 
     # Allows git@... clone addresses rather than gitea@...
     users.users.git = {
@@ -27,7 +30,7 @@ in {
       isSystemUser = true;
     };
 
-    users.users.${username}.extraGroups = [ "gitea" ];
+    users.users.${config.user}.extraGroups = ["gitea"];
 
     services.gitea = {
       enable = true;
@@ -75,7 +78,7 @@ in {
           SMTP_PORT = mydefs.relayPort;
         };
       };
-      mailerPasswordFile = config.age.secrets."${hostname}/smtp-password".path;
+      mailerPasswordFile = config.sops.secrets."smtp-password".path;
     };
 
     # backup strategy
@@ -87,16 +90,18 @@ in {
       enable = true;
       # NOTE: using double-quote will need escape for special characters: slash...
       # run this 15-min prior to our main system backup task
-      systemCronJobs = [''
-        # uncomment for testing every 3 minutes
-        # */3 * * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-testing-$(date +\%a).zip
-        # Daily at 22:45PM: 7-day rolling backup
-        45 22 * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-daily-$(date +\%a).zip
-        # Weekly on sunday (0, 23:15PM)
-        15 23 * * 0  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-weekly-$(date +\%V).zip
-        # Monthly on the first day (1, 01:00AM)
-        00 01 1 * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-monthly-$(date +\%b).zip
-      ''];
+      systemCronJobs = [
+        ''
+          # uncomment for testing every 3 minutes
+          # */3 * * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-testing-$(date +\%a).zip
+          # Daily at 22:45PM: 7-day rolling backup
+          45 22 * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-daily-$(date +\%a).zip
+          # Weekly on sunday (0, 23:15PM)
+          15 23 * * 0  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-weekly-$(date +\%V).zip
+          # Monthly on the first day (1, 01:00AM)
+          00 01 1 * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-monthly-$(date +\%b).zip
+        ''
+      ];
     };
     # nas nfs share
     fileSystems."/mnt/Backup" = {
@@ -111,6 +116,5 @@ in {
       root = "/srv/www/${mydefs.teaURL}";
       locations."/".proxyPass = "http://127.0.0.1:3000";
     };
-
   };
 }

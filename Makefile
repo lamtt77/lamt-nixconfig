@@ -3,7 +3,7 @@ NIXADDR ?= unset
 NIXPORT ?= 22
 NIXUSER ?= lamt
 # The hostname of the nixos/darwin Configuration in the flake
-NIXHOST ?= avon
+NIXHOST ?= macair15-m2
 NIXCFG ?= lamt-nixconfig
 TEA_URL ?= tea.lamhub.com
 
@@ -16,19 +16,14 @@ UNAME := $(shell uname)
 # nh output monitoring
 NH ?= yes
 
-OFFLINE ?=
-ifeq ($(OFFLINE), yes)
-	OFFLINE = --option substitute false
-endif
-
-NIXOS_SWITCH ?= sudo nixos-rebuild switch $(OFFLINE) --flake ".\#$(NIXHOST)"
-DARWIN_SWITCH ?= sudo nix run -- nix-darwin switch $(OFFLINE) --flake ".\#${NIXHOST}"
-HM_SWITCH ?= nix run -- home-manager switch $(OFFLINE) --flake ".\#${NIXUSER}"
+NIXOS_SWITCH ?= sudo nixos-rebuild switch --flake ".\#$(NIXHOST)"
+DARWIN_SWITCH ?= sudo nix run -- nix-darwin switch --flake ".\#${NIXHOST}"
+HM_SWITCH ?= nix run -- home-manager switch --flake ".\#${NIXUSER}_${NIXHOST}"
 
 ifeq ($(NH), yes)
 	NIXOS_SWITCH = nh os switch . --hostname $(NIXHOST)
 	DARWIN_SWITCH = nh darwin switch . --hostname $(NIXHOST)
-	HM_SWITCH = nh home switch .
+	HM_SWITCH = nh home switch . -c ${NIXUSER}_${NIXHOST}
 endif
 
 ifeq ($(UNAME), Darwin)
@@ -63,12 +58,12 @@ FLAKE_EXCLUDE ?= --exclude='.git/' --exclude='secrets/' --exclude='result' --exc
 SSH_OPTIONS=-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no
 
 copy/secrets:
-	mkdir -p ./secrets/agenix
+	mkdir -p ./secrets/sops
 	rsync -av \
         --delete \
-        ../lamt-secrets/agenix/{secrets.nix,$(NIXHOST)} secrets/agenix/
+        ../lamt-secrets/sops/$(NIXHOST).yaml secrets/sops/
 pre-secrets:
-	test -d .git && test -d secrets && echo PRE-secrets && git add secrets/ || true
+	test -d .git && test -d secrets && echo PRE-secrets && git add --intent-to-add secrets/ || true
 post-secrets:
 	test -d .git && test -d secrets && echo POST-secrets && git rm --cached -r secrets/ || true
 
@@ -101,7 +96,7 @@ test: pre-secrets test0 post-secrets
 
 # This will ERASE all data of the REMOTE machine's hard disk! Use at your OWN RISK!!!
 #
-# Format and setup a brand new Remote Host. One-time/liner installation :)
+# Format and setup a brand new Remote Host. One-liner installation :)
 # Set a temp password for the root user before bootstrap for ssh connectivity,
 # the password is only valid during installation session.
 #
@@ -138,31 +133,20 @@ remote/bootstrap0:
 
 # If Stage1 completed, 'root' will be blocked from ssh login, use your user instead
 # Can safely re-run 'remote/bootstrap1' if ssh disconnected
-# TODO: default to 'yes' when nh moved to nixpkgs stable
 remote/bootstrap1:
-	@echo "====>Stage1: Host Swiching/Activating... Ctrl-C to terminate"
+	@echo "====>Stage1: Host Swiching/Activating... Ensure to EJECT installation CD/USB, if any! Ctrl-C to terminate"
 	until ssh $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) true; do sleep 3; done
 ifeq ($(SECRETS), yes)
 	NIXUSER=root $(MAKE) remote/copy/secrets
 endif
 	NIXUSER=root $(MAKE) remote/build
-	NIXUSER=root NH=no $(MAKE) remote/switch
+	NIXUSER=root $(MAKE) remote/switch
 	$(MAKE) remote/cleanup/root
-
-# experimental: only one stage required
-# mkdir -p /mnt/tmp && export TMPDIR=/mnt/tmp; \
-# READ: https://stackoverflow.com/questions/76591674/nix-gives-no-space-left-on-device-even-though-nix-has-lots
-# TODO: figure out how to forward ssh agent to 'chroot' for secrets deployment
-remote/bootstrap/chroot:
-	ssh -A $(SSH_OPTIONS) -p$(NIXPORT) root@$(NIXADDR) " \
-        nix-shell -p gitMinimal --run 'nix run ${FLAKE_FEATURES} \
-          \"${MYREPO}#installer-nixos-enter\" ${NIXHOST}' && reboot; \
-    "
 
 remote/build:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
 		cd ${NIXCFG}; \
-		test -d .git && test -d secrets && echo PRE-secrets && git add secrets/; \
+		test -d .git && test -d secrets && echo PRE-secrets && git add --intent-to-add secrets/; \
 		nix build '.#nixosConfigurations.${NIXHOST}.config.system.build.toplevel'; \
 		test -d .git && test -d secrets && echo POST-secrets && git rm --cached -r secrets/ || true; \
 	"
@@ -171,7 +155,7 @@ remote/build:
 remote/switch:
 	ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
 		cd ${NIXCFG}; \
-		test -d .git && test -d secrets && echo PRE-secrets && git add secrets/; \
+		test -d .git && test -d secrets && echo PRE-secrets && git add --intent-to-add secrets/; \
 		${NIXOS_SWITCH}; \
 		test -d .git && test -d secrets && echo POST-secrets && git rm --cached -r secrets/ || true; \
 	"
@@ -200,15 +184,11 @@ remote/copy: remote/copy/secrets
 
 remote/copy/secrets:
 ifeq ($(SECRETS), yes)
-	cd ../lamt-secrets/agenix; agenix -d $(NIXHOST)/id_agenix.age \
-	    | ssh $(SSH_OPTIONS) -p$(NIXPORT) $(NIXUSER)@$(NIXADDR) " \
-        sudo sh -c 'cat > /etc/ssh/id_agenix && chmod 600 /etc/ssh/id_agenix'; \
-    "; cd ../../$(NIXCFG)
 	rsync -av -e 'ssh ${SSH_OPTIONS} -p${NIXPORT}' \
-		--rsync-path="mkdir -p ./${NIXCFG}/secrets/agenix && rsync" \
+		--rsync-path="mkdir -p ./${NIXCFG}/secrets/sops && rsync" \
         --delete \
-		../lamt-secrets/agenix/{secrets.nix,$(NIXHOST)} \
-        $(NIXUSER)@$(NIXADDR):./$(NIXCFG)/secrets/agenix/
+		../lamt-secrets/sops/$(NIXHOST).yaml \
+        $(NIXUSER)@$(NIXADDR):./$(NIXCFG)/secrets/sops/
 endif
 
 # NixOS Minimal does not have 'rsync', and 'scp' does not support exclude files, thus this tmpdir trick
@@ -226,11 +206,19 @@ remote/keys:
 		--exclude='S.*' \
 		--exclude='*.conf' \
 		$(GNUPGHOME)/ $(NIXUSER)@$(NIXADDR):~/.config/gnupg
-	rsync -av -e 'ssh $(SSH_OPTIONS)' \
+	rsync -av -e 'ssh $(SSH_OPTIONS) -p$(NIXPORT)' \
+		--exclude='config' \
 		--exclude='environment' \
+		--exclude='known_hosts*' \
 		$(HOME)/.ssh/ $(NIXUSER)@$(NIXADDR):~/.ssh
 
 # Build a WSL installer
 .PHONY: wsl
 wsl:
 	sudo nix run ".#nixosConfigurations.wsl.config.system.build.tarballBuilder"
+
+# Some frequent operations:
+
+# gh token to avoid rate limit
+flake/update:
+	nix flake update --option access-tokens "github.com=$(gh auth token)"

@@ -1,7 +1,9 @@
 # NOTE: this app will only run with Linux platform because of disko
-
-{ inputs, pkgs, ...}:
-let
+{
+  inputs,
+  pkgs,
+  ...
+}: let
   inherit (inputs) self;
 in {
   type = "app";
@@ -56,4 +58,8 @@ in {
 
     nixos-install --no-root-password --no-channel-copy --system "$nixos_system"
   '');
+
+  meta = {
+    description = "Install NixOS on a target host";
+  };
 }

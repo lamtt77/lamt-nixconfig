@@ -1,6 +1,4 @@
-{ pkgs, ... }:
-
-{
+{pkgs, ...}: {
   users.defaultUserShell = pkgs.bash;
 
   security.acme = {

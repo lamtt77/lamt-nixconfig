@@ -1,7 +1,11 @@
-{ inputs, config, lib, pkgs, username, isWSL, ... }:
-
-with lib;
-let
+{
+  inputs,
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+with lib; let
   inherit (inputs) self;
   cfg = config.modules.os.linux.desktop.sway;
 in {
@@ -10,36 +14,26 @@ in {
   };
 
   config = mkIf cfg.enable {
-    security.polkit.enable = true;
-    security.pam.services.swaylock = { };
-    programs.dconf.enable = true;
-    programs.xwayland.enable = !isWSL; # wslg already handled this
+    programs.sway = {
+      enable = true;
+      wrapperFeatures.gtk = true;
+    };
 
     environment.sessionVariables = {
       GTK_USE_PORTAL = "1";
       # GDK_BACKEND = "wayland";
       # WLR_DRM_NO_ATOMIC = "1";
-      WLR_NO_HARDWARE_CURSORS = "1";
+      # WLR_NO_HARDWARE_CURSORS = "1";
     };
 
     xdg.portal = {
       enable = true;
       wlr.enable = true;
-      extraPortals = with pkgs; [ xdg-desktop-portal-gtk ];
+      extraPortals = with pkgs; [xdg-desktop-portal-gtk];
       config.common.default = "*";
     };
 
     services = {
-      xserver = {
-        # for X11
-        enable = true;
-
-        displayManager.lightdm = {
-          enable = false; # greetd instaed
-       };
-      };
-
-      # DisplayManager
       greetd = {
         enable = true;
         settings = {
@@ -47,19 +41,9 @@ in {
           # Autologin
           initial_session = {
             command = "sway";
-            user = "${username}";
+            user = "${config.user}";
           };
         };
-      };
-
-      dbus = {
-        enable = true;
-        # Make the gnome keyring work properly
-        packages = [ pkgs.gnome-keyring pkgs.gcr ];
-      };
-
-      gnome = {
-        gnome-keyring.enable = true;
       };
 
       # pipewire = {
@@ -71,20 +55,22 @@ in {
       # };
     };
 
-    home-manager.users.${username} = {
+    home-manager.users.${config.user} = {config, ...}: {
+      modules.hm.base.polkit.enable = true;
+
+      wayland.windowManager.sway = {
+        package = null;
+        enable = true;
+        xwayland = true;
+        systemd.enable = true;
+
+        # extraConfig = ''
+        # '';
+      };
+
       xdg.configFile = {
         "sway".source = "${self}/config/_linux/sway";
         # "sway/custom.conf".source = "${mkLink}/config/sway/custom.conf";
-      };
-
-      wayland.windowManager.sway = {
-        enable = true;
-        wrapperFeatures.gtk = true;
-        config = null;
-
-        # extraSessionCommands = ''
-        #   export XDG_CURRENT_DESKTOP="sway"
-        # '';
       };
 
       qt = {
@@ -98,8 +84,6 @@ in {
         swaylock
         swayidle
 
-        kitty # gpu accelerated terminal
-        glfw-wayland # kitty seems to require this
         xdg-utils # for opening default programs when clicking links
         glib # gsettings
         grim # screenshot functionality
@@ -109,7 +93,7 @@ in {
         mako # notification system developed by swaywm maintainer
 
         dracula-theme # gtk theme
-        adwaita-icon-theme  # default gnome cursors
+        adwaita-icon-theme # default gnome cursors
 
         wdisplays # tool to configure displays
         wlr-randr
@@ -119,8 +103,8 @@ in {
         wev # wayland event view
         wofi
 
-        swayr
-        autotiling-rs
+        #   swayr
+        #   autotiling-rs
         i3status
       ];
     };

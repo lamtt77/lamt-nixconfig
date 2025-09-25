@@ -1,7 +1,10 @@
-{ config, lib, ... }:
-
-with lib;
-let cfg = config.modules.os.linux.desktop.gnome;
+{
+  config,
+  lib,
+  ...
+}:
+with lib; let
+  cfg = config.modules.os.linux.desktop.gnome;
 in {
   options.modules.os.linux.desktop.gnome = {
     enable = mkEnableOption "";
