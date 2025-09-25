@@ -1,7 +1,9 @@
-{ config, lib, ... }:
-
-with lib;
-let
+{
+  config,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.modules.hm.base.bash;
 in {
   options.modules.hm.base.bash = with types; {
@@ -12,7 +14,7 @@ in {
     programs.bash = {
       enable = true;
       shellOptions = [];
-      historyControl = [ "ignoredups" "ignorespace" ];
+      historyControl = ["ignoredups" "ignorespace"];
 
       shellAliases = {
         ga = "git add";

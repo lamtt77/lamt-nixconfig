@@ -1,5 +1,4 @@
 # all 'parameterized' / hard-coded / constant values should be placing here
-
 rec {
   # nix config home dir
   myRepoName = "lamt-nixconfig";
@@ -8,7 +7,7 @@ rec {
   # globals
   stateVersion = "23.11";
   defaultUsername = "lamt";
-  systems = [ "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
+  systems = ["x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin"];
 
   gitUserName = "LamT";
   gmailDomain = "gmail.com";
@@ -34,13 +33,26 @@ rec {
   myDomain = "lamhub.com";
   teaURL = "tea.${myDomain}";
   teaPubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODyGjuq0vFxJVimNtVhYgVQqmCLNPQHCwJm9tvfSfja";
-  # hostURL = "air15.lamhub.local";
-  hostURL = "172.16.138.1";
+  hostURL = "air15.lamhub.local";
   nas = "nas.lamhub.local";
   nasBackupDevice = "${nas}:/mnt/arthur_z2/Backup";
+  nasArthurVM = "${nas}:/mnt/arthur_z2/VM";
 
   # postfix
   relayHost = "smtp.zoho.com";
   relayPort = 587;
   infoEmail = "info@${myDomain}";
+
+  # networking configurations per host
+  networking = {
+    avon = {
+      ip = "192.168.1.18";
+      gateway = "192.168.1.1";
+      nameservers = ["192.168.1.1"];
+      iperfPort = 5201;
+    };
+  };
+
+  # host-specific configurations
+  hosts.avon.nas = nasArthurVM;
 }

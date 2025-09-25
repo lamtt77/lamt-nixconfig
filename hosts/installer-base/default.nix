@@ -1,8 +1,14 @@
-{ inputs, pkgs, ...}: let
-  inherit (inputs.self) mydefs;
-in {
+{
+  inputs,
+  pkgs,
+  mydefs,
+  ...
+}: {
   imports = [
-    (import ../../hosts/_disko/generic.nix {inherit inputs; disks = ["/dev/sda"];})
+    (import ../../hosts/_disko/generic.nix {
+      inherit inputs;
+      disks = ["/dev/sda"];
+    })
   ];
 
   boot.loader.efi.canTouchEfiVariables = true;
@@ -33,7 +39,7 @@ in {
   programs.ssh.startAgent = true;
 
   users.users.root = {
-    openssh.authorizedKeys.keys = [ "${mydefs.mySshAuthKey}" ];
+    openssh.authorizedKeys.keys = ["${mydefs.mySshAuthKey}"];
   };
 
   # This value determines the NixOS release from which the default
@@ -42,5 +48,5 @@ in {
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = inputs.self.mydefs.stateVersion; # Did you read the comment?
+  system.stateVersion = mydefs.stateVersion; # Did you read the comment?
 }

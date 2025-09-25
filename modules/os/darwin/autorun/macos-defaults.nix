@@ -100,7 +100,8 @@
           DSDontWriteUSBStores = true;
         };
         "com.apple.spaces" = {
-          "spans-displays" = 0; # Display have seperate spaces
+          # Display have separate spaces
+          "spans-displays" = true;
         };
         "com.apple.WindowManager" = {
           EnableStandardClickToShowDesktop = 0; # Click wallpaper to reveal desktop

@@ -1,8 +1,11 @@
-{ config, lib, username, ... }:
-
+{
+  config,
+  lib,
+  ...
+}:
 with builtins;
-with lib;
-let cfg = config.modules.os.linux.services.nginx;
+with lib; let
+  cfg = config.modules.os.linux.services.nginx;
 in {
   options.modules.os.linux.services.nginx = {
     enable = mkEnableOption "";
@@ -11,9 +14,9 @@ in {
 
   config = mkMerge [
     (mkIf cfg.enable {
-      networking.firewall.allowedTCPPorts = [ 80 443 ];
+      networking.firewall.allowedTCPPorts = [80 443];
 
-      users.users.${username}.extraGroups = [ "nginx" ];
+      users.users.${config.user}.extraGroups = ["nginx"];
 
       services.nginx = {
         enable = true;
@@ -27,7 +30,7 @@ in {
         # Reduce the permitted size of client requests, to reduce the likelihood
         # of buffer overflow attacks. This can be tweaked on a per-vhost basis,
         # as needed.
-        clientMaxBodySize = "256k";  # default 10m
+        clientMaxBodySize = "256k"; # default 10m
         # Significantly speed up regex matchers
         appendConfig = ''pcre_jit on;'';
         commonHttpConfig = ''
@@ -59,7 +62,6 @@ in {
     })
   ];
 }
-
 # Helpful nginx snippets
 #
 # Set expires headers for static files and turn off logging.
@@ -71,3 +73,4 @@ in {
 #   location ~* /(?:uploads|files)/.*\.php$ {
 #     deny all;
 #   }
+

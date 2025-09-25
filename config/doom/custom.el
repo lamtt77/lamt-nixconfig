@@ -19,3 +19,4 @@
  )
 (put 'upcase-region 'disabled nil)
 (put 'scroll-left 'disabled nil)
+(put 'magit-diff-edit-hunk-commit 'disabled nil)

@@ -1,7 +1,10 @@
-{ inputs, config, lib, ... }:
-
-with lib;
-let
+{
+  inputs,
+  config,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.modules.os.base.nixpath-registry;
 in {
   options = with types; {
@@ -14,7 +17,7 @@ in {
     # when turn on everything (i.e nix-env) will be locked in flake.lock
     environment.etc.nixpkgs.source = inputs.nixpkgs;
     nix = {
-      nixPath = [ "nixpkgs=/etc/${config.environment.etc.nixpkgs.target}" ];
+      nixPath = ["nixpkgs=/etc/${config.environment.etc.nixpkgs.target}"];
       registry.nixpkgs.flake = inputs.nixpkgs;
       registry.self.flake = inputs.self;
     };

@@ -1,6 +1,8 @@
-{ lib, hostname, ... }:
-
 {
+  lib,
+  hostname,
+  ...
+}: {
   networking = {
     firewall.enable = lib.mkDefault true;
     hostName = lib.mkDefault hostname;

@@ -18,7 +18,7 @@ All Linux, WSL and MacOS stuffs will be managed by Nix, no-going-back :).
 + One-liner system deployment
 + Unified Config for MacOS (apple silicon & intel), Linux and Windows WSL2
 + Modules/Services can easily enable/disable on demand
-+ home-manager can act as a stanalone system or as a nixos module
++ home-manager integrated as nixos modules + standalone support
 + Remote & Cross Platforms Deployment (WIP)
 + Secrets Management
 
@@ -82,14 +82,12 @@ Note: set 'SECRETS=no' will still install the host normally, without secret fiel
 curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
 ```
 After completed, verify with 'nix --version', we are now ready to switch to our config:
-+ Standalone home-manager:
-```
-$ NIXHOST=macair15-m2-hm make switch
-$ NIXHOST=macair15-m2-hm make switch/hm
-```
-+ Combined home-manager as a nixos module: I used this option
 ```
 $ NIXHOST=macair15-m2 make switch
+```
+For user-only configuration updates (no sudo/Touch ID required):
+```
+$ make switch/hm
 ```
 + Note: alternatively, you can use official installer https://nixos.org/download/, I use the installer from determinate systems because it supports unninstall easily.
 ```

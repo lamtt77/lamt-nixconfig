@@ -1,31 +1,48 @@
-/* copy from nixpkgs but updated to fix arm64 support */
-{ lib, stdenv, fetchzip, autoPatchelfHook, fetchurl, xar, cpio }:
-
+/*
+copy from nixpkgs but updated to fix arm64 support
+*/
+{
+  lib,
+  stdenv,
+  fetchzip,
+  autoPatchelfHook,
+  fetchurl,
+  xar,
+  cpio,
+}:
 stdenv.mkDerivation rec {
   pname = "1password";
   version = "1.12.2";
   src =
-    if stdenv.isLinux then
+    if stdenv.isLinux
+    then
       fetchzip
-        {
-          url = {
+      {
+        url =
+          {
             "i686-linux" = "https://cache.agilebits.com/dist/1P/op/pkg/v${version}/op_linux_386_v${version}.zip";
             "x86_64-linux" = "https://cache.agilebits.com/dist/1P/op/pkg/v${version}/op_linux_amd64_v${version}.zip";
             "aarch64-linux" = "https://cache.agilebits.com/dist/1P/op/pkg/v${version}/op_linux_arm64_v${version}.zip";
-          }.${stdenv.hostPlatform.system};
-          sha256 = {
+          }.${
+            stdenv.hostPlatform.system
+          };
+        sha256 =
+          {
             "i686-linux" = "tCm/vDBASPN9FBSVRJ6BrFc7hdtZWPEAgvokJhjazPg=";
             "x86_64-linux" = "3VkVMuTAfeEowkguJi2fd1kG7GwO1VN5GBPgNaH3Zv4=";
             "aarch64-linux" = "sha256-17cS/Sf+DPZDlUsDYrO37vI6zjkeDhWXWQ/wk1jSAYo=";
-          }.${stdenv.hostPlatform.system};
-          stripRoot = false;
-        } else
+          }.${
+            stdenv.hostPlatform.system
+          };
+        stripRoot = false;
+      }
+    else
       fetchurl {
         url = "https://cache.agilebits.com/dist/1P/op/pkg/v${version}/op_apple_universal_v${version}.pkg";
         sha256 = "xG/6YZdkJxr5Py90rkIyG4mK40yFTmNSfih9jO2uF+4=";
       };
 
-  buildInputs = lib.optionals stdenv.isDarwin [ xar cpio ];
+  buildInputs = lib.optionals stdenv.isDarwin [xar cpio];
 
   unpackPhase = lib.optionalString stdenv.isDarwin ''
     xar -xf $src
@@ -38,7 +55,7 @@ stdenv.mkDerivation rec {
 
   dontStrip = stdenv.isDarwin;
 
-  nativeBuildInputs = lib.optionals stdenv.isLinux [ autoPatchelfHook ];
+  nativeBuildInputs = lib.optionals stdenv.isLinux [autoPatchelfHook];
 
   doInstallCheck = true;
 
@@ -50,8 +67,8 @@ stdenv.mkDerivation rec {
     description = "1Password command-line tool";
     homepage = "https://support.1password.com/command-line/";
     downloadPage = "https://app-updates.agilebits.com/product_history/CLI";
-    maintainers = with maintainers; [ joelburget marsam ];
+    maintainers = with maintainers; [joelburget marsam];
     license = licenses.unfree;
-    platforms = [ "i686-linux" "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin" ];
+    platforms = ["i686-linux" "x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin"];
   };
 }

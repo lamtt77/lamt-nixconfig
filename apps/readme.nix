@@ -1,9 +1,11 @@
-{ pkgs, ... }:
-
-{
+{pkgs, ...}: {
   type = "app";
 
-  program = builtins.toString (pkgs.writeShellScript "readme" ''
-    ${pkgs.glow}/bin/glow --pager ${builtins.toString ../README.md}
-  '');
+  program = "${pkgs.writeShellScript "readme" ''
+    ${pkgs.glow}/bin/glow --pager ${../README.md}
+  ''}";
+
+  meta = {
+    description = "Display the project README with glow";
+  };
 }

@@ -1,6 +1,9 @@
-{ inputs, disks ? ["/dev/sda"], ... }:
 {
-  imports = [ inputs.disko.nixosModules.disko ];
+  inputs,
+  disks ? ["/dev/sda"],
+  ...
+}: {
+  imports = [inputs.disko.nixosModules.disko];
 
   disko.devices = {
     disk = {

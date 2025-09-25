@@ -1,7 +1,19 @@
-{ config, lib, ... }: {
+{
+  inputs,
+  config,
+  lib,
+  ...
+}: {
   imports = [
     ./hardware-vm-esxi.nix
+    (import ../_disko/generic.nix {
+      inherit inputs;
+      disks = ["/dev/sda"];
+    })
   ];
+
+  # after resize the disk, it will grow partition automatically.
+  boot.growPartition = true;
 
   virtualisation.docker.enable = true;
   virtualisation.vmware.guest.enable = true;

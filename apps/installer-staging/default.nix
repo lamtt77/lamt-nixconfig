@@ -1,9 +1,11 @@
 # NOTE: this app will only run with Linux platform because of disko
-
-{ inputs, pkgs, ...}:
-let
+{
+  inputs,
+  pkgs,
+  mydefs,
+  ...
+}: let
   inherit (inputs) self;
-  inherit (inputs.self) mydefs;
 in {
   type = "app";
 
@@ -68,4 +70,8 @@ in {
 
     nixos-install --no-root-password --no-channel-copy
   '');
+
+  meta = {
+    description = "Staged NixOS installer with disko";
+  };
 }

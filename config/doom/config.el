@@ -56,7 +56,7 @@
 
 ;; If you use `org' and don't want your org files in the default location below,
 ;; change `org-directory'. It must be set before org loads!
-(setq org-directory "~/org-lam/")
+(setq org-directory "~/lamt-private/org-lam/")
 
 ;; This determines the style of line numbers in effect. If set to `nil', line
 ;; numbers are disabled. For relative line numbers, set this to `relative'.
@@ -105,14 +105,8 @@
 
 ;; from https://www.reddit.com/r/DoomEmacs/comments/jl6p9x/whitespacemode/
 ;; LamT: FIXME this will get doom's default whitespace-mode broken
-(defun me:see-all-whitespace () (interactive)
-       (setq whitespace-style (default-value 'whitespace-style))
-       (setq whitespace-display-mappings (default-value 'whitespace-display-mappings))
-       (whitespace-mode 'toggle))
-(global-set-key (kbd "C-<f4>") 'me:see-all-whitespace)
-
-;; if not like to load ranger by default
-;; (ranger-override-dired-mode nil)
-;; (setq ranger-show-hidden t)
-;; (setq ranger-cleanup-on-disable t)
-;; (setq ranger-cleanup-eagerly t)
+;; (defun me:see-all-whitespace () (interactive)
+;;        (setq whitespace-style (default-value 'whitespace-style))
+;;        (setq whitespace-display-mappings (default-value 'whitespace-display-mappings))
+;;        (whitespace-mode 'toggle))
+;; (global-set-key (kbd "C-<f4>") 'me:see-all-whitespace)

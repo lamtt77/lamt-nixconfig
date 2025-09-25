@@ -1,13 +1,18 @@
-{ inputs, pkgs, username, ... }:
-
-let
-  inherit (inputs.self) mydefs;
+{
+  inputs,
+  config,
+  pkgs,
+  mydefs,
+  ...
+}: let
   hostURL = mydefs.hostURL;
 in {
   imports = [
     ./hardware-air15vm.nix
-    (import ../_disko/generic.nix {inherit inputs; disks = ["/dev/sda"];})
-    ../../modules/_vmware-guest.nix
+    (import ../_disko/generic.nix {
+      inherit inputs;
+      disks = ["/dev/sda"];
+    })
   ];
 
   # Setup qemu so we can run x86_64 binaries
@@ -15,29 +20,30 @@ in {
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
-  # Disable the default module and import our override. We have
-  # customizations to make this work on aarch64.
-  disabledModules = [ "virtualisation/vmware-guest.nix" ];
-  # This works through our custom module imported above
   virtualisation.vmware.guest.enable = true;
 
+  # Virtualization settings
   virtualisation.docker.enable = true;
+  virtualisation.lxd.enable = true;
 
-  modules.os.base.services.agenix.enable = true;
+  modules.os.base.services.sops.enable = true;
   modules.os.linux.services.openssh.enable = true;
 
+  # modules.os.linux.services.kdeconnect.enable = true;
+
   modules.os.linux.desktop.i3.enable = true;
-  # modules.os.linux.desktop.sway.enable = true;
   # modules.os.linux.desktop.hyprland.enable = true;
+  # modules.os.linux.desktop.sway.enable = true;
+  # modules.os.linux.desktop.plasma.enable = true;
+  # modules.os.linux.desktop.gnome.enable = true;
 
   environment.systemPackages = with pkgs; [
     (writeShellScriptBin "xrandr-auto" ''
       xrandr --output Virtual-1 --auto
     '')
 
-    # This is needed for the vmware user tools clipboard to work.
-    # You can test if you don't need this by deleting this and seeing
-    # if the clipboard sill works.
+    # This may be needed for the vmware user tools clipboard to work.
+    # You can test if you don't need this by deleting this -> still work!
     gtkmm3
   ];
 
@@ -60,10 +66,10 @@ in {
   # };
 
   # # smb share
-  # fileSystems."/mnt/${username}" = let
-  #   credentials = config.age.secrets."${hostname}/smb-secrets".path;
+  # fileSystems."/mnt/${config.user}" = let
+  #   credentials = config.sops.secrets."${hostname}/smb-secrets".path;
   # in {
-  #   device = "//${hostURL}/${username}";
+  #   device = "//${hostURL}/${config.user}";
   #   fsType = "cifs";
   #   # https://www.freedesktop.org/software/systemd/man/latest/systemd.mount.html
   #   options = [
@@ -74,13 +80,13 @@ in {
   #   ];
   # };
 
-  # use nfsd instead of vmware hgfs for much less CPU usage, thus increase 10x performnace for big directories
-  # host must turn on nfsd daemon
-  fileSystems."/mnt/${username}" = {
-    device = "${hostURL}:/Users/${username}/lab";
-    fsType = "nfs";
-    options = [
-      "vers=3"
-    ];
-  };
+  # # use nfsd instead of vmware hgfs for much less CPU usage, thus increase 10x performnace for big directories
+  # # host must turn on nfsd daemon
+  # fileSystems."/mnt/${config.user}" = {
+  #   device = "${hostURL}:/Users/${config.user}/lab";
+  #   fsType = "nfs";
+  #   options = [ "vers=3" ];
+  #   # for non-apple nfs
+  #   # options = [ "nfsvers=4.2" "x-systemd.automount" "noauto" ];
+  # };
 }

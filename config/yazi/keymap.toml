@@ -1,0 +1,20 @@
+[mgr]
+
+prepend_keymap = [
+  # Directory shortcuts (ranger style)
+  { on = ["g", "e"], run = "cd /etc", desc = "Go to /etc" },
+  { on = ["g", "u"], run = "cd /usr", desc = "Go to /usr" },
+  { on = ["g", "o"], run = "cd /opt", desc = "Go to /opt" },
+  { on = ["g", "v"], run = "cd /var", desc = "Go to /var" },
+  { on = ["g", "t"], run = "cd /tmp", desc = "Go to /tmp" },
+  { on = ["g", "/"], run = "cd /", desc = "Go to root" },
+
+  # Git commands
+  { on = ["g", "b"], run = "shell --block 'if git rev-parse --git-dir > /dev/null 2>&1; then git branch | fzf | xargs git checkout; else echo \"Not a git repository\"; fi'", desc = "Git branch" },
+  { on = ["g", "p"], run = "shell --block 'if git rev-parse --git-dir > /dev/null 2>&1; then git pull --rebase; echo \"Press enter to continue\"; read; else echo \"Not a git repository\"; fi'", desc = "Git pull" },
+  { on = ["g", "s"], run = "shell --block 'if git rev-parse --git-dir > /dev/null 2>&1; then git status; echo \"Press enter to continue\"; read; else echo \"Not a git repository\"; fi'", desc = "Git status" },
+  { on = ["g", "l"], run = "shell --block 'if git rev-parse --git-dir > /dev/null 2>&1; then git log --graph --oneline; echo \"Press enter to continue\"; read; else echo \"Not a git repository\"; fi'", desc = "Git log" },
+
+  # Extract
+  { on = ["g", "x"], run = "shell --block 'case \"$0\" in *.tar.bz|*.tar.bz2|*.tbz|*.tbz2) tar xjvf \"$0\";; *.tar.gz|*.tgz) tar xzvf \"$0\";; *.tar.xz|*.txz) tar xJvf \"$0\";; *.zip) unzip \"$0\";; *.rar) unrar x \"$0\";; *.7z) 7z x \"$0\";; *) echo \"Unsupported format\";; esac'", desc = "Extract file" },
+]

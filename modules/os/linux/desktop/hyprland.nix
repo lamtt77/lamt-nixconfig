@@ -1,13 +1,18 @@
-{ inputs, config, pkgs, lib, username, ... }:
-
-with lib;
-let
+{
+  inputs,
+  config,
+  lib,
+  my,
+  pkgs,
+  ...
+}: let
   cfg = config.modules.os.linux.desktop.hyprland;
 
   hypr-run = pkgs.writeShellScriptBin "hypr-run" ''
-    export XDG_SESSION_TYPE="wayland"
-    export XDG_SESSION_DESKTOP="Hyprland"
-    export XDG_CURRENT_DESKTOP="Hyprland"
+    systemctl --user import-environment \
+      DISPLAY WAYLAND_DISPLAY \
+      XDG_CURRENT_DESKTOP \
+      HYPRLAND_INSTANCE_SIGNATURE
 
     systemd-run --user --scope --collect --quiet --unit="hyprland" \
         systemd-cat --identifier="hyprland" ${pkgs.hyprland}/bin/Hyprland $@
@@ -15,173 +20,155 @@ let
     ${pkgs.hyprland}/bin/hyperctl dispatch exit
   '';
 in
-{
-  options.modules.os.linux.desktop.hyprland = {
-    enable = mkEnableOption "";
-  };
-
-  config = mkIf cfg.enable {
-    xdg.portal.enable = true;
-    programs.hyprland = {
-      enable = true;
-      package = inputs.hyprland.packages.${pkgs.system}.hyprland;
-      portalPackage = inputs.hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+  with lib; {
+    options.modules.os.linux.desktop.hyprland = {
+      enable = mkEnableOption "";
     };
 
-    nix.settings = {
-      substituters = ["https://hyprland.cachix.org"];
-      trusted-public-keys = [
-        "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
-      ];
-    };
+    config = mkIf cfg.enable {
+      xdg.portal.enable = true;
 
-    programs = {
-      dconf.enable = true;
-      file-roller.enable = true;
-    };
+      # Hyprland's aquamarine requires newer MESA drivers.
+      # hardware.graphics = {
+      #   package = pkgs.unstable.mesa;
+      #   package32 = pkgs.unstable.pkgsi686Linux.mesa;
+      # };
 
-    environment = {
-      systemPackages = with pkgs; [
-        polkit_gnome
-        gnome.nautilus
-        gnome.zenity
-      ];
-    };
-
-    services = {
-      xserver = {
-        # for X11
-        enable = true;
-
-        displayManager.lightdm = {
-          enable = false; # greetd instaed
-        };
-      };
-
-      greetd = {
-        enable = true;
-        restart = false;
-        settings = {
-          default_session = {
-            command = ''
-            ${lib.makeBinPath [pkgs.greetd.tuigreet]}/tuigreet -r --asterisks --time \
-              --cmd ${lib.getExe hypr-run}
-          '';
-          };
-        };
-      };
-
-      dbus = {
-        enable = true;
-        # Make the gnome keyring work properly
-        packages = [ pkgs.gnome-keyring pkgs.gcr ];
-      };
-
-      gnome = {
-        gnome-keyring.enable = true;
-        sushi.enable = true;
-      };
-
-      gvfs.enable = true;
-    };
-
-    security = {
-      pam = {
-        services = {
-          # unlock gnome keyring automatically with greetd
-          greetd.enableGnomeKeyring = true;
-        };
-      };
-    };
-
-    home-manager.users.${username} = {
-      mkLink = config.lib.file.mkOutOfStoreSymlink
-        config.home.homeDirectory + "/" + inputs.self.mydefs.myRepoName;
-      xdg.configFile."hypr/custom.conf".source = "${mkLink}/config/hypr/custom.conf";
-
-      wayland.windowManager.hyprland = {
+      programs.hyprland = {
         enable = true;
         xwayland.enable = true;
-        package = inputs.hyprland.packages.${pkgs.system}.hyprland;
+        package = pkgs.unstable.hyprland;
+        portalPackage = pkgs.unstable.xdg-desktop-portal-hyprland;
 
-        extraConfig = ''source=./custom.conf'';
+        # package = inputs.hyprland.packages.${final.system}.hyprland;
+        # portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
       };
 
-      home.packages = with pkgs; [
-        # hyprpaper # wallpaper
-        hyprpicker
-        unstable.hyprlock
+      nix.settings = {
+        substituters = ["https://hyprland.cachix.org"];
+        trusted-public-keys = [
+          "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
+        ];
+      };
 
-        wofi
-        grim
-        grimblast
-        libva-utils
-        playerctl
-        slurp
-        wdisplays
-        wf-recorder
-        wl-clipboard
-        wmctrl
+      environment = {
+        systemPackages = with pkgs; [
+          # Hyprland's default
+          wofi
 
-        qalculate-gtk
-        udiskie
-        dmenu
+          hyprlock # *fast* lock screen
+          hyprpicker # screen-space color picker
+          hyprshade # to apply shaders to the screen
+          hyprshot # instead of grim(shot) or maim/slurp
 
-        mako # notification system developed by swaywm maintainer
-        libnotify # notify-send
+          ## For Hyprland
+          mako # dunst for wayland
+          swaybg # feh (as a wallpaper manager)
+          xorg.xrandr # for XWayland windows
 
-        glfw-wayland # kitty seems to require this
-      ];
-
-      home.sessionVariables = {
-        _JAVA_AWT_WM_NONREPARENTING = "1";
-        CLUTTER_BACKEND = "wayland";
-        GDK_BACKEND = "wayland";
-        MOZ_ENABLE_WAYLAND = "1";
-        QT_QPA_PLATFORM = "wayland";
-        QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
-        SDL_VIDEODRIVER = "wayland";
-        XDG_SESSION_TYPE = "wayland";
-
-        WLR_NO_HARDWARE_CURSORS = 1;
-        NIXOS_OZONE_WL = "1";
-
-        # no impact
-        # WLR_RENDERER_ALLOW_SOFTWARE = "1";
-
-        # not working
-        # WLR_DRM_NO_ATOMIC = 1;
-        # WLR_BACKEND = "vulkan";
+          ## For CLIs
+          gromit-mpx # for drawing on the screen
+          pamixer # for volume control
+          wlr-randr # for monitors that hyprctl can't handle
+          ## Waiting for NixOS/nixpkgs@7249e6c56141 to reach nixos-unstable
+          # wf-recorder    # for screencasting
+        ];
       };
 
       services = {
-        avizo.enable = true;
-        clipman.enable = true;
-        wlsunset = {
+        greetd = {
           enable = true;
-          latitude = "51.51";
-          longitude = "-2.53";
+          restart = false;
+          settings = {
+            default_session = {
+              command = ''
+                ${makeBinPath [pkgs.greetd.tuigreet]}/tuigreet -r --asterisks --time \
+                  --cmd ${getExe hypr-run}
+              '';
+            };
+          };
+        };
+
+        # required for screensharing
+        pipewire = {
+          enable = true;
+          alsa.enable = true;
+          pulse.enable = true;
+          wireplumber.enable = true;
         };
       };
 
-      qt = {
-        enable = true;
-        platformTheme.name = "adwaita";
-        style.name = "adwaita";
-        style.package = pkgs.adwaita-qt;
+      security.pam.services = {
+        # unlock gnome keyring automatically with greetd
+        greetd.enableGnomeKeyring = true;
       };
 
-      systemd.user.services.polkit-gnome-authentication-agent-1 = {
-        Unit.Description = "polkit-gnome-authentication-agent-1";
-        Install.WantedBy = [ "graphical-session.target" ];
-        Service = {
-          Type = "simple";
-          ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
-          Restart = "on-failure";
-          RestartSec = 1;
-          TimeoutStopSec = 10;
+      home-manager.users.${config.user} = {
+        inputs,
+        config,
+        my,
+        ...
+      }: let
+        mkLink = my.mkLinkCfg config;
+      in {
+        modules.hm.base.polkit.enable = true;
+
+        xdg.configFile."hypr/custom.conf".source = mkLink "config/hypr/custom.conf";
+
+        wayland.windowManager.hyprland = {
+          enable = true;
+          # set the Hyprland and XDPH packages to null to use the ones from the NixOS module
+          package = null;
+          portalPackage = null;
+          # default on air15vm: monitor=Virtual-1,3420x1946,0x0,2
+          # or lower resolution: monitor=Virtual-1,1710x973,0x0,1
+          extraConfig = ''source=./custom.conf'';
+        };
+
+        home.packages = with pkgs.unstable; [
+          # Program     Substitutes for
+          ripdrag # xdragon
+          wev # xev
+          wl-clipboard # xclip
+          wtype # xdotool (sorta)
+          swappy # swappy/Snappy/sharex
+          slurp # slop
+          swayimg # feh (as an image previewer)
+          imv
+        ];
+
+        home.sessionVariables = {
+          NIXOS_OZONE_WL = "1";
+          ELECTRON_OZONE_PLATFORM_HINT = "auto";
+
+          # we are running under Vmware Fusion, uncomment if having issue
+          # LIBGL_ALWAYS_SOFTWARE = "1";
+          # or:
+          # WLR_RENDERER_ALLOW_SOFTWARE = "1";
+
+          # # not really needed, for now
+          # XDG_SESSION_TYPE = "wayland";
+          # MOZ_ENABLE_WAYLAND = "1";
+          # WLR_NO_HARDWARE_CURSORS = 1;
+          # _JAVA_AWT_WM_NONREPARENTING = "1";
+          # CLUTTER_BACKEND = "wayland";
+          # GDK_BACKEND = "wayland";
+          # QT_QPA_PLATFORM = "wayland";
+          # QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
+          # SDL_VIDEODRIVER = "wayland";
+          # LIBSEAT_BACKEND = "logind";
+        };
+
+        services = {
+          clipman.enable = true;
+        };
+
+        qt = {
+          enable = true;
+          platformTheme.name = "adwaita";
+          style.name = "adwaita";
+          style.package = pkgs.adwaita-qt;
         };
       };
     };
-  };
-}
+  }

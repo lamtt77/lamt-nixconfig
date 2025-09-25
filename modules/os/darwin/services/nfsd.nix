@@ -1,10 +1,11 @@
 # start/stop/status service: sudo nfsd start/stop/status
 # test: showmount -e
-
-{ config, lib, hostname, ... }:
-
-with lib;
-let
+{
+  config,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.modules.os.darwin.services.nfsd;
 in {
   options = with types; {
@@ -13,8 +14,12 @@ in {
     };
   };
   config = mkIf cfg.enable {
+    sops.secrets = {
+      "nfsd-exports" = {};
+    };
+
     environment.etc = {
-      "exports".source = config.age.secrets."${hostname}/nfsd-exports".path;
+      "exports".source = config.sops.secrets."nfsd-exports".path;
     };
   };
 }

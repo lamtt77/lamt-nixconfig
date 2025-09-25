@@ -1,7 +1,9 @@
-{ config, lib, ... }:
-
-with lib;
-let
+{
+  config,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.modules.hm.base.direnv;
 in {
   options.modules.hm.base.direnv = with types; {

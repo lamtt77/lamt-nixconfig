@@ -1,6 +1,9 @@
-{ inputs, pkgs, username, ... }:
-
 {
+  inputs,
+  config,
+  mydefs,
+  ...
+}: {
   # Add ~/.local/bin to PATH
   environment.localBinInPath = true;
 
@@ -12,12 +15,17 @@
     rtkit.enable = true;
   };
 
+  # hardware.graphics.enable = true;
+
+  # To be able to run e.g. biome extension
+  programs.nix-ld.enable = true;
+
   # systemd.services.systemd-timesyncd.wantedBy = [ "multi-user.target" ];
   # systemd.timers.systemd-timesyncd = { timerConfig.OnCalendar = "hourly"; };
 
   # Create dirs for home-manager
   systemd.tmpfiles.rules = [
-    "d /nix/var/nix/profiles/per-user/${username} 0755 ${username} root"
+    "d /nix/var/nix/profiles/per-user/${config.user} 0755 ${config.user} root"
   ];
 
   services = {
@@ -31,5 +39,5 @@
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = inputs.self.mydefs.stateVersion; # Did you read the comment?
+  system.stateVersion = mydefs.stateVersion; # Did you read the comment?
 }

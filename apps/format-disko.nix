@@ -1,5 +1,8 @@
-{ inputs, pkgs, ...}:
-let
+{
+  inputs,
+  pkgs,
+  ...
+}: let
   inherit (inputs) self;
 in {
   type = "app";
@@ -38,4 +41,8 @@ in {
     echo "====>Executing Disko script for format and mount..."
     "$disko_script"
   '');
+
+  meta = {
+    description = "Format and partition disks using disko";
+  };
 }

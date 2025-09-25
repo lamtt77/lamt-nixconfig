@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-
+{pkgs, ...}:
 pkgs.mkShellNoCC {
   nativeBuildInputs = with pkgs; [
     actionlint
