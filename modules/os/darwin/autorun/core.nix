@@ -1,17 +1,15 @@
-{
-  config,
-  pkgs,
-  ...
-}: {
-  # rely on Determinate to manage nix for us instead of nix-darwin
-  nix.enable = false;
+{myargs, ...}: {
+  nix = {
+    # rely on Determinate to manage nix for us instead of nix-darwin
+    enable = false;
 
-  # Store management, currently, only nix-darwin supports interval attrs
-  # nix.gc.automatic = true;
-  nix.gc.options = "--delete-older-than 15d";
+    # Store management, currently, only nix-darwin supports interval attrs
+    # nix.gc.automatic = true;
+    gc.options = "--delete-older-than 15d";
 
-  nix.gc.interval.Hour = 3;
-  nix.optimise.interval.Hour = 4;
+    gc.interval.Hour = 3;
+    optimise.interval.Hour = 4;
+  };
 
   environment = {
     pathsToLink = ["/Applications"];
@@ -35,7 +33,17 @@
 
   system = {
     stateVersion = 6;
-    primaryUser = "${config.user}";
+    primaryUser = "${myargs.username}";
+
+    activationScripts.buildManDb = {
+      text = ''
+        if [ ! -d /var/cache/man ] || [ -z "$(find /var/cache/man -name '*.gz' -mtime -7 2>/dev/null)" ]; then
+          mkdir -p /var/cache/man
+          mandb
+        fi
+      '';
+      deps = [];
+    };
 
     # activationScripts are executed every time you boot the system or run `nixos-rebuild` / `darwin-rebuild`.
     # activationScripts.postUserActivation.text = ''

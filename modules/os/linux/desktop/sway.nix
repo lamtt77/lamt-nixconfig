@@ -3,6 +3,7 @@
   config,
   lib,
   pkgs,
+  myargs,
   ...
 }:
 with lib; let
@@ -41,7 +42,7 @@ in {
           # Autologin
           initial_session = {
             command = "sway";
-            user = "${config.user}";
+            user = "${myargs.username}";
           };
         };
       };
@@ -55,7 +56,7 @@ in {
       # };
     };
 
-    home-manager.users.${config.user} = {config, ...}: {
+    home-manager.users.${myargs.username} = {config, ...}: {
       modules.hm.base.polkit.enable = true;
 
       wayland.windowManager.sway = {

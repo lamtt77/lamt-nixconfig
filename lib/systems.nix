@@ -3,7 +3,62 @@
   lib,
   ...
 }:
-with lib.my; {
+with lib.my; let
+  mydefs = import ../defines.nix;
+in {
+  # OS modules get full lib (for nixpkgs utils), HM modules only get lib.my to avoid conflicts
+  mkSpecialArgs = {
+    system,
+    hostname,
+    username,
+    wsl ? false,
+    libArg ? null,
+  }:
+    {
+      inherit (lib) my;
+      myargs = {inherit system hostname username wsl;};
+      inherit inputs mydefs;
+    }
+    // (
+      if libArg != null
+      then {lib = libArg;}
+      else {}
+    );
+
+  getPlatformModules = {
+    darwin,
+    wsl,
+  }:
+    if darwin
+    then (mapModulesRec' ../modules/os/darwin import)
+    else (mapModulesRec' ../modules/os/linux import) ++ lib.optionals wsl (mapModulesRec' ../modules/os/wsl import);
+
+  getSystemFunc = darwin:
+    if darwin
+    then inputs.darwin.lib.darwinSystem
+    else inputs.nixpkgs.lib.nixosSystem;
+  getHomeFunc = darwin:
+    if darwin
+    then inputs.home-manager.darwinModules
+    else inputs.home-manager.nixosModules;
+
+  mkHomeManagerConfig = {
+    username,
+    system,
+    hostname,
+    wsl,
+    hmModules,
+  }: {
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    backupFileExtension = "home-manager.backup";
+    extraSpecialArgs = mkSpecialArgs {inherit system hostname username wsl;};
+    users.${username} = {
+      inherit (hmModules) imports;
+    };
+  };
+
+  baseModules = [../modules/shared/options.nix];
   home-modules = {
     username,
     darwin,
@@ -11,8 +66,8 @@ with lib.my; {
     ...
   }: {
     imports =
-      [
-        ../modules/shared/options.nix
+      baseModules
+      ++ [
         # not needed anymore after the introduction of pkgsall!
         # { nixpkgs.overlays = builtins.attrValues inputs.self.overlays; }
         ../profiles/${username}
@@ -25,57 +80,44 @@ with lib.my; {
 
   nixos-modules = {
     system,
-    host,
+    hostname,
     username,
     darwin,
     wsl,
     server,
     pkgs,
   }: let
-    # Proof of concept: my options accessible via config.user, etc
-    myopts = {
-      user = username;
-    };
-  in
-    [
-      ../modules/shared/options.nix
-      # not needed anymore after the introduction of pkgsall, will be duplicated if added!
-      # { nixpkgs.overlays = builtins.attrValues inputs.self.overlays; }
-      {nixpkgs.pkgs = pkgs;}
-      ../hosts/${host}
-
-      (
-        if wsl
-        then inputs.nixos-wsl.nixosModules.wsl
-        else {}
-      )
+    conditionalModules = lib.flatten [
+      (lib.optional wsl inputs.nixos-wsl.nixosModules.wsl)
       (
         if server
-        then ../modules/os/base/_server.nix
-        else ../modules/os/base/_workstation.nix
+        then [../modules/os/base/_server.nix]
+        else [../modules/os/base/_workstation.nix]
       )
-
       (
         if darwin
-        then inputs.sops-nix.darwinModules.sops
-        else inputs.sops-nix.nixosModules.sops
+        then [inputs.sops-nix.darwinModules.sops]
+        else [inputs.sops-nix.nixosModules.sops]
       )
+    ];
+  in
+    baseModules
+    ++ [
+      {nixpkgs.pkgs = pkgs;}
+      ../hosts/${hostname}
     ]
-    ++ [myopts]
-    ++ (mapModulesRec' ../modules/os/base import)
-    ++ lib.optionals darwin (mapModulesRec' ../modules/os/darwin import)
-    # this will also load regardless of wsl status
-    ++ lib.optionals (!darwin) (mapModulesRec' ../modules/os/linux import)
-    # this will load additional wsl stuffs
-    ++ lib.optionals wsl (mapModulesRec' ../modules/os/wsl import);
+    ++ conditionalModules ++ (mapModulesRec' ../modules/os/base import) ++ getPlatformModules {inherit darwin wsl;};
 
-  mkPkgs = system: pkgs: overlays:
-    import pkgs {
-      inherit system overlays;
-
+  mkPkgs = {
+    system,
+    localSystem ? system,
+    crossSystem ? null,
+  }: nixpkgs: overlays:
+    import nixpkgs {
+      inherit localSystem crossSystem overlays;
       config.allowUnfree = true;
-      # Lots of stuff that uses aarch64 that claims doesn't work, but actually works.
       config.allowUnsupportedSystem = true;
+      config.allowBroken = true;
     };
 
   # mkUser should run at nixos module level
@@ -101,7 +143,6 @@ with lib.my; {
 
         (mkIf (!darwin) {
           # NOTE this will have no password (locked-in, only accept ssh key authorization)
-          # uncomment if you want to declaritively set password, follow these steps:
           #   1. mkpasswd -m sha-512 --salt "Anything"
           #   2. hashedPassword = the newly created password
           # users.mutableUsers = false;
@@ -148,48 +189,47 @@ with lib.my; {
   # host without home-manager module inside
   mkHost = {
     system,
-    host,
+    hostname,
     username,
     darwin ? false,
     wsl ? false,
     server ? false,
-    pkgs ? null,
+    nixpkgs,
+    mydefs,
+    localSystem ? system,
+    crossSystem ? null,
   }: let
-    # NixOS vs nix-darwin functions
-    systemFunc =
-      if darwin
-      then inputs.darwin.lib.darwinSystem
-      else inputs.nixpkgs.lib.nixosSystem;
+    systemFunc = getSystemFunc darwin;
+    homeFunc = getHomeFunc darwin;
+    pkgs = mkPkgs {inherit system localSystem crossSystem;} nixpkgs (lib.attrValues inputs.self.overlays);
     nixosModules = nixos-modules {
-      inherit
-        system
-        host
-        username
-        darwin
-        wsl
-        server
-        ;
+      inherit system hostname username darwin wsl server pkgs;
     };
   in
     systemFunc {
       inherit system;
 
-      specialArgs = {
-        inherit inputs lib;
-        inherit (lib) my;
-        currentSystem = system;
-        hostname = host;
-        isWSL = wsl;
-        mydefs = import ../defines.nix;
+      specialArgs = mkSpecialArgs {
+        inherit system hostname username wsl;
+        libArg = lib;
       };
 
-      modules = nixosModules;
+      modules =
+        nixosModules
+        ++ [
+          homeFunc.home-manager
+          {
+            home-manager.users.${username} = {
+              home.stateVersion = mydefs.stateVersion;
+            };
+          }
+        ];
     };
 
   # host in combination with home-manager as a module inside
   mkSystem = {
     system,
-    host,
+    hostname,
     username,
     nixpkgs,
     mydefs,
@@ -197,40 +237,21 @@ with lib.my; {
     wsl ? false,
     server ? false,
     extraUsers ? [],
+    localSystem ? system,
+    crossSystem ? null,
   }: let
-    # NixOS vs nix-darwin functions
-    systemFunc =
-      if darwin
-      then inputs.darwin.lib.darwinSystem
-      else inputs.nixpkgs.lib.nixosSystem;
-    homeFunc =
-      if darwin
-      then inputs.home-manager.darwinModules
-      else inputs.home-manager.nixosModules;
-    pkgs = mkPkgs system nixpkgs (lib.attrValues inputs.self.overlays);
-    nixosModules = nixos-modules {
-      inherit
-        system
-        host
-        username
-        darwin
-        wsl
-        server
-        pkgs
-        ;
-    };
+    systemFunc = getSystemFunc darwin;
+    homeFunc = getHomeFunc darwin;
+    pkgs = mkPkgs {inherit system localSystem crossSystem;} nixpkgs (lib.attrValues inputs.self.overlays);
+    nixosModules = nixos-modules {inherit system hostname username darwin wsl server pkgs;};
     hmModules = home-modules {inherit username darwin wsl;};
   in
     systemFunc rec {
       inherit system;
 
-      specialArgs = {
-        inherit inputs lib;
-        inherit (lib) my;
-        currentSystem = system;
-        hostname = host;
-        isWSL = wsl;
-        mydefs = import ../defines.nix;
+      specialArgs = mkSpecialArgs {
+        inherit system hostname username wsl;
+        libArg = lib;
       };
 
       modules =
@@ -239,29 +260,16 @@ with lib.my; {
           (mkUser {inherit username pkgs darwin mydefs;})
           homeFunc.home-manager
           {
-            home-manager = {
-              useGlobalPkgs = true;
-              useUserPackages = true;
-              backupFileExtension = "home-manager.backup";
-              extraSpecialArgs = {
-                inherit inputs;
-                inherit (lib) my;
-                currentSystem = system;
-                hostname = host;
-                isWSL = wsl;
-                mydefs = import ../defines.nix;
-              };
-              users.${username} = lib.mkMerge [hmModules {user = username;}];
-            };
+            home-manager = mkHomeManagerConfig {inherit username system hostname wsl hmModules;};
           }
-         ]
+        ]
         ++ extraUsers;
     };
 
   # Standalone home-manager configuration
   mkHome = {
     system,
-    host,
+    hostname,
     username,
     nixpkgs,
     mydefs,
@@ -270,18 +278,10 @@ with lib.my; {
   }: let
     overlays = lib.attrValues inputs.self.overlays;
     hmModules = home-modules {inherit username darwin wsl;};
-  in inputs.home-manager.lib.homeManagerConfiguration {
-    pkgs = mkPkgs system nixpkgs overlays;
-
-    extraSpecialArgs = {
-      inherit inputs;
-      inherit (lib) my;
-      currentSystem = system;
-      hostname = host;
-      isWSL = wsl;
-      mydefs = import ../defines.nix;
+  in
+    inputs.home-manager.lib.homeManagerConfiguration {
+      pkgs = mkPkgs {inherit system;} nixpkgs overlays;
+      extraSpecialArgs = mkSpecialArgs {inherit system hostname username wsl;};
+      modules = hmModules.imports;
     };
-
-    modules = hmModules.imports ++ [{user = username;}];
-  };
 }

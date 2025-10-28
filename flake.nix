@@ -64,17 +64,17 @@
       // home-manager.lib;
 
     inherit (lib) attrValues;
-    inherit (lib.my) mapModules mkPkgs mkSystem mkHome;
+    inherit (lib.my) mapModules mkPkgs mkSystem mkHost mkHome;
 
     username = mydefs.defaultUsername;
 
     overlays = import ./overlays/overlays.nix {inherit inputs;};
 
     perSystem = flake-utils.lib.eachSystem mydefs.systems (system: let
-      pkgs = mkPkgs system nixpkgs (attrValues self.overlays);
+      pkgs = mkPkgs {inherit system;} nixpkgs (attrValues self.overlays);
     in {
       # auto load all pkgs exclude pkgs/_manual
-      packages = mapModules ./pkgs (p: pkgs.callPackage p {});
+      packages = mapModules ./pkgs (p: pkgs.callPackage p {inherit inputs mydefs;});
 
       # apps run by calling this flake directly
       # Github: nix run github:lamtt77/lamt-nixconfig#appname
@@ -100,7 +100,7 @@
     homeConfigurations = {
       "${username}_macair15-m2" = mkHome {
         system = "aarch64-darwin";
-        host = "macair15-m2";
+        hostname = "macair15-m2";
         inherit username nixpkgs mydefs;
         darwin = true;
       };
@@ -110,64 +110,125 @@
     darwinConfigurations = {
       macair15-m2 = mkSystem {
         system = "aarch64-darwin";
-        host = "macair15-m2";
+        hostname = "macair15-m2";
         inherit username nixpkgs mydefs;
         darwin = true;
       };
-      # imac-m1 = mkSystem { system = "aarch64-darwin"; host = "imac-m1"; inherit username nixpkgs mydefs; darwin = true; };
-      # macpro-intel = mkSystem { system = "x86_64-darwin"; host = "macpro-intel"; inherit username nixpkgs mydefs; darwin = true; };
+      # imac-m1 = mkSystem { system = "aarch64-darwin"; hostname = "imac-m1"; inherit username nixpkgs mydefs; darwin = true; };
+      # macpro-intel = mkSystem { system = "x86_64-darwin"; hostname = "macpro-intel"; inherit username nixpkgs mydefs; darwin = true; };
     };
 
     # nix build .#nixosConfigurations.macair15-m2.config.system.build.toplevel
     nixosConfigurations = {
       air15vm = mkSystem {
         system = "aarch64-linux";
-        host = "air15vm";
+        hostname = "air15vm";
         inherit username nixpkgs mydefs;
       };
-      # air15utm = mkSystem { system = "aarch64-linux"; host = "air15utm"; inherit username nixpkgs mydefs; };
+      # air15utm = mkSystem { system = "aarch64-linux"; hostname = "air15utm"; inherit username nixpkgs mydefs; };
       vm-esxi = mkSystem {
         system = "x86_64-linux";
-        host = "vm-esxi";
+        hostname = "vm-esxi";
         inherit username nixpkgs mydefs;
       };
-      # vm-wintel = mkSystem { system = "x86_64-linux"; host = "vm-wintel"; inherit username nixpkgs mydefs; };
+      # vm-wintel = mkSystem { system = "x86_64-linux"; hostname = "vm-wintel"; inherit username nixpkgs mydefs; };
 
       # nix build .#nixosConfigurations.wsl.config.system.build.tarballBuilder
       wsl = mkSystem {
         system = "x86_64-linux";
-        host = "wsl";
+        hostname = "wsl";
         inherit username nixpkgs mydefs;
         wsl = true;
       };
       # currently Windows Arm for aarch64 only supports WSL v1,
       # while nixos-wsl requires WSL v2, so this may not be working well
-      # wsl-aarch64 = mkSystem { system = "aarch64-linux"; host = "wsl"; inherit username nixpkgs mydefs; wsl = true; };
+      # wsl-aarch64 = mkSystem { system = "aarch64-linux"; hostname = "wsl"; inherit username nixpkgs mydefs; wsl = true; };
+
+      # installer
+      installer-base = mkHost {
+        system = "x86_64-linux";
+        hostname = "installer-base";
+        username = "root";
+        inherit nixpkgs mydefs;
+      };
 
       # servers
       avon = mkSystem {
         system = "x86_64-linux";
-        host = "avon";
+        hostname = "avon";
         username = "nixos";
         inherit nixpkgs mydefs;
         server = true;
       };
-      # avon-tempest = mkSystem { system = "x86_64-linux"; host = "avon-tempest"; username = "nixos"; inherit nixpkgs mydefs; server = true; };
+
+      avon-esxi = mkSystem {
+        system = "x86_64-linux";
+        hostname = "avon-esxi";
+        username = "nixos";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
+
       # continuous integraion and utilities
-      # utils = mkSystem { system = "x86_64-linux"; host = "utils"; username = "deploy"; inherit nixpkgs mydefs; server = true; };
+      utils = mkSystem {
+        system = "x86_64-linux";
+        hostname = "utils";
+        username = "deploy";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
 
       # game stuffs
       gaming = mkSystem {
         system = "x86_64-linux";
-        host = "gaming";
+        hostname = "gaming";
         username = "vivi";
         inherit nixpkgs mydefs;
         server = true;
       };
+
+      # DigitalOcean servers
+      medo = mkSystem {
+        system = "x86_64-linux";
+        hostname = "medo";
+        username = "nixos";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
+    };
+
+    crossNixosConfigurations = {
+      gaming = mkSystem {
+        system = "x86_64-linux";
+        hostname = "gaming";
+        username = "vivi";
+        inherit nixpkgs mydefs;
+        server = true;
+        localSystem = "aarch64-linux";
+        crossSystem = {config = "x86_64-unknown-linux-gnu";};
+      };
+      vm-esxi = mkSystem {
+        system = "x86_64-linux";
+        hostname = "vm-esxi";
+        username = "nixos";
+        inherit nixpkgs mydefs;
+        server = true;
+        localSystem = "aarch64-linux";
+        crossSystem = {config = "x86_64-unknown-linux-gnu";};
+      };
+      wsl = mkSystem {
+        system = "x86_64-linux";
+        hostname = "wsl";
+        username = "lamt";
+        inherit nixpkgs mydefs;
+        wsl = true;
+        localSystem = "aarch64-linux";
+        crossSystem = {config = "x86_64-unknown-linux-gnu";};
+      };
     };
   in
     {
-      inherit lib overlays darwinConfigurations nixosConfigurations homeConfigurations;
+      inherit lib overlays darwinConfigurations nixosConfigurations homeConfigurations crossNixosConfigurations;
     }
     // perSystem;
 }

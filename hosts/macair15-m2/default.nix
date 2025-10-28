@@ -1,8 +1,11 @@
-{pkgs, ...}: {
+{myargs, ...}: {
   modules.os.base.services.sops.enable = true;
   modules.os.base.services.wireguard.enable = true;
 
+  modules.os.base.services.tailscale.enable = true;
   modules.os.darwin.services.nfsd.enable = true;
+
+  networking.hostName = myargs.hostname;
 
   # # qemu builder
   # nix.linux-builder = {

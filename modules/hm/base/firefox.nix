@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  inputs,
   ...
 }:
 with lib; let
@@ -11,7 +12,9 @@ in {
     enable = mkEnableOption "Firefox Browser";
   };
 
-  config = mkIf cfg.enable {
+  config = mkIf cfg.enable (let
+    firefox-addons = inputs.firefox-addons.packages.${pkgs.system};
+  in {
     programs.firefox = {
       enable = true;
       package =
@@ -27,7 +30,7 @@ in {
           .tabbrowser-tab > .tab-stack > .tab-background { flex-direction: row !important; }
         '';
 
-        extensions.packages = with pkgs.firefox-addons; [
+        extensions.packages = with firefox-addons; [
           # browserpass
           clearurls
           containerise
@@ -157,5 +160,5 @@ in {
         };
       };
     };
-  };
+  });
 }

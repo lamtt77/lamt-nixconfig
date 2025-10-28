@@ -1,0 +1,43 @@
+baseURL = "https://blog.lamhub.com"
+languageCode = "en-us"
+title = "LamT's Blog"
+theme = "hugo-papermod"
+
+[params]
+  author = "LamT"
+  description = "A simple blog"
+
+  # PaperMod specific params
+  ShowReadingTime = true
+  ShowShareButtons = true
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowWordCount = true
+  ShowRssButtonInSectionTermList = true
+  UseHugoToc = true
+  disableSpecial1stPost = false
+  disableScrollToTop = false
+  comments = false
+  hidemeta = false
+  hideSummary = false
+  showtoc = false
+  tocopen = false
+
+  defaultTheme = "auto"  # auto, light, dark
+
+  [params.assets]
+    disableHLJS = false
+    disableFingerprinting = false
+
+  [params.label]
+    text = "Home"
+    icon = "/apple-touch-icon.png"
+    iconHeight = 35
+
+  [[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/lamtt77"
+  [[params.socialIcons]]
+    name = "linkedin"
+    url = "https://linkedin.com/in/lamt"

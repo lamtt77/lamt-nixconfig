@@ -1,7 +1,4 @@
-{
-  pkgs,
-  ...
-}: {
+{pkgs, ...}: {
   homebrew = {
     enable = true; # disable for faster rebuild
     onActivation = {

@@ -1,11 +1,11 @@
 {
   lib,
-  hostname,
+  myargs,
   ...
 }: {
   networking = {
     firewall.enable = lib.mkDefault true;
-    hostName = lib.mkDefault hostname;
+    hostName = lib.mkDefault myargs.hostname;
     useDHCP = lib.mkDefault true;
   };
 }

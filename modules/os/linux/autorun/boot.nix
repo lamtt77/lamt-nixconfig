@@ -1,10 +1,10 @@
 {
   pkgs,
   lib,
-  isWSL,
+  myargs,
   ...
 }:
-lib.optionalAttrs (!isWSL) {
+lib.optionalAttrs (!myargs.wsl) {
   # Be careful updating this.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 

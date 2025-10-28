@@ -1,9 +1,8 @@
 {
-  inputs,
   config,
   lib,
-  my,
   pkgs,
+  myargs,
   ...
 }: let
   cfg = config.modules.os.linux.desktop.hyprland;
@@ -103,7 +102,7 @@ in
         greetd.enableGnomeKeyring = true;
       };
 
-      home-manager.users.${config.user} = {
+      home-manager.users.${myargs.username} = {
         inputs,
         config,
         my,

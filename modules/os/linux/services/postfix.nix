@@ -3,11 +3,11 @@
 #   25-smtp: no password required for local lan, super unimportant emails only
 #   465-smtps and 587-smtp-tls: auth via dovecot
 {
-  inputs,
   config,
   lib,
   pkgs,
   mydefs,
+  myargs,
   ...
 }:
 with lib; let
@@ -22,15 +22,18 @@ in {
 
   config = mkIf cfg.enable {
     networking.firewall.allowedTCPPorts = [25 465 587];
+    sops = {
+      secrets = {
+        # initial secrets
+        "sasl_password".owner = "postfix";
+        "sender_relay" = {};
+        "ssl_cert" = {};
+        "ssl_key" = {};
+        "ssl_cacert" = {};
+      };
+    };
 
-    # initial secrets
-    sops.secrets."sasl_password".owner = "postfix";
-    sops.secrets."sender_relay" = {};
-    sops.secrets."ssl_cert" = {};
-    sops.secrets."ssl_key" = {};
-    sops.secrets."ssl_cacert" = {};
-
-    users.users.${config.user}.packages = with pkgs; [openssl];
+    users.users.${myargs.username}.packages = with pkgs; [openssl];
 
     # TODO: extract to dovecot module if planned to use imap and pop3
     services.dovecot2 = {
@@ -60,8 +63,8 @@ in {
 
       networks = mydefs.defaultNetworks;
 
-      relayHost = mydefs.relayHost;
-      relayPort = mydefs.relayPort;
+      inherit (mydefs) relayHost;
+      inherit (mydefs) relayPort;
       rootAlias = mydefs.infoEmail;
 
       sslCert = sslServerCert;

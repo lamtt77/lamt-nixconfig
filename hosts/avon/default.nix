@@ -19,8 +19,8 @@
 
   networking = {
     defaultGateway = mydefs.networking.avon.gateway;
-    nameservers = mydefs.networking.avon.nameservers;
-    interfaces.ens192 = {
+    inherit (mydefs.networking.avon) nameservers;
+    interfaces.ens18 = {
       useDHCP = false;
       ipv4.addresses = [
         {
@@ -29,6 +29,7 @@
         }
       ];
     };
+    extraHosts = "127.0.0.1 ts.lamhub.com";
     # iperf testing port
     firewall.allowedTCPPorts = [mydefs.networking.avon.iperfPort];
     firewall.allowedUDPPorts = [mydefs.networking.avon.iperfPort];
@@ -39,19 +40,27 @@
     fsType = "nfs";
   };
 
-  environment.systemPackages = with pkgs; [
-    ovftool
+  environment.systemPackages = [
+    (pkgs.ovftool.override {acceptBroadcomEula = true;})
+    pkgs.cloudflared
   ];
 
-  modules.os.base.services.sops.enable = true;
-  modules.os.linux.services.openssh.enable = true;
-  modules.os.linux.services.fail2ban.enable = true;
-  modules.os.linux.services.nginx.enable = true;
-  modules.os.linux.services.postfix.enable = true;
-  modules.os.linux.services.gitea.enable = true;
+  modules.os = {
+    base.services.sops.enable = true;
+    linux.services = {
+      openssh.enable = true;
+      fail2ban.enable = true;
+      nginx.enable = true;
+      postfix.enable = true;
+      gitea.enable = true;
+      headscale.enable = true;
+      gitea-runner.enable = true;
+    };
+  };
+
+  services.arthur-backup.enable = true;
 
   virtualisation.docker.enable = true;
-  virtualisation.vmware.guest.enable = true;
 
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }

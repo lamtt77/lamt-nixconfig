@@ -28,29 +28,66 @@ in
     };
 
     config = mkIf cfg.enable {
-      home.packages = with pkgs;
-        [
-          cfg.package
-          # Common dependencies
+      home.packages = let
+        commonDeps = with pkgs; [
           git
           ripgrep
           fd
-          # Language servers and tools
+          ctags
+        ];
+
+        lspServers = with pkgs; [
           lua-language-server
           nil # Nix LSP
           nixd
-          ctags
-          # Nix formatting and linting
+        ];
+
+        formatters = with pkgs; [
           statix
           alejandra
-          # Add more as needed
+          stylua
+        ];
+
+        languageTools = with pkgs; [
+          # Go
+          gopls
+          # Python
+          ruff
+          pyright
+          # JavaScript/TypeScript
+          nodePackages.eslint
+          nodePackages.prettier
+          nodePackages.typescript-language-server
+          # C/C++
+          clang-tools # clangd, clang-format
+          cppcheck
+          # Rust
+          rust-analyzer
+        ];
+
+        debugTools = with pkgs; [
+          delve
+          lldb
+          codelldb
+        ];
+
+        devEnv = with pkgs; [
+          devenv
           lua
           luarocks
           luaPackages.luacheck
           luaPackages.jsregexp
           tree-sitter
           wordnet
-        ]
+        ];
+      in
+        [cfg.package]
+        ++ commonDeps
+        ++ lspServers
+        ++ formatters
+        ++ languageTools
+        ++ debugTools
+        ++ devEnv
         ++ cfg.extraPackages;
 
       xdg.configFile."nvim".source = mkLink "config/nvim";

@@ -3,6 +3,7 @@
   config,
   lib,
   pkgs,
+  myargs,
   ...
 }:
 with lib; let
@@ -53,7 +54,7 @@ in {
       };
     };
 
-    home-manager.users.${config.user} = {
+    home-manager.users.${myargs.username} = {
       xresources.extraConfig = builtins.readFile "${self}/config/Xresources";
 
       xdg.configFile = {

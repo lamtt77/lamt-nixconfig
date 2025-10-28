@@ -1,7 +1,7 @@
-{config, ...}: {
+{myargs, ...}: {
   programs.dconf.enable = true;
 
-  home-manager.users.${config.user} = {config, ...}: {
+  home-manager.users.${myargs.username} = {config, ...}: {
     gtk = {
       enable = true;
       gtk2.configLocation = "${config.xdg.configHome}/gtk-2.0/gtkrc";

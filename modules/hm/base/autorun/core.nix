@@ -2,6 +2,7 @@
   config,
   pkgs,
   mydefs,
+  myargs,
   ...
 }: {
   config = let
@@ -10,11 +11,11 @@
   in {
     home = {
       inherit stateVersion;
-      username = config.user;
+      username = myargs.username;
       homeDirectory =
         if isDarwin
-        then "/Users/${config.user}"
-        else "/home/${config.user}";
+        then "/Users/${myargs.username}"
+        else "/home/${myargs.username}";
     };
 
     # bare minimum pacpages

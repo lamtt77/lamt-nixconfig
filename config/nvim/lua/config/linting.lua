@@ -9,10 +9,12 @@ return {
 
       lint.linters_by_ft = {
         lua = { "luacheck" },
-        python = { "flake8" },
+        python = { "ruff" },
         javascript = { "eslint" },
         typescript = { "eslint" },
         nix = { "statix" },
+        c = { "cppcheck" },
+        cpp = { "cppcheck" },
       }
 
       -- Create autocommand to trigger linting

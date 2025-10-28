@@ -1,6 +1,5 @@
 # Yazi file manager module
 {
-  inputs,
   config,
   lib,
   my,

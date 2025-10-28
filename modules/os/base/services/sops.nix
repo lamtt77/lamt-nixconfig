@@ -3,7 +3,7 @@
   config,
   pkgs,
   lib,
-  hostname,
+  myargs,
   ...
 }:
 with lib; let
@@ -28,7 +28,7 @@ in {
     ];
 
     sops = {
-      defaultSopsFile = "${inputs.self}/secrets/sops/${hostname}.yaml";
+      defaultSopsFile = "${inputs.self}/secrets/sops/${myargs.hostname}.yaml";
       age.sshKeyPaths = [cfg.ageKeyFile];
     };
   };
