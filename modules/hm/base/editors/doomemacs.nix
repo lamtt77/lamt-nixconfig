@@ -5,7 +5,7 @@
   lib,
   my,
   pkgs,
-  isWSL,
+  myargs,
   ...
 }: let
   inherit (pkgs.stdenv) isDarwin;
@@ -101,7 +101,7 @@ in
           ++ lib.optionals (!isDarwin) [
             gnugrep # doom-emacs vertico, support for PCRE lookaheads
           ]
-          ++ lib.optionals (!isWSL) [
+          ++ lib.optionals (!myargs.wsl) [
             # :lang latex & :lang org (latex previews)
             texlive.combined.scheme-medium
           ];

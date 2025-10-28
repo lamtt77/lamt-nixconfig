@@ -1,7 +1,7 @@
 {
   lib,
   pkgs,
-  isWSL,
+  myargs,
   ...
 }: let
   isDarwin = pkgs.stdenv.isDarwin;
@@ -20,6 +20,7 @@ in {
       fd
       htop
       jq
+      nh
       tldr
       tree
       watch
@@ -34,7 +35,7 @@ in {
       diffutils
       findutils
     ])
-    ++ (lib.optionals (isLinux && !isWSL) [
+    ++ (lib.optionals (isLinux && !myargs.wsl) [
       chromium
       xfce.xfce4-terminal
     ]);

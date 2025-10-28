@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Pre-commit hook to unstage secrets automatically
+# Author: LamT
+# Prevents accidental commits of sensitive files
+
+STAGED_SECRETS=$(git diff --cached --name-only | grep '^secrets/' || true)
+
+if [ -n "$STAGED_SECRETS" ]; then
+    echo "ERROR: Found staged secrets files! Commit aborted."
+    echo "Staged secrets:"
+    echo "$STAGED_SECRETS"
+    echo
+    echo "Secrets have been unstaged. Use 'git commit --no-verify' to commit secrets intentionally."
+    echo "$STAGED_SECRETS" | xargs git reset HEAD --
+    echo "Hook exiting with code 1"
+    exit 1
+fi

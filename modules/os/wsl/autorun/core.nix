@@ -1,12 +1,11 @@
 {
-  inputs,
-  config,
   mydefs,
+  myargs,
   ...
 }: {
   wsl = {
     enable = true;
-    defaultUser = config.user;
+    defaultUser = myargs.username;
     startMenuLaunchers = true;
     wslConf.automount.root = "/mnt"; # this is the default behavior
 

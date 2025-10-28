@@ -6,12 +6,22 @@ in {
   # create zram swap now, so it will be ready after the 1st reboot
   imports = [./zramswap.nix];
 
-  # Be careful updating this.
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot = {
+    loader = {
+      efi.canTouchEfiVariables = true;
+      systemd-boot = {
+        enable = true;
+        consoleMode = "0";
+      };
+    };
+    # Be careful updating this.
+    kernelPackages = pkgs.linuxPackages_latest;
+  };
 
   environment.systemPackages = with pkgs; [
-    rsync
     gitMinimal
+    jq
+    rsync
     vim
   ];
 

@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  myargs,
   ...
 }:
 with builtins;
@@ -16,7 +17,7 @@ in {
     (mkIf cfg.enable {
       networking.firewall.allowedTCPPorts = [80 443];
 
-      users.users.${config.user}.extraGroups = ["nginx"];
+      users.users.${myargs.username}.extraGroups = ["nginx"];
 
       services.nginx = {
         enable = true;

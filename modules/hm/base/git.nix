@@ -9,6 +9,7 @@
 }: let
   cfg = config.modules.hm.base.git;
   mkLink = my.mkLinkCfg config;
+  inherit (inputs) self;
 in
   with lib; {
     options.modules.hm.base.git = with types; {
@@ -16,7 +17,25 @@ in
     };
 
     config = mkIf cfg.enable {
-      home.file.".globalignore".source = mkLink "config/.globalignore";
+      home = {
+        activation.installRepoGitHooks = lib.hm.dag.entryAfter ["writeBoundary"] ''
+          # Install pre-commit hook in the repo if it exists
+          REPO_PATH="$HOME/${mydefs.myRepoName}"
+          if [ -d "$REPO_PATH/.git/hooks" ]; then
+            rm -f "$REPO_PATH/.git/hooks/pre-commit"
+            cp ${self}/config/git/hooks/pre-commit "$REPO_PATH/.git/hooks/pre-commit"
+            chmod +x "$REPO_PATH/.git/hooks/pre-commit"
+          fi
+        '';
+
+        file = {
+          ".globalignore".source = mkLink "config/.globalignore";
+        };
+
+        packages = with pkgs; [
+          tig
+        ];
+      };
 
       xdg.configFile."git/include".source = mkLink "config/git/include";
       xdg.configFile."tig/config".text = ''
@@ -27,12 +46,6 @@ in
         color cursor 15 blue
         set main-view = date:relative id:yes author:full commit-title:yes,graph,refs,overflow=no
       '';
-
-      home = {
-        packages = with pkgs; [
-          tig
-        ];
-      };
 
       programs = {
         gh.enable = true;

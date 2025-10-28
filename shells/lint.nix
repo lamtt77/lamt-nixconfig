@@ -2,10 +2,10 @@
 pkgs.mkShellNoCC {
   nativeBuildInputs = with pkgs; [
     actionlint
-    selene
+    luaPackages.luacheck
     stylua
     statix
-    nixpkgs-fmt
+    alejandra
     yamllint
   ];
 }

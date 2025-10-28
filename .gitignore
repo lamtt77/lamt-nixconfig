@@ -3,3 +3,5 @@ lamt-secrets
 
 result*
 .DS_Store
+.kilocode/mcp.json
+_tmp*

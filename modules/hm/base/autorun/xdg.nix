@@ -24,6 +24,7 @@ in {
     ".vimrc".source = mkLink "config/.vimrc";
     ".gdbinit".source = mkLink "config/.gdbinit";
     ".inputrc".source = mkLink "config/.inputrc";
+    ".luacheckrc".source = mkLink "config/.luacheckrc";
   };
 
   xdg.configFile =
@@ -36,6 +37,5 @@ in {
       "rectangle".source = mkLink "config/_darwin/rectangle";
     }
     // lib.optionalAttrs isLinux {
-      "ghostty".source = mkLink "config/_linux/ghostty";
     };
 }

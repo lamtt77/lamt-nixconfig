@@ -28,6 +28,7 @@ in {
 
   modules.os.base.services.sops.enable = true;
   modules.os.linux.services.openssh.enable = true;
+  modules.os.base.services.tailscale.enable = true;
 
   # modules.os.linux.services.kdeconnect.enable = true;
 

@@ -13,7 +13,8 @@ in {
   config = mkIf cfg.enable {
     services.fail2ban = {
       enable = true;
-      ignoreIP = ["127.0.0.1/16" "192.168.1.0/24"];
+      maxretry = 5;
+      ignoreIP = ["127.0.0.1/16" "192.168.1.0/24" "lam.lamhub.com"];
       banaction-allports = "iptables-allports";
       bantime-increment = {
         enable = true;
@@ -24,7 +25,6 @@ in {
         enabled = true
         filter = gitea
         banaction = %(banaction_allports)s
-        maxretry = 5
       '';
     };
 

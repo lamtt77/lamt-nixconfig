@@ -21,8 +21,8 @@ local plugins = {}
 
 -- Load plugin configurations from modular files
 local plugin_files = {
-  'config.lsp',
   'config.completion',
+  'config.lsp',
   'config.dap',
   'config.telescope',
   'config.file-explorer',

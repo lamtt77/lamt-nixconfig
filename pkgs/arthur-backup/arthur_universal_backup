@@ -1,0 +1,288 @@
+#!/usr/bin/env sh
+#
+# @author: LamT - lamtt77@gmail.com
+# License: MIT
+#
+# Backup all of my data using a universal config file containing sections needed to backup
+# to cloud via rclone/restic/borg, pluggable to future backup tools (kopia...)
+#
+# GOAL: auto by cron/systemd daemon, email reporting, visually see full backup scenarios
+# in a few human readable conf pages
+##
+
+trap 'echo $( date ) Arthur Universal Backup interrupted >&2; exit 2' INT TERM
+
+err() { echo "$1" >&2; exit 1; }
+debug() { $DEBUG && { echo "DEBUG:"; echo "$*"; } }
+info() { printf "\n%s %s\n\n" "$( date )" "$*" >&2; }
+log() { info "$1" 2>&1 | tee -a "$2"; }
+
+# param: 1=configfile, 2=filtersection optional/default all
+# return: list of tasks, separate by 'normalized' line, so that 'cut' can be safely used
+loadTasks() {
+  found=false
+  filter=${2:-"all"}
+
+  # clear all in-file and in-line comments, empty line, trim tab, double, redundant, leading and trailing spaces
+  grep -v '^ *#' "$1" | sed -e 's/#.*//g' -e '/^$/d' -e 's/ *= */=/g' | awk '{$1=$1;print}' |
+    while read -r line; do
+      # detect beginning section indicator '['
+      $found && [ -z "${line##*[*}" ] && {
+        found=false
+      }
+
+      case "$line" in
+        "[config]" | "[daily]" | "[weekly]" | "[monthly]" | "[quarterly]" | "[yearly]" | "[once]" | "[adhoc]")
+          # remove brackets
+          section=$( echo "$line" | tr -d '[]' )
+          found=true
+          continue
+          ;;
+      esac
+
+      if $found; then
+        # always load config section
+        [ "$section" = "config" ] || [ "$filter" = "all" ] || [ "$filter" = "$section" ] && echo "$section $line"
+      fi
+    done
+}
+
+# param: 1=configfile
+runBackupTasks() {
+  cfgfile="$1"
+  tasks=$( loadTasks "$cfgfile" "$scope" )
+  debug "$tasks"
+
+  # sadly 'proper' pipe to a while read loop spawn a subprocess which will get lost global variables rc and numtasks
+  # echo "$tasks" | while read -r line; do
+  saveIFS=$IFS; IFS='
+'
+  for line in $tasks; do
+    section=$( echo "$line" | cut -d' ' -f 1 )
+    tool=$( echo "$line" | cut -d' ' -f 2 )
+    # field 2-to-end
+    task=$( echo "$line" | cut -d' ' -f 2- )
+
+    case "$section" in
+      "config") setConfigParams "$task" ;;
+    esac
+
+    [ "$section" = "$scope" ] && {
+      case "$tool" in
+        "custom") customRun "$task" ;;
+        "borg") borgCreatePruneCheck "$task" ;;
+        "restic") resticBackupPruneCheck "$task" ;;
+        "rclone") rcloneSyncCheck "$task" ;;
+      esac
+    }
+  done
+
+  IFS=$saveIFS
+}
+
+# param: 1=command to evaluate, make sure the command is safe before executing
+setConfigParams() {
+  item="$1"
+  eval "$item"
+}
+
+getKeepPolicy() {
+  keep="--keep-daily ${KEEP_DAILY} --keep-weekly ${KEEP_WEEKLY} --keep-monthly ${KEEP_MONTHLY} --keep-yearly ${KEEP_YEARLY}"
+
+  echo "$keep"
+}
+
+# global counters increase for each task command
+# also return a local return code for this time of running
+doTaskCmd() {
+  cmd="$1"
+
+  eval "$cmd"
+  localrc=$?
+  rc=$(( rc + localrc ))
+  numtasks=$(( numtasks + 1 ))
+  if [ $localrc -ne 0 ]; then
+    numfailed=$(( numfailed + 1 ))
+  fi
+
+  return $localrc
+}
+
+customRun() {
+  task="$1"
+  cmd=$( echo "$task" | cut -d' ' -f 2- )
+  debug "$cmd"
+  doTaskCmd "$cmd"
+}
+
+rcloneSyncCheck() {
+  task="$1"
+  kind=$( echo "$task" | cut -d' ' -f 2 )
+  logfile="${LOG_DIR}/universal_backup_rclone_$scope.log"
+
+  [ "$kind" = "sync" ] || [ "$kind" = "check" ] || [ "$kind" = "cryptcheck" ] && {
+    # stdout final summary only, filter out synced/checked files (starting with 20), but still in log file
+    cmd="$task $DRY_RUN -v 2>&1 | tee -a $logfile | grep -v '^20'"
+    log "$scope $cmd" "$logfile"
+    doTaskCmd "$cmd"
+  }
+}
+
+# note that currently (2021) restic does not support --dry-run, only support in restic beta
+# update 2022: restic has now supported --dry-run (-n) in version 0.14
+# param 1=task
+resticBackupPruneCheck() {
+  task="$1"
+  kind=$( echo "$task" | cut -d' ' -f 2 )
+  logfile="${LOG_DIR}/universal_backup_restic_$scope.log"
+
+  [ "$kind" = "backup" ] && {
+    # filter out 'unchanged', many of them
+    backupcmd="$task $DRY_RUN -v -v 2>&1 | grep -v '^unchanged'| tee -a $logfile"
+    log "$scope $backupcmd" "$logfile"
+    doTaskCmd "$backupcmd"
+  }
+
+  [ "$kind" = "forget" ] && {
+    keep=$( getKeepPolicy )
+    # restic prune output a lot info, thus only show key info in stdout which will capture by cron daemon
+    prunecmd="$task $DRY_RUN $keep -v 2>&1 | tee -a $logfile | grep -E '^keep|^remove|^used|^unused|^total|^remaining'"
+    log "$scope $prunecmd" "$logfile"
+    doTaskCmd "$prunecmd"
+    info "PRUNE_RC: $?"
+  }
+
+  [ "$kind" = "check" ] && {
+    checkcmd="$task -v -v 2>&1 | tee -a $logfile"
+    log "$scope $checkcmd" "$logfile"
+    doTaskCmd "$checkcmd"
+  }
+}
+
+borgCreatePruneCheck() {
+  task="$1"
+  kind=$( echo "$task" | cut -d' ' -f 2 )
+  logfile="${LOG_DIR}/universal_backup_borg_$scope.log"
+
+  [ "$kind" = "create" ] && {
+    opts="--filter AME --list --stats --show-rc --compression lz4 --verbose"
+    createcmd="$task $DRY_RUN $opts 2>&1 | tee -a $logfile"
+    log "$scope $createcmd" "$logfile"
+    doTaskCmd "$createcmd"
+  }
+
+  [ "$kind" = "prune" ] && {
+    opts="--list --show-rc 2>&1 | tee -a $logfile | grep -v '^Keeping'"
+    keep=$( getKeepPolicy )
+    prunecmd="$task $DRY_RUN $keep $opts"
+    log "$scope $prunecmd" "$logfile"
+    doTaskCmd "$prunecmd"
+  }
+
+  [ "$kind" = "check" ] && {
+    checkcmd="$task --verbose 2>&1 | tee -a $logfile"
+    log "$scope $checkcmd" "$logfile"
+    doTaskCmd "$checkcmd"
+  }
+}
+
+usage() {
+  cat <<EOF
+---***---
+$(basename "$0"): an attempt to eliminate error prone manual backup process
+Pluggable adapters: rclone, restic, borg, custom
+
+OPTIONS
+	-d | --daily		Look up conf file and execute daily tasks
+	-w | --weekly		Look up conf file and execute weekly tasks
+	-m | --monthly		Look up conf file and execute monthly tasks
+	-q | --quarterly	Look up conf file and execute quarterly tasks
+	-y | --yearly		Look up conf file and execute yearly tasks
+	-o | --once		Look up conf file and execute one-shot tasks
+	-a | --adhoc		Look up conf file and execute adhoc/special-care tasks
+	-n | --dry-run		Dry run on supported tools only
+	-v | --debug 		Turn debug on. If alone will list all schedule-able tasks
+
+EXAMPLES
+	Create/add the following lines to /etc/cron.d/universal_backup.conf
+
+	# Daily at 23:00PM: 7-day rolling backup
+	00 23 * * *		user /path/arthur_universal_backup --daily
+	# Weekly on sunday (0) at 23:30PM
+	30 23 * * 0		user /path/arthur_universal_backup --weekly
+	# Monthly on 1st day-of-month at 1:15AM, borg verify-data and restic read-data LONG check
+	15 01 1 * *		user/path/arthur_universal_backup --monthly
+	# Quarterly on 1st day at 2:15AM, borg verify-data and restic read-data LONG FULL check
+	15 02 1 */3 *		user /path/arthur_universal_backup --quarterly
+	# Yearly on 1st day at 1:00AM
+	00 01 1 1 *		user /path/arthur_universal_backup --yearly
+
+EOF
+
+  exit 1
+}
+
+## main()
+DRY_RUN=""
+DEBUG=false
+# return code
+rc=0
+numtasks=0
+numfailed=0
+
+[ $# -eq 0 ] && usage
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d|--daily) scope="daily" ;;
+    -w|--weekly) scope="weekly" ;;
+    -m|--monthly) scope="monthly" ;;
+    -q|--quarterly) scope="quarterly" ;;
+    -y|--yearly) scope="yearly" ;;
+    -o|--oneshot) scope="once" ;;
+    -a|--adhoc) scope="adhoc" ;;
+    -n|--dry-run) DRY_RUN="--dry-run" ;;
+    -v|--debug) DEBUG=true ;;
+    --) shift; break ;;
+    -*) err "unknown option: $1" ;;
+    *)
+        err "unexpected argument: $1" ;;
+  esac
+  shift
+done
+
+mydir=$(dirname "$0")
+LOG_DIR=${LOG_DIR:-/var/log/backup}
+filename="${mydir}/universal_backup.conf"
+logemail="$LOG_DIR/universal_backup_report.tmp"
+
+# start an empty new temp logemail file and output everything to that file, still displaying stdin and stderr
+: > ${logemail}
+{
+  printf "Hostname: $(hostname). Arthur Universal Backup starting... \n"
+
+  info "$(rclone version)"
+  info "$(restic version)"
+  info "$(borg --version)"
+
+  runBackupTasks "$filename"
+
+  if [ ${rc} -eq 0 ]; then
+    info "${scope} Arthur Universal Backup finished successfully. Run TASKS: ${numtasks}. RETURN_CODE: ${rc}"
+  else
+    info "${scope} Arthur Universal Backup finished with warnings/errors. Run TASKS: ${numtasks}. RETURN_CODE: ${rc}"
+  fi
+
+  # Prepend email headers without extra newlines
+  {
+    echo "To: ${MAILTO}"
+    echo "From: ${MAILFROM}"
+    echo "Subject: ArthurBackup ${scope} FAILED ${numfailed} TASKS ${numtasks}"
+    echo ""
+    cat "${logemail}"
+  } > "${logemail}.tmp" && mv "${logemail}.tmp" "${logemail}"
+} 2>&1 | tee -a ${logemail}
+
+### Send report ###
+msmtp -t < "${logemail}"
+#rm "${logemail}"

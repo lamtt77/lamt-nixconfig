@@ -4,7 +4,6 @@
 #
 # feature: work on both Linux and MacOS, unlike the stock home-manager
 {
-  inputs,
   config,
   lib,
   pkgs,
@@ -61,7 +60,7 @@ in {
         settings = {
           default-key = gpgDefaultKey;
           keyserver = "hkps://keys.openpgp.org";
-          keyserver-options = "auto-key-retrieve";
+          keyserver-options = "no-auto-key-retrieve";
         };
 
         scdaemonSettings = {
@@ -71,14 +70,14 @@ in {
     };
 
     # this is for supporting darwin/cross platform, headless pinentry
-    # extra-socket ${config.xdg.configHome}/gnupg/S.gpg-agent.extra
-    xdg.configFile = mkIf (cfg.enableSSHSupport) {
+    xdg.configFile = mkIf cfg.enableSSHSupport {
       "gnupg/gpg-agent.conf".text = ''
         default-cache-ttl ${toString cfg.defaultCacheTTL}
         max-cache-ttl ${toString cfg.maxCacheTTL}
         default-cache-ttl-ssh ${toString cfg.defaultCacheTTL}
         max-cache-ttl-ssh ${toString cfg.maxCacheTTL}
         enable-ssh-support
+        extra-socket ${config.xdg.configHome}/gnupg/S.gpg-agent.extra
         pinentry-program ${pinentry-program}
       '';
 

@@ -1,24 +1,15 @@
 {
   "runtime": {
     "version": "LuaJIT",
-    "path": [
-      "lua/?.lua",
-      "lua/?/init.lua"
-    ]
+    "path": ["lua/?.lua", "lua/?/init.lua"]
   },
   "workspace": {
-    "library": [
-      "$VIMRUNTIME/lua",
-      "${3rd}/luv/library"
-    ],
+    "library": ["$VIMRUNTIME/lua", "${3rd}/luv/library"],
     "checkThirdParty": false
   },
   "diagnostics": {
     "globals": ["vim"],
-    "disable": [
-      "lowercase-global",
-      "undefined-global"
-    ]
+    "disable": ["lowercase-global", "undefined-global"]
   },
   "completion": {
     "callSnippet": "Replace"

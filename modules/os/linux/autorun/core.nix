@@ -1,7 +1,6 @@
 {
-  inputs,
-  config,
   mydefs,
+  myargs,
   ...
 }: {
   # Add ~/.local/bin to PATH
@@ -25,7 +24,7 @@
 
   # Create dirs for home-manager
   systemd.tmpfiles.rules = [
-    "d /nix/var/nix/profiles/per-user/${config.user} 0755 ${config.user} root"
+    "d /nix/var/nix/profiles/per-user/${myargs.username} 0755 ${myargs.username} root"
   ];
 
   services = {

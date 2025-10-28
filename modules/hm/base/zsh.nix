@@ -3,8 +3,6 @@
   inputs,
   config,
   lib,
-  my,
-  pkgs,
   ...
 }: let
   cfg = config.modules.hm.base.zsh;

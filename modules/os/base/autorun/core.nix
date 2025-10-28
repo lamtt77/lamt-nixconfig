@@ -1,12 +1,11 @@
 {
   inputs,
-  config,
-  lib,
   pkgs,
   mydefs,
+  myargs,
   ...
 }: let
-  users = ["root" "@wheel"];
+  users = ["@wheel" myargs.username];
 in {
   time.timeZone = mydefs.timeZone;
 
@@ -35,25 +34,13 @@ in {
       use-xdg-base-directories = true;
 
       substituters = [
-        "https://cache.nixos.org/"
         "https://nix-community.cachix.org"
-        "https://cache.determinate.systems/"
+        "https://devenv.cachix.org"
       ];
       trusted-public-keys = [
-        "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-        "cache.determinate.systems-1:7IkJb2AM6tEZgYd2vYPF8yQ3okA6lDuEo8MgF3F4K4="
+        "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
       ];
     };
-  };
-
-  system.activationScripts.buildManDb = {
-    text = ''
-      if [ ! -d /var/cache/man ] || [ -z "$(find /var/cache/man -name '*.gz' -mtime -7 2>/dev/null)" ]; then
-        mkdir -p /var/cache/man
-        mandb
-      fi
-    '';
-    deps = [];
   };
 }

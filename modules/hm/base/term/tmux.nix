@@ -40,6 +40,9 @@ in {
         # Enable focus events for autoread
         set-option -g focus-events on
 
+        # Set scrollback history limit
+        set -g history-limit 100000
+
         set -g allow-passthrough on
 
         set -ga terminal-overrides ",*256col*:Tc"
@@ -64,6 +67,18 @@ in {
         bind -n M-k if-shell "$is_vim" "send-keys M-k" "select-pane -U"
         bind -n M-l if-shell "$is_vim" "send-keys M-l" "select-pane -R"
         bind -n M-\\ if-shell "$is_vim" "send-keys M-\\\\" "select-pane -l"
+
+        # Clipboard integration
+        bind -T copy-mode-vi y send -X copy-pipe-and-cancel "${
+          if pkgs.stdenv.isDarwin
+          then "pbcopy"
+          else "xclip -selection clipboard"
+        }"
+        bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-pipe-and-cancel "${
+          if pkgs.stdenv.isDarwin
+          then "pbcopy"
+          else "xclip -selection clipboard"
+        }"
       '';
     };
   };
