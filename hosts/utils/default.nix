@@ -2,6 +2,9 @@
   inputs,
   config,
   lib,
+  pkgs,
+  mydefs,
+  my,
   ...
 }: {
   imports = [
@@ -12,13 +15,41 @@
     })
   ];
 
+  deployment = {
+    targetIp = mydefs.networking.utils.ip;
+    vmid = "115";
+    proxmox = {
+      host = mydefs.hosts.pve1.ip;
+      bios = "ovmf";
+      diskBus = "scsi";
+    };
+  };
+
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
-  modules.os.base.services.tailscale.enable = true;
+  networking = my.mkStaticNetworking mydefs.networking.utils;
+
+  modules.os.base.services.sops.enable = true;
+  sops.secrets.tailscale_preauth_key = {};
+
+  modules.os.base.services.tailscale = {
+    enable = true;
+    authKeyFile = config.sops.secrets.tailscale_preauth_key.path;
+  };
   modules.os.linux.services.openssh.enable = true;
 
   virtualisation.docker.enable = true;
+
+  services.qemuGuest.enable = true;
+
+  environment.systemPackages = [
+    (pkgs.ovftool.override {acceptBroadcomEula = true;})
+  ];
+
+  users.users.deploy.openssh.authorizedKeys.keys = [
+    mydefs.nixBuilderPubkey
+  ];
 
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }

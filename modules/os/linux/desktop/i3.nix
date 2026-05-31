@@ -43,7 +43,7 @@ in {
           # AARCH64: For now, on Apple Silicon, we must manually set the
           # display resolution. This is a known issue with VMware Fusion.
           sessionCommands = ''
-            ${pkgs.xorg.xset}/bin/xset r rate 200 40
+            ${pkgs.xorg.xset}/bin/xset r rate 200 60
           '';
         };
 
@@ -75,7 +75,7 @@ in {
         # xss-lock                # for screen-saver
 
         feh # image viewer
-        xdragon # drag'n'drop from the terminal
+        dragon-drop # drag'n'drop from the terminal
         xclip
         xdotool
         xorg.xwininfo

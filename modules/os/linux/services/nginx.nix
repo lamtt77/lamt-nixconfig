@@ -18,6 +18,7 @@ in {
       networking.firewall.allowedTCPPorts = [80 443];
 
       users.users.${myargs.username}.extraGroups = ["nginx"];
+      users.users.nginx.extraGroups = ["acme"];
 
       services.nginx = {
         enable = true;

@@ -14,6 +14,7 @@
     })
   ];
 
+
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
@@ -50,7 +51,6 @@
   modules.os.linux.services.postfix.enable = true;
   modules.os.linux.services.gitea.enable = true;
   modules.os.base.services.tailscale.enable = true;
-  modules.os.linux.services.headscale.enable = true;
   modules.os.linux.services.gitea-runner.enable = true;
 
   virtualisation.docker.enable = true;

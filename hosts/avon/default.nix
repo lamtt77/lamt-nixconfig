@@ -4,6 +4,8 @@
   lib,
   pkgs,
   mydefs,
+  my,
+  myargs,
   ...
 }: {
   imports = [
@@ -11,25 +13,25 @@
     (import ../_disko/generic.nix {
       inherit inputs;
       disks = ["/dev/sda"];
+      ephemeral = true;
     })
   ];
 
-  # after resize the disk, it will grow partition automatically.
-  boot.growPartition = true;
-
-  networking = {
-    defaultGateway = mydefs.networking.avon.gateway;
-    inherit (mydefs.networking.avon) nameservers;
-    interfaces.ens18 = {
-      useDHCP = false;
-      ipv4.addresses = [
-        {
-          address = mydefs.networking.avon.ip;
-          prefixLength = 24;
-        }
-      ];
+  deployment = {
+    targetIp = mydefs.networking.avon.ip;
+    vmid = "103";
+    proxmox = {
+      host = mydefs.hosts.pve1.ip;
+      bios = "ovmf";
+      diskBus = "scsi";
     };
-    extraHosts = "127.0.0.1 ts.lamhub.com";
+  };
+
+  # Note: If you ever need to resize the disk, you can grow the persistent partition manually by running:
+  #   sudo growpart /dev/sda 2
+  #   sudo resize2fs /dev/sda2
+
+  networking = my.mkStaticNetworking mydefs.networking.avon // {
     # iperf testing port
     firewall.allowedTCPPorts = [mydefs.networking.avon.iperfPort];
     firewall.allowedUDPPorts = [mydefs.networking.avon.iperfPort];
@@ -40,27 +42,89 @@
     fsType = "nfs";
   };
 
-  environment.systemPackages = [
-    (pkgs.ovftool.override {acceptBroadcomEula = true;})
-    pkgs.cloudflared
-  ];
-
   modules.os = {
     base.services.sops.enable = true;
+    base.services.tailscale.enable = true;
     linux.services = {
       openssh.enable = true;
       fail2ban.enable = true;
       nginx.enable = true;
       postfix.enable = true;
       gitea.enable = true;
-      headscale.enable = true;
       gitea-runner.enable = true;
+      headscale = {
+        enable = true;
+        users = [
+          "lamt"
+          "cloud"
+        ];
+      };
+      acme.enable = true;
+      # cloudflared.enable = true;
     };
+    base.services.builders.enable = true;
   };
 
   services.arthur-backup.enable = true;
 
+  persist.enable = true;
+  persist.state.directories = [
+    "/var/lib/nixos"
+    "/var/lib/tailscale"
+    "/var/lib/docker"
+    "/var/log/journal"
+    "/home/${myargs.username}"
+  ];
+  persist.state.files = [
+    "/etc/machine-id"
+    "/etc/ssh/ssh_host_ed25519_key"
+    "/etc/ssh/ssh_host_ed25519_key.pub"
+    "/etc/ssh/ssh_host_rsa_key"
+    "/etc/ssh/ssh_host_rsa_key.pub"
+  ];
+
   virtualisation.docker.enable = true;
 
+  services.qemuGuest.enable = true;
+
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
+
+  fileSystems."/" = {
+    device = "none";
+    fsType = "tmpfs";
+    options = [ "defaults" "size=2G" "mode=755" ];
+  };
+
+  fileSystems."/persist".neededForBoot = true;
+
+  fileSystems."/nix" = {
+    device = "/persist/nix";
+    fsType = "none";
+    options = [ "bind" ];
+    neededForBoot = true;
+  };
+
+  # Decrypt Cloudflare Tunnel credentials
+  # sops.secrets.cloudflared-tunnel-creds = {
+  #   owner = "cloudflared";
+  #   group = "cloudflared";
+  # };
+
+  # Configure Cloudflare Tunnel pointing directly to Headscale
+  # services.cloudflared = {
+  #   tunnels = {
+  #     "696fcf40-1a29-4314-8268-2e60de74ef0f" = {
+  #       credentialsFile = config.sops.secrets.cloudflared-tunnel-creds.path;
+  #       default = "http_status:404";
+  #       ingress = {
+  #         "ts.lamhub.com" = {
+  #           service = "https://localhost:443";
+  #           originRequest = {
+  #             noTLSVerify = true;
+  #           };
+  #         };
+  #       };
+  #     };
+  #   };
+  # };
 }

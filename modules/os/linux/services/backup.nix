@@ -107,7 +107,7 @@ in {
       };
 
       # Ensure dependencies are installed
-      systemPackages = with pkgs; [rclone restic borgbackup msmtp] ++ [inputs.self.packages.${pkgs.system}.arthur-backup];
+      systemPackages = with pkgs; [rclone restic borgbackup msmtp] ++ [inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.arthur-backup];
 
       # msmtp configuration for email reports
       etc."msmtprc".text = ''
@@ -190,7 +190,7 @@ in {
                   cat > $out << 'EOF'
                   #!/run/current-system/sw/bin/bash
                   set -euo pipefail
-                  cd ${inputs.self.packages.${pkgs.system}.arthur-backup}/bin
+                  cd ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.arthur-backup}/bin
                   cp -f ${config.sops.secrets."backup_rclone_config".path} /var/lib/${cfg.user}/rclone.conf
                   source ${cfg.bkrcFile}
                   ./arthur_universal_backup --${scope}

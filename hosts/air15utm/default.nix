@@ -18,7 +18,6 @@
   services.spice-vdagentd.enable = true;
 
   virtualisation.docker.enable = true;
-  virtualisation.lxd.enable = true;
 
   modules.os.base.services.sops.enable = true;
   modules.os.linux.services.openssh.enable = true;

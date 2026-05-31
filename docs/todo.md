@@ -1,15 +1,11 @@
 ### 1. Review Secrets Implementation:
 
 ## TODO
-+ bootstrap: btrfs with [optional] luks encrypted
-+ homelab and backup: migrate my custom scripts to nix
-+ services: add tailscale/headscale, caddy...
-+ github: build/workflows
-+ security hardened
-+ cloud: migrate my Digital Ocean hosting to nix
-+ nixos-generators: iso/proxmox/esxi/docker images
-+ impermanence support
-+ [optional] secure boot: lanzaboote
+
+- bootstrap: btrfs with [optional] luks encrypted
+- security hardened
+- impermanence support
+- [optional] secure boot: lanzaboote
 
 legacy stuffs to have a look:
 

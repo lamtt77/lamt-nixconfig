@@ -18,15 +18,12 @@ local function get_secret(secret_ref)
 	if secret_ref:match("^pass://") then
 		-- SECURITY: Properly escape the path to prevent injection
 		local path = secret_ref:gsub("^pass://", "")
-		local cmd = string.format("pass show %q 2>/dev/null", path)
-		local result = vim.fn.system(cmd)
-		local exit_code = vim.v.shell_error
-
-		if exit_code == 0 then
-			secret = result:gsub("\n+$", "") -- Remove trailing newlines
-			if secret == "" then
-				secret = nil -- Empty secret = not found
-			end
+		
+		-- Use vim.system (NVIM 0.10+) for better control/timeout
+		local obj = vim.system({ "pass", "show", path }, { text = true, timeout = 5000 }):wait()
+		if obj.code == 0 then
+			secret = obj.stdout:gsub("\n+$", "")
+			if secret == "" then secret = nil end
 		end
 	else
 		-- Fallback to environment variable

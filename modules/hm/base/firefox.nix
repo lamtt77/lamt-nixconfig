@@ -6,21 +6,21 @@
   ...
 }:
 with lib; let
-  cfg = config.modules.hm.base.git;
+  cfg = config.modules.hm.base.firefox;
 in {
   options.modules.hm.base.firefox = with types; {
     enable = mkEnableOption "Firefox Browser";
   };
 
   config = mkIf cfg.enable (let
-    firefox-addons = inputs.firefox-addons.packages.${pkgs.system};
+    firefox-addons = inputs.firefox-addons.packages.${pkgs.stdenv.hostPlatform.system};
   in {
     programs.firefox = {
       enable = true;
       package =
         if pkgs.stdenv.isDarwin
         then pkgs.firefox-bin
-        else pkgs.firefox-wayland;
+        else pkgs.firefox;
       nativeMessagingHosts = with pkgs; [ff2mpv-rust];
       profiles.default = {
         userChrome = ''

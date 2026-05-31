@@ -2,6 +2,7 @@
   inputs,
   config,
   lib,
+  mydefs,
   ...
 }: {
   imports = [
@@ -12,6 +13,15 @@
     })
   ];
 
+  deployment = {
+    vmid = "110";
+    proxmox = {
+      host = mydefs.hosts.pve1.ip;
+      bios = "ovmf";
+      diskBus = "scsi";
+    };
+  };
+
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
@@ -21,6 +31,8 @@
   services.minecraft-server.enable = true; # Setup Minecraft server
 
   virtualisation.docker.enable = true;
+
+  services.qemuGuest.enable = true;
 
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }

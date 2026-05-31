@@ -14,14 +14,6 @@
     iperf
     htop
     tcpdump
-
-    ranger
-    highlight
-
-    borgbackup
-    rclone
-    restic
-
-    ookla-speedtest
+    yazi
   ];
 }

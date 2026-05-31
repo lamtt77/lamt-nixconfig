@@ -2,18 +2,18 @@
   description = "LamT Nix System Configuration";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
     # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
 
-    home-manager.url = "github:nix-community/home-manager/release-25.05";
+    home-manager.url = "github:nix-community/home-manager/release-25.11";
     # home-manager.url = "github:nix-community/home-manager/master";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    darwin.url = "github:nix-darwin/nix-darwin/nix-darwin-25.05";
+    darwin.url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
 
     flake-utils.url = "github:numtide/flake-utils";
@@ -32,6 +32,8 @@
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
 
+    impermanence.url = "github:nix-community/impermanence";
+
     firefox-addons = {
       url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -41,6 +43,11 @@
       url = "github:nix-community/emacs-overlay";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
       inputs.nixpkgs-stable.follows = "nixpkgs";
+    };
+
+    hugo-papermod = {
+      url = "github:adityatelange/hugo-PaperMod";
+      flake = false;
     };
   };
   outputs = {
@@ -86,7 +93,7 @@
 
       # Accessible through 'nix develop' or 'nix-shell' (legacy)
       devShells = {
-        default = pkgs.callPackage ./shells/shell.nix {};
+        default = pkgs.callPackage ./shells/shell.nix {inherit inputs;};
         node = pkgs.callPackage ./shells/node.nix {};
         python = pkgs.callPackage ./shells/python.nix {};
         pythonVenv = pkgs.callPackage ./shells/pythonVenv.nix {};
@@ -144,14 +151,6 @@
       # while nixos-wsl requires WSL v2, so this may not be working well
       # wsl-aarch64 = mkSystem { system = "aarch64-linux"; hostname = "wsl"; inherit username nixpkgs mydefs; wsl = true; };
 
-      # installer
-      installer-base = mkHost {
-        system = "x86_64-linux";
-        hostname = "installer-base";
-        username = "root";
-        inherit nixpkgs mydefs;
-      };
-
       # servers
       avon = mkSystem {
         system = "x86_64-linux";
@@ -169,11 +168,28 @@
         server = true;
       };
 
-      # continuous integraion and utilities
+      # continuous integration and utilities
       utils = mkSystem {
         system = "x86_64-linux";
         hostname = "utils";
         username = "deploy";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
+
+      # routers
+      router-main = mkSystem {
+        system = "x86_64-linux";
+        hostname = "router-main";
+        username = "nixos";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
+
+      router-backup = mkSystem {
+        system = "x86_64-linux";
+        hostname = "router-backup";
+        username = "nixos";
         inherit nixpkgs mydefs;
         server = true;
       };
@@ -194,6 +210,53 @@
         username = "nixos";
         inherit nixpkgs mydefs;
         server = true;
+      };
+
+      medo-test = mkSystem {
+        system = "x86_64-linux";
+        hostname = "medo-test";
+        username = "nixos";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
+
+      ubuntu-cloudinit-test = mkSystem {
+        system = "x86_64-linux";
+        hostname = "ubuntu-cloudinit-test";
+        username = "nixos";
+        inherit nixpkgs mydefs;
+        server = true;
+      };
+
+      minimal-iso-aarch64 = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        modules = [
+          ./hosts/minimal-iso/default.nix
+          ({lib, ...}: {
+            nixpkgs.hostPlatform = "aarch64-linux";
+          })
+        ];
+      };
+
+      minimal-iso-x86 = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./hosts/minimal-iso/default.nix
+          ({lib, ...}: {
+            nixpkgs.hostPlatform = "x86_64-linux";
+          })
+        ];
+      };
+
+      minimal-iso-vlan = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./hosts/minimal-iso/default.nix
+          ({lib, ...}: {
+            nixpkgs.hostPlatform = "x86_64-linux";
+            iso.vlan.enable = true;
+          })
+        ];
       };
     };
 

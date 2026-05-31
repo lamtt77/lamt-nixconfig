@@ -15,6 +15,14 @@ in {
     })
   ];
 
+  deployment = {
+    targetIp = ""; # Resolved dynamically via MagicDNS
+    diskSize = "64";
+    vmware = {
+      vmxPath = "/Users/lamt/Virtual Machines.localized/air15vm-nixos-25.11.vmwarevm/air15vm-nixos-25.11.vmx";
+    };
+  };
+
   # Setup qemu so we can run x86_64 binaries
   boot.binfmt.emulatedSystems = ["x86_64-linux"];
   # after resize the disk, it will grow partition automatically.
@@ -24,11 +32,22 @@ in {
 
   # Virtualization settings
   virtualisation.docker.enable = true;
-  virtualisation.lxd.enable = true;
 
   modules.os.base.services.sops.enable = true;
+  sops.secrets.tailscale_preauth_key = {};
+
   modules.os.linux.services.openssh.enable = true;
-  modules.os.base.services.tailscale.enable = true;
+  modules.os.base.services.tailscale = {
+    enable = true;
+    authKeyFile = config.sops.secrets.tailscale_preauth_key.path;
+  };
+  modules.os.base.services.builders.enable = true;
+
+  # Tell the DHCP client to ignore the VMware DNS proxy (172.16.138.2)
+  # and use your local router directly.
+  networking.dhcpcd.extraConfig = ''
+    static domain_name_servers=192.168.1.1
+  '';
 
   # modules.os.linux.services.kdeconnect.enable = true;
 

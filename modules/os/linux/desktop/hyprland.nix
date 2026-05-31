@@ -126,7 +126,7 @@ in
 
         home.packages = with pkgs.unstable; [
           # Program     Substitutes for
-          ripdrag # xdragon
+          ripdrag # dragon-drop
           wev # xev
           wl-clipboard # xclip
           wtype # xdotool (sorta)

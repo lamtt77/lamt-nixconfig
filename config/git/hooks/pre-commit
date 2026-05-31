@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Pre-commit hook to unstage secrets automatically
 # Author: LamT

@@ -179,6 +179,12 @@ borgCreatePruneCheck() {
     doTaskCmd "$prunecmd"
   }
 
+  [ "$kind" = "compact" ] && {
+    compactcmd="$task --verbose 2>&1 | tee -a $logfile"
+    log "$scope $compactcmd" "$logfile"
+    doTaskCmd "$compactcmd"
+  }
+
   [ "$kind" = "check" ] && {
     checkcmd="$task --verbose 2>&1 | tee -a $logfile"
     log "$scope $checkcmd" "$logfile"
@@ -193,15 +199,15 @@ $(basename "$0"): an attempt to eliminate error prone manual backup process
 Pluggable adapters: rclone, restic, borg, custom
 
 OPTIONS
-	-d | --daily		Look up conf file and execute daily tasks
-	-w | --weekly		Look up conf file and execute weekly tasks
+	-d | --daily		  Look up conf file and execute daily tasks
+	-w | --weekly		  Look up conf file and execute weekly tasks
 	-m | --monthly		Look up conf file and execute monthly tasks
 	-q | --quarterly	Look up conf file and execute quarterly tasks
-	-y | --yearly		Look up conf file and execute yearly tasks
-	-o | --once		Look up conf file and execute one-shot tasks
-	-a | --adhoc		Look up conf file and execute adhoc/special-care tasks
+	-y | --yearly		  Look up conf file and execute yearly tasks
+	-o | --once		    Look up conf file and execute one-shot tasks
+	-a | --adhoc	  	Look up conf file and execute adhoc/special-care tasks
 	-n | --dry-run		Dry run on supported tools only
-	-v | --debug 		Turn debug on. If alone will list all schedule-able tasks
+	-v | --debug 	  	Turn debug on. If alone will list all schedule-able tasks
 
 EXAMPLES
 	Create/add the following lines to /etc/cron.d/universal_backup.conf
@@ -213,7 +219,7 @@ EXAMPLES
 	# Monthly on 1st day-of-month at 1:15AM, borg verify-data and restic read-data LONG check
 	15 01 1 * *		user/path/arthur_universal_backup --monthly
 	# Quarterly on 1st day at 2:15AM, borg verify-data and restic read-data LONG FULL check
-	15 02 1 */3 *		user /path/arthur_universal_backup --quarterly
+	15 02 1 */3 *	user /path/arthur_universal_backup --quarterly
 	# Yearly on 1st day at 1:00AM
 	00 01 1 1 *		user /path/arthur_universal_backup --yearly
 
@@ -254,10 +260,10 @@ done
 mydir=$(dirname "$0")
 LOG_DIR=${LOG_DIR:-/var/log/backup}
 filename="${mydir}/universal_backup.conf"
-logemail="$LOG_DIR/universal_backup_report.tmp"
+logemail="$LOG_DIR/universal_backup_report_${scope}.tmp"
 
 # start an empty new temp logemail file and output everything to that file, still displaying stdin and stderr
-: > ${logemail}
+: > "${logemail}"
 {
   printf "Hostname: $(hostname). Arthur Universal Backup starting... \n"
 
@@ -280,8 +286,8 @@ logemail="$LOG_DIR/universal_backup_report.tmp"
     echo "Subject: ArthurBackup ${scope} FAILED ${numfailed} TASKS ${numtasks}"
     echo ""
     cat "${logemail}"
-  } > "${logemail}.tmp" && mv "${logemail}.tmp" "${logemail}"
-} 2>&1 | tee -a ${logemail}
+   } > "${logemail}.tmp" && mv "${logemail}.tmp" "${logemail}"
+} 2>&1 | tee -a "${logemail}"
 
 ### Send report ###
 msmtp -t < "${logemail}"

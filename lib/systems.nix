@@ -12,11 +12,12 @@ in {
     hostname,
     username,
     wsl ? false,
+    darwin ? false,
     libArg ? null,
   }:
     {
       inherit (lib) my;
-      myargs = {inherit system hostname username wsl;};
+      myargs = {inherit system hostname username wsl darwin;};
       inherit inputs mydefs;
     }
     // (
@@ -47,12 +48,13 @@ in {
     system,
     hostname,
     wsl,
+    darwin,
     hmModules,
   }: {
     useGlobalPkgs = true;
     useUserPackages = true;
     backupFileExtension = "home-manager.backup";
-    extraSpecialArgs = mkSpecialArgs {inherit system hostname username wsl;};
+    extraSpecialArgs = mkSpecialArgs {inherit system hostname username wsl darwin;};
     users.${username} = {
       inherit (hmModules) imports;
     };
@@ -99,11 +101,15 @@ in {
         then [inputs.sops-nix.darwinModules.sops]
         else [inputs.sops-nix.nixosModules.sops]
       )
+      (lib.optional (!darwin) inputs.impermanence.nixosModules.impermanence)
     ];
   in
     baseModules
     ++ [
-      {nixpkgs.pkgs = pkgs;}
+      {
+        nixpkgs.pkgs = pkgs;
+        nixpkgs.hostPlatform = lib.mkDefault system;
+      }
       ../hosts/${hostname}
     ]
     ++ conditionalModules ++ (mapModulesRec' ../modules/os/base import) ++ getPlatformModules {inherit darwin wsl;};
@@ -210,7 +216,7 @@ in {
       inherit system;
 
       specialArgs = mkSpecialArgs {
-        inherit system hostname username wsl;
+        inherit system hostname username wsl darwin;
         libArg = lib;
       };
 
@@ -222,6 +228,7 @@ in {
             home-manager.users.${username} = {
               home.stateVersion = mydefs.stateVersion;
             };
+            user = username;
           }
         ];
     };
@@ -250,7 +257,7 @@ in {
       inherit system;
 
       specialArgs = mkSpecialArgs {
-        inherit system hostname username wsl;
+        inherit system hostname username wsl darwin;
         libArg = lib;
       };
 
@@ -260,7 +267,8 @@ in {
           (mkUser {inherit username pkgs darwin mydefs;})
           homeFunc.home-manager
           {
-            home-manager = mkHomeManagerConfig {inherit username system hostname wsl hmModules;};
+            home-manager = mkHomeManagerConfig {inherit username system hostname wsl darwin hmModules;};
+            user = username;
           }
         ]
         ++ extraUsers;
@@ -281,7 +289,7 @@ in {
   in
     inputs.home-manager.lib.homeManagerConfiguration {
       pkgs = mkPkgs {inherit system;} nixpkgs overlays;
-      extraSpecialArgs = mkSpecialArgs {inherit system hostname username wsl;};
+      extraSpecialArgs = mkSpecialArgs {inherit system hostname username wsl darwin;};
       modules = hmModules.imports;
     };
 }

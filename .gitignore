@@ -1,7 +1,19 @@
 lamt-secrets
 .authinfo.gpg
 
+.antigravitycli/
+
 result*
 .DS_Store
 .kilocode/mcp.json
 _tmp*
+
+# Hugo
+blog/public/
+blog/resources/_gen/
+blog/themes/
+
+# Rust build artifacts
+target/
+apps/installer-rs/target/
+

@@ -1,7 +1,7 @@
 -- Leader key
 vim.g.mapleader = ' '
 
-local common = require('config.utils.common')
+local common = require('config.common')
 
 -- Simple window resizing shortcuts
 vim.keymap.set({'n', 'i'}, '<A-=>', '<C-W>10>', { noremap = true, silent = true, desc = 'Increase window width by 10' })

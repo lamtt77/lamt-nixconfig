@@ -1,5 +1,6 @@
 {
   inputs,
+  lib,
   pkgs,
   mydefs,
   myargs,
@@ -13,20 +14,17 @@ in {
   # modules.os.base.nixpath-registry.nixpkgs.enable = true;
 
   nix = {
-    package = pkgs.unstable.nixVersions.latest;
+    package = lib.mkIf (!pkgs.stdenv.isDarwin) pkgs.unstable.nixVersions.latest;
 
     extraOptions = ''
       builders-use-substitutes = true
-      experimental-features = nix-command flakes
+      experimental-features = nix-command flakes ${lib.optionalString pkgs.stdenv.isDarwin "lazy-trees"}
       # Prevent Nix from fetching the registry every time
       flake-registry = ${inputs.flake-registry}/flake-registry.json
     '';
 
-    # optimise.automatic = true;
-
     settings = {
       max-jobs = "auto";
-      # cores = 8;
       cores = 0;
 
       trusted-users = users;

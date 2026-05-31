@@ -53,20 +53,11 @@ in
 
         git = {
           enable = true;
-          userName = "${mydefs.gitUserName}";
-          userEmail = "${mydefs.gitUserEmail}";
-          delta = {
-            enable = true;
-            options = {
-              navigate = true;
-              line-numbers = true;
-              syntax-theme = "Dracula";
+          settings = {
+            user = {
+              name = "${mydefs.gitUserName}";
+              email = "${mydefs.gitUserEmail}";
             };
-          };
-          difftastic = {
-            background = "dark";
-          };
-          extraConfig = {
             github.user = "${mydefs.githubUser}";
             credential.helper = "store";
             init.defaultBranch = "main";
@@ -82,6 +73,21 @@ in
           };
           includes = [{path = "./include";}];
           signing.key = "${mydefs.gpgDefaultKey}";
+        };
+
+        delta = {
+          enable = true;
+          enableGitIntegration = true;
+          options = {
+            navigate = true;
+            line-numbers = true;
+            syntax-theme = "Dracula";
+          };
+        };
+
+        difftastic = {
+          enable = true;
+          options.background = "dark";
         };
       };
     };

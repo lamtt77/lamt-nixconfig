@@ -11,10 +11,23 @@
     overlays = []; # Explicit blank overlay to avoid interference
   in
     import nixpkgs {inherit system overlays;},
+  inputs ? null,
   ...
 }:
 pkgs.mkShell {
   # Enable experimental features without having to specify the argument
   NIX_CONFIG = "extra-experimental-features = nix-command flakes";
-  nativeBuildInputs = with pkgs; [nix home-manager git];
+  nativeBuildInputs = with pkgs; [nix home-manager git hugo];
+
+  shellHook = ''
+    # Link Hugo theme if we are in the project root and inputs are available
+    if [ -d "blog" ] && [ -n "${inputs.hugo-papermod or ""}" ]; then
+      mkdir -p blog/themes
+      if [ ! -L "blog/themes/hugo-papermod" ]; then
+        echo "Linking Hugo theme from Nix store..."
+        rm -rf blog/themes/hugo-papermod
+        ln -s ${inputs.hugo-papermod} blog/themes/hugo-papermod
+      fi
+    fi
+  '';
 }

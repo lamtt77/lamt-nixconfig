@@ -1,0 +1,1007 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034
+set -euo pipefail
+
+# --- Root Directory Resolution ---
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+INSTALLER_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(dirname "$(dirname "$INSTALLER_DIR")")"
+LIB_DIR="$INSTALLER_DIR/lib"
+
+# --- Source Installer Modules ---
+# Loading config defaults first
+source "$INSTALLER_DIR/config.sh"
+# Loading core scripts (logging, helpers)
+source "$LIB_DIR/core.sh"
+source "$LIB_DIR/keys.sh"
+source "$LIB_DIR/nix.sh"
+source "$LIB_DIR/providers.sh"
+source "$LIB_DIR/pipeline.sh"
+
+# --- Usage Print ---
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [COMMAND] [OPTIONS]
+
+Commands:
+  switch                       Apply configuration on target (local or remote)
+  bootentry                    Set system profile as default boot entry without switching immediately
+  bootstrap, deploy            Bootstrap new machine (partition & install)
+  test                         Test configuration in dry-run mode
+  build                        Compile configuration derivation without switching
+  switch-hm                    Apply Home Manager user profile
+  copy-keys                    Sync SSH and GPG keys from host to target
+  copy-repo                    Sync repository files to target
+  deploy-batch                 Deploy configured hosts in batch
+  proxmox deploy               Provision and bootstrap a VM on Proxmox
+  proxmox redeploy             Re-create and deploy VM on Proxmox
+  proxmox destroy              Destroy VM on Proxmox
+  proxmox get-vmip             Scan and output VM IP from Proxmox
+  proxmox create-cloudinit     Provision a cloud-init VM template on Proxmox
+  digitalocean deploy          Provision and bootstrap Droplet on DigitalOcean
+  digitalocean destroy         Destroy Droplet on DigitalOcean
+  wsl                          Compile WSL image tarball
+
+Options:
+  --target USER@HOST           Target target hostname specification (Required)
+  --ip IP                      Override IP address of the target node
+  --repo [local|github|tea]    Repository source configuration (Default: local)
+  --builder USER@HOST          Explicit remote builder target
+  --build-on STRATEGY          Strategy: auto|local|builder|target|cross
+  --force                      Bypass warning confirmations
+  --debug                      Activate verbose log outputs
+  --low-mem [yes|no]           Apply RAM-constrained compilation limits
+  --stage [1|2]                Deployment staging style selection
+  --bootstrap-user USER        Initial SSH connection user before bootstrap switch
+  --subs-on-dest [yes|no]      Allow substitution during copying Nix paths
+  --github-token TOKEN         API credentials for builder access
+  --hosts HOST1,HOST2          Selected hosts for batch deployment (comma-separated)
+  --plan                       Display planned target host configurations without executing
+  --update-host-key            Sync and update target host keys to match secrets repository
+  --update-secrets-key         Update secrets repository keys to match target host's active keys
+EOF
+    exit 0
+}
+
+# --- Argument Defaults ---
+init_args() {
+    TARGET=""
+    IP=""
+    MODE=""
+    BUILDER=""
+    BUILD_ON="auto"
+    KEXEC_BOOT="auto"
+    LOW_MEM=""
+    STAGE=""
+    BOOTSTRAP_USER=""
+    NIX_REPO="local"
+    FORCE="no"
+    CLI_FORCE="no"
+    UPDATE_HOST_KEY="no"
+    UPDATE_SECRETS_KEY="no"
+    DEBUG="no"
+    VMID=""
+    VM_DISK_BUS=""
+    VM_DISK_SIZE=""
+    STATIC_IP=""
+    VM_SUBNET=""
+    BOOTSTRAP_VLAN=""
+    BIOS_TYPE=""
+    CLOUDINIT_IMG_PATH=""
+    CLOUDINIT_USER=""
+    IPCONFIG0=""
+    IPCONFIG1=""
+    DO_REGION=""
+    DO_SIZE=""
+    DO_IMAGE=""
+    SUBS_ON_DEST=""
+    GITHUB_TOKEN=""
+    BATCH_HOSTS=""
+    PLAN_ONLY="no"
+    REDEPLOY_BATCH="no"
+    PROXMOX_HOST=""
+    VMX_PATH=""
+}
+
+normalize_command() {
+    local cmd="${1:-}"
+    local sub_cmd="${2:-}"
+
+    case "$cmd" in
+        deploy) echo "bootstrap" ;;
+        deploy-batch) echo "deploy-batch" ;;
+        proxmox)
+            if [[ -z "$sub_cmd" ]]; then
+                 die "Proxmox command requires a subcommand (deploy, redeploy, destroy, get-vmip, create-cloudinit)"
+            fi
+            echo "proxmox-$sub_cmd"
+            ;;
+        digitalocean)
+            if [[ -z "$sub_cmd" ]]; then
+                 die "DigitalOcean command requires a subcommand (deploy, destroy)"
+            fi
+            echo "digitalocean-$sub_cmd"
+            ;;
+        vmware)
+            if [[ -z "$sub_cmd" ]]; then
+                 die "VMware command requires a subcommand (deploy, redeploy, destroy)"
+            fi
+            echo "vmware-$sub_cmd"
+            ;;
+        *) echo "$cmd" ;;
+    esac
+}
+
+parse_arguments() {
+    init_args
+
+    # Check command routing
+    if [[ $# -gt 0 && "$1" != --* ]]; then
+        if [[ "$1" == "proxmox" || "$1" == "digitalocean" ]]; then
+            MODE="$(normalize_command "$1" "${2:-}")"
+            shift 2
+        else
+            MODE="$(normalize_command "$1")"
+            shift
+        fi
+    fi
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --help | -h) usage ;;
+            --target) TARGET="$2"; shift 2 ;;
+            --ip) IP="$2"; shift 2 ;;
+            --mode) MODE="$(normalize_command "$2")"; shift 2 ;;
+            --builder) BUILDER="$2"; shift 2 ;;
+            --build-on) BUILD_ON="$2"; shift 2 ;;
+            --kexec) KEXEC_BOOT="$2"; shift 2 ;;
+            --low-mem) LOW_MEM="$2"; shift 2 ;;
+            --stage) STAGE="$2"; shift 2 ;;
+            --bootstrap-user) BOOTSTRAP_USER="$2"; shift 2 ;;
+            --vmid) VMID="$2"; shift 2 ;;
+            --vm-disk-bus) VM_DISK_BUS="$2"; shift 2 ;;
+            --vm-disk-size) VM_DISK_SIZE="$2"; shift 2 ;;
+            --force) FORCE="yes"; CLI_FORCE="yes"; shift ;;
+            --update-host-key) UPDATE_HOST_KEY="yes"; shift ;;
+            --update-secrets-key) UPDATE_SECRETS_KEY="yes"; shift ;;
+            --debug) DEBUG="yes"; shift ;;
+            --repo) NIX_REPO="$2"; shift 2 ;;
+            --static-ip) STATIC_IP="$2"; shift 2 ;;
+            --vm-subnet) VM_SUBNET="$2"; shift 2 ;;
+            --bootstrap-vlan) BOOTSTRAP_VLAN="$2"; shift 2 ;;
+            --bios) BIOS_TYPE="$2"; shift 2 ;;
+            --cloudinit-img) CLOUDINIT_IMG_PATH="$2"; shift 2 ;;
+            --cloudinit-user) CLOUDINIT_USER="$2"; shift 2 ;;
+            --ipconfig0) IPCONFIG0="$2"; shift 2 ;;
+            --ipconfig1) IPCONFIG1="$2"; shift 2 ;;
+            --do-region) DO_REGION="$2"; shift 2 ;;
+            --do-size) DO_SIZE="$2"; shift 2 ;;
+            --do-image) DO_IMAGE="$2"; shift 2 ;;
+            --subs-on-dest) SUBS_ON_DEST="$2"; shift 2 ;;
+            --github-token) GITHUB_TOKEN="$2"; shift 2 ;;
+            --hosts) BATCH_HOSTS="$2"; shift 2 ;;
+            --plan) PLAN_ONLY="yes"; shift ;;
+            --redeploy) REDEPLOY_BATCH="yes"; shift ;;
+            --vmx-path) VMX_PATH="$2"; shift 2 ;;
+            --) shift; break ;;
+            *) die "Unknown option flag: $1" ;;
+        esac
+    done
+
+    require_var MODE "Installer Command/Mode (--mode)"
+    if [[ "$MODE" != "deploy-batch" ]]; then
+        require_var TARGET "Target Host specification (--target)"
+    fi
+}
+
+# --- Pure-bash JSON field extractor (no jq needed) ---
+# Usage: json_get <json_string> <key>
+# Extracts a flat string value from simple single-level JSON objects.
+json_get() {
+    local json="$1" key="$2" val
+    # Match "key": "value" - handles empty strings too
+    if [[ "$json" =~ \"${key}\":[[:space:]]*\"([^\"]*)\" ]]; then
+        val="${BASH_REMATCH[1]}"
+        [[ -n "$val" ]] && echo "$val"
+    fi
+    return 0
+}
+
+# --- Lazy Metadata Loader ---
+METADATA_LOADED="no"
+
+ensure_metadata_loaded() {
+    [[ "$METADATA_LOADED" == "yes" ]] && return 0
+
+    # Query target attributes from Flake metadata deployment configurations in one single pass
+    info "Retrieving target host metadata from Nix Flake..."
+    local json_meta
+    local force_opt=""
+    supports_nix_force_flag && force_opt="--force"
+
+    json_meta=$(nix eval --json --impure $force_opt --extra-experimental-features "nix-command flakes" --expr "
+      let
+        flake = builtins.getFlake \"$FLAKE_URI\";
+        cfg = flake.nixosConfigurations.$HOST.config or flake.darwinConfigurations.$HOST.config or {};
+        deploy = cfg.deployment or {};
+        proxmox = deploy.proxmox or {};
+        ci = proxmox.cloudInit or {};
+        do = deploy.digitalocean or {};
+        vmw = deploy.vmware or {};
+      in {
+        system = cfg.nixpkgs.system or \"\";
+        targetIp = deploy.targetIp or \"\";
+        builder = deploy.builder or \"\";
+        lowMem = deploy.lowMem or \"\";
+        vmid = deploy.vmid or \"\";
+        pve_host = proxmox.host or \"\";
+        pve_bios = proxmox.bios or \"\";
+        pve_bus = proxmox.diskBus or \"\";
+        pve_img = ci.image or \"\";
+        pve_user = ci.user or \"\";
+        pve_ip0 = ci.ipconfig0 or \"\";
+        pve_ip1 = ci.ipconfig1 or \"\";
+        do_region = do.region or \"\";
+        do_size = do.size or \"\";
+        do_image = do.image or \"\";
+        vmx_path = vmw.vmxPath or \"\";
+        diskSize = deploy.diskSize or \"\";
+        username = (builtins.tryEval cfg.user).value or \"\";
+      }
+    " 2>/dev/null || echo "{}")
+
+    # Parse metadata config options (CLI overrides take precedence) using pure-bash json_get
+    local meta_system meta_ip meta_builder meta_low_mem meta_vmid meta_vmx_path meta_username meta_disk_size
+    meta_system=$(json_get "$json_meta" system)
+    meta_ip=$(json_get "$json_meta" targetIp)
+    meta_builder=$(json_get "$json_meta" builder)
+    meta_low_mem=$(json_get "$json_meta" lowMem)
+    meta_vmid=$(json_get "$json_meta" vmid)
+    meta_vmx_path=$(json_get "$json_meta" vmx_path)
+    meta_username=$(json_get "$json_meta" username)
+    meta_disk_size=$(json_get "$json_meta" diskSize)
+
+    # Cache target system if resolved
+    if [[ -n "$meta_system" ]]; then
+         local safe_key="${HOST//-/_}"
+         TARGET_SYSTEMS["$safe_key"]="$meta_system"
+    fi
+
+    [[ -z "$IP" && -n "$meta_ip" ]] && IP="$meta_ip"
+    [[ -z "$BUILDER" && -n "$meta_builder" ]] && BUILDER="$meta_builder"
+    [[ -z "$LOW_MEM" && -n "$meta_low_mem" ]] && LOW_MEM="$meta_low_mem"
+    [[ -z "$VMID" && -n "$meta_vmid" ]] && VMID="$meta_vmid"
+    [[ -z "$VMX_PATH" && -n "$meta_vmx_path" ]] && VMX_PATH="$meta_vmx_path"
+    [[ -z "$VM_DISK_SIZE" && -n "$meta_disk_size" ]] && VM_DISK_SIZE="$meta_disk_size"
+
+    if [[ -n "$meta_username" ]]; then
+        NIXUSER="$meta_username"
+        if [[ -z "$TARGET" || "$TARGET" != *"@"* || "${TARGET%%@*}" == "root" ]]; then
+            if [[ -z "$BOOTSTRAP_USER" && "$MODE" != "bootstrap" ]]; then
+                SSH_USER="$meta_username"
+            fi
+        fi
+    fi
+
+    # Parse provider specific settings
+    local meta_pve_bios meta_pve_bus meta_pve_img meta_pve_user meta_pve_ip0 meta_pve_ip1 meta_pve_host
+    meta_pve_bios=$(json_get "$json_meta" pve_bios)
+    meta_pve_bus=$(json_get "$json_meta" pve_bus)
+    meta_pve_img=$(json_get "$json_meta" pve_img)
+    meta_pve_user=$(json_get "$json_meta" pve_user)
+    meta_pve_ip0=$(json_get "$json_meta" pve_ip0)
+    meta_pve_ip1=$(json_get "$json_meta" pve_ip1)
+    meta_pve_host=$(json_get "$json_meta" pve_host)
+
+    [[ -z "$BIOS_TYPE" && -n "$meta_pve_bios" ]] && BIOS_TYPE="$meta_pve_bios"
+    [[ -z "$VM_DISK_BUS" && -n "$meta_pve_bus" ]] && VM_DISK_BUS="$meta_pve_bus"
+    [[ -z "$CLOUDINIT_IMG_PATH" && -n "$meta_pve_img" ]] && CLOUDINIT_IMG_PATH="$meta_pve_img"
+    [[ -z "$CLOUDINIT_USER" && -n "$meta_pve_user" ]] && CLOUDINIT_USER="$meta_pve_user"
+    [[ -z "$IPCONFIG0" && -n "$meta_pve_ip0" ]] && IPCONFIG0="$meta_pve_ip0"
+    [[ -z "$IPCONFIG1" && -n "$meta_pve_ip1" ]] && IPCONFIG1="$meta_pve_ip1"
+    [[ -z "$PROXMOX_HOST" && -n "$meta_pve_host" ]] && PROXMOX_HOST="$meta_pve_host"
+
+    local meta_do_region meta_do_size meta_do_image
+    meta_do_region=$(json_get "$json_meta" do_region)
+    meta_do_size=$(json_get "$json_meta" do_size)
+    meta_do_image=$(json_get "$json_meta" do_image)
+
+    [[ -z "$DO_REGION" && -n "$meta_do_region" ]] && DO_REGION="$meta_do_region"
+    [[ -z "$DO_SIZE" && -n "$meta_do_size" ]] && DO_SIZE="$meta_do_size"
+    [[ -z "$DO_IMAGE" && -n "$meta_do_image" ]] && DO_IMAGE="$meta_do_image"
+
+    # Set default values if still empty
+    [[ -z "$BUILDER" ]] && BUILDER="${DEFAULT_BUILDER:-deploy@utils}"
+    [[ -z "$SUBS_ON_DEST" ]] && SUBS_ON_DEST="$DEFAULT_SUBS_ON_DEST"
+
+    # Export variables globally
+    export HOST NIXUSER SSH_USER CONNECTION_IP BUILDER BUILD_ON KEXEC_BOOT LOW_MEM STAGE BOOTSTRAP_USER
+    export NIX_REPO FLAKE_URI NIX_CFG FORCE CLI_FORCE UPDATE_HOST_KEY UPDATE_SECRETS_KEY DEBUG VMID VM_DISK_BUS VM_DISK_SIZE STATIC_IP VM_SUBNET BOOTSTRAP_VLAN
+    export BIOS_TYPE CLOUDINIT_IMG_PATH CLOUDINIT_USER IPCONFIG0 IPCONFIG1 DO_REGION DO_SIZE DO_IMAGE
+    export SUBS_ON_DEST PROXMOX_HOST VMX_PATH
+
+    METADATA_LOADED="yes"
+}
+
+# --- Context Initialization ---
+init_runtime_context() {
+    # Resolve target spec: [user@]host
+    if [[ "$TARGET" == *"@"* ]]; then
+        NIXUSER="${TARGET%%@*}"
+        HOST="${TARGET#*@}"
+    else
+        NIXUSER="root"
+        HOST="$TARGET"
+    fi
+
+    # Determine default SSH execution user
+    SSH_USER="${BOOTSTRAP_USER:-$NIXUSER}"
+    if [[ "$MODE" == "bootstrap" && -z "$BOOTSTRAP_USER" ]]; then
+         SSH_USER="root"
+    fi
+
+    # Query declarative options from Flake Metadata
+    # First set Flake URI based on repository source configuration
+    NIX_CFG="$DEFAULT_NIX_CFG"
+    case "$NIX_REPO" in
+        tea) FLAKE_URI="${DEFAULT_TEA_SSH_URI}/${NIX_CFG}" ;;
+        github) FLAKE_URI="${DEFAULT_GITHUB_URI}/${NIX_CFG}" ;;
+        local) FLAKE_URI="path:$ROOT_DIR" ;;
+        *) FLAKE_URI="$NIX_REPO" ;;
+    esac
+
+    # Set initial defaults
+    [[ -z "$BUILDER" ]] && BUILDER="${DEFAULT_BUILDER:-deploy@utils}"
+    [[ -z "$SUBS_ON_DEST" ]] && SUBS_ON_DEST="$DEFAULT_SUBS_ON_DEST"
+
+    # Resolve active target IP
+    if [[ -n "$IP" ]]; then
+        CONNECTION_IP="$IP"
+    elif [[ "$HOST" == "$(hostname -s)" ]]; then
+        CONNECTION_IP="127.0.0.1"
+    else
+        local resolved_ip
+        if resolved_ip=$(ping_host "$HOST"); then
+             info "Host '$HOST' resolved and reached at $resolved_ip."
+             CONNECTION_IP="$resolved_ip"
+        else
+             # Ping failed, so we MUST try to resolve the IP from the Flake metadata!
+             ensure_metadata_loaded
+             if [[ -n "$IP" ]]; then
+                  CONNECTION_IP="$IP"
+             else
+                  case "$MODE" in
+                      switch | bootentry | test | switch-hm | copy-repo | copy-keys | bootstrap)
+                          die "Target host '$HOST' is unreachable and no target IP override (--ip) was provided."
+                          ;;
+                      *)
+                          CONNECTION_IP=""
+                          ;;
+                  esac
+             fi
+        fi
+    fi
+
+    # Export variables globally
+    export HOST NIXUSER SSH_USER CONNECTION_IP BUILDER BUILD_ON KEXEC_BOOT LOW_MEM STAGE BOOTSTRAP_USER
+    export NIX_REPO FLAKE_URI NIX_CFG FORCE CLI_FORCE UPDATE_HOST_KEY UPDATE_SECRETS_KEY DEBUG VMID VM_DISK_BUS VM_DISK_SIZE STATIC_IP VM_SUBNET BOOTSTRAP_VLAN
+    export BIOS_TYPE CLOUDINIT_IMG_PATH CLOUDINIT_USER IPCONFIG0 IPCONFIG1 DO_REGION DO_SIZE DO_IMAGE
+    export SUBS_ON_DEST SSH_COMMON_OPTIONS SSH_COMMON_ARGS PROXMOX_HOST VMX_PATH
+}
+
+# --- Command Routing Functions ---
+cmd_switch_hm() {
+    local hm_attr="${NIXUSER}_${HOST}"
+    info "Starting Home Manager Switch user profile activation ($hm_attr)..."
+
+    if [[ "$HOST" == "$(hostname -s)" && ( -z "${IP:-}" || "$IP" == "127.0.0.1" ) ]]; then
+        nix run -- home-manager switch --flake "${FLAKE_URI}#$hm_attr"
+    else
+        info "Syncing local repository codebase to target..."
+        ssh_cmd "$SSH_USER@$CONNECTION_IP" "mkdir -p $NIX_CFG"
+        rsync_cmd "$ROOT_DIR/" "$SSH_USER@$CONNECTION_IP:$NIX_CFG/" "$RSYNC_COMMON_FLAGS"
+        ssh_cmd "$SSH_USER@$CONNECTION_IP" "cd $NIX_CFG && nix run -- home-manager switch --flake \"path:.#$hm_attr\""
+    fi
+}
+
+cmd_copy_repo() {
+    info "Syncing local repository files to target..."
+    ssh_cmd "$SSH_USER@$CONNECTION_IP" "mkdir -p $NIX_CFG"
+    rsync_cmd "$ROOT_DIR/" "$SSH_USER@$CONNECTION_IP:$NIX_CFG/" "$RSYNC_COMMON_FLAGS"
+}
+
+cmd_copy_keys() {
+    info "Syncing local credentials (SSH keys & GnuPG directory) to target..."
+    local ssh_home="$HOME/.ssh"
+    local gnupg_home="${GNUPGHOME:-$HOME/.config/gnupg}"
+
+    if [[ -d "$ssh_home" ]]; then
+        ssh_cmd "$SSH_USER@$CONNECTION_IP" "mkdir -p .ssh"
+        rsync_cmd "$ssh_home/" "$SSH_USER@$CONNECTION_IP:.ssh" "--exclude=config --exclude=environment --exclude=known_hosts*"
+    fi
+
+    if [[ -d "$gnupg_home" ]]; then
+        ssh_cmd "$SSH_USER@$CONNECTION_IP" "mkdir -p .config/gnupg"
+        rsync_cmd "$gnupg_home/" "$SSH_USER@$CONNECTION_IP:.config/gnupg" "--exclude=.#* --exclude=S.* --exclude=*.conf"
+    fi
+    info "Credentials syncing complete."
+}
+
+cmd_wsl() {
+    resolve_build_strategy "$HOST"
+    info "Starting WSL Build for $HOST (Strategy: $STRATEGY)..."
+    local attr="config.system.build.tarballBuilder"
+
+    if [[ "$STRATEGY" == "local" ]]; then
+        sudo nix run "${FLAKE_URI}#nixosConfigurations.${HOST}.${attr}"
+    else
+        local script_drv
+        script_drv=$(nix_build "$HOST" "$attr") || exit 1
+        local remote_user
+        remote_user=$(ssh "${SSH_COMMON_ARGS[@]}" "$BUILDER" "whoami" | tr -d '[:space:]')
+        local remote_out
+        remote_out="/home/$remote_user/nixos-wsl-$(date +%Y%m%d-%H%M%S).tar.gz"
+        ssh -t "${SSH_COMMON_ARGS[@]}" "$BUILDER" "sudo $script_drv/bin/nixos-wsl-tarball-builder /tmp/wsl-build.tar.gz && sudo mv /tmp/wsl-build.tar.gz $remote_out && sudo chown $remote_user $remote_out"
+        info "WSL image tarball built: $BUILDER:$remote_out"
+    fi
+}
+
+cmd_proxmox_deploy() {
+    require_var VMID "VMID parameters"
+    init_proxmox_context
+    qm_create
+    qm_start
+
+    info "Waiting 30 seconds for Proxmox VM boot and initialization..."
+    sleep 30
+    local ip
+    ip=$(qm_get_ip) || die "IP scanning failed. Please inspect VM console on hypervisor."
+    CONNECTION_IP="$ip"
+    export SSH_USER="root"
+    wait_for_ssh "$SSH_USER@$CONNECTION_IP"
+    cmd_deploy
+}
+
+cmd_proxmox_redeploy() {
+    require_var VMID "VMID parameters"
+    init_proxmox_context
+    qm_stop
+    qm_destroy
+    export FORCE="yes"
+    if [[ -n "${CLOUDINIT_IMG_PATH:-}" ]]; then
+        cmd_proxmox_create_cloudinit
+    else
+        cmd_proxmox_deploy
+    fi
+}
+
+cmd_proxmox_destroy() {
+    require_var VMID "VMID parameters"
+    init_proxmox_context
+    qm_stop
+    qm_destroy
+}
+
+cmd_proxmox_get_vmip() {
+    require_var VMID "VMID parameters"
+    init_proxmox_context
+    local ip
+    ip=$(qm_get_ip) || exit 1
+    echo "$ip"
+}
+
+cmd_proxmox_create_cloudinit() {
+    require_var VMID "VMID parameters"
+    init_proxmox_context
+    qm_create_cloudinit
+    qm_start
+
+    info "Waiting 30 seconds for Proxmox VM boot and initialization..."
+    sleep 30
+    local ip
+    ip=$(qm_get_ip) || die "IP scanning failed."
+    wait_cloudinit "$ip"
+    info "Cloud-Init VM provisioning converged. IP: $ip"
+}
+
+cmd_vmware_deploy() {
+    require_var VMX_PATH "VMX_PATH parameters"
+    vmware_create "$VMX_PATH"
+    vmware_start "$VMX_PATH"
+
+    info "Waiting 20 seconds for VMware VM boot..."
+    sleep 20
+
+    local ip
+    ip=$(vmware_get_ip "$VMX_PATH") || die "Failed to locate VMware VM IP address from DHCP leases."
+    CONNECTION_IP="$ip"
+    info "VMware VM IP detected: $CONNECTION_IP"
+
+    export SSH_USER="root"
+    wait_for_ssh "$SSH_USER@$CONNECTION_IP"
+    cmd_deploy
+}
+
+cmd_vmware_redeploy() {
+    require_var VMX_PATH "VMX_PATH parameters"
+    vmware_stop "$VMX_PATH"
+    vmware_destroy "$VMX_PATH"
+    export FORCE="yes"
+    cmd_vmware_deploy
+}
+
+cmd_vmware_destroy() {
+    require_var VMX_PATH "VMX_PATH parameters"
+    vmware_destroy "$VMX_PATH"
+}
+
+cmd_digitalocean_deploy() {
+    check_doctl
+    do_create_droplet "$HOST"
+    local ip
+    ip=$(do_get_ip "$HOST") || die "IP resolution failed."
+    CONNECTION_IP="$ip"
+    export SSH_USER="root"
+    wait_for_ssh "$SSH_USER@$CONNECTION_IP"
+
+    # Apply droplet defaults
+    if [[ "${DO_SIZE:-s-1vcpu-1gb}" == "s-1vcpu-1gb" ]] && [[ -z "${LOW_MEM:-}" ]]; then
+        export LOW_MEM="yes"
+    fi
+    if [[ "${BUILD_ON:-auto}" == "auto" ]]; then
+        export BUILD_ON="local"
+    fi
+    cmd_deploy
+}
+
+cmd_digitalocean_destroy() {
+    check_doctl
+    confirm_or_exit "WARNING: This will DESTROY DigitalOcean droplet '$HOST'."
+    do_destroy_droplet "$HOST"
+}
+
+execute_task_job() {
+    local name="$1"
+    local target_cmd="$2"
+    local json_meta="$3"
+
+    # Parse metadata config options using pure-bash json_get
+    local targetIp vmid bios diskBus do_region do_size do_image ci_image pve_host vmx_path builder lowMem ci_user ipconfig0 ipconfig1 username diskSize
+    targetIp=$(json_get "$json_meta" targetIp)
+    vmid=$(json_get "$json_meta" vmid)
+    bios=$(json_get "$json_meta" bios)
+    diskBus=$(json_get "$json_meta" diskBus)
+    do_region=$(json_get "$json_meta" do_region)
+    do_size=$(json_get "$json_meta" do_size)
+    do_image=$(json_get "$json_meta" do_image)
+    ci_image=$(json_get "$json_meta" ci_image)
+    pve_host=$(json_get "$json_meta" pve_host)
+    vmx_path=$(json_get "$json_meta" vmx_path)
+    builder=$(json_get "$json_meta" builder)
+    lowMem=$(json_get "$json_meta" lowMem)
+    ci_user=$(json_get "$json_meta" ci_user)
+    ipconfig0=$(json_get "$json_meta" ipconfig0)
+    ipconfig1=$(json_get "$json_meta" ipconfig1)
+    username=$(json_get "$json_meta" username)
+    diskSize=$(json_get "$json_meta" diskSize)
+
+    # Force metadata loaded state to skip expensive nix eval evaluations in subshells
+    METADATA_LOADED="yes"
+
+    HOST="$name"
+    TARGET="root@$name"
+    MODE="$(normalize_command $target_cmd)"
+
+    # Populate configuration settings from pre-fetched metadata
+    [[ -n "$targetIp" ]] && IP="$targetIp"
+    [[ -n "$builder" ]] && BUILDER="$builder"
+    [[ -n "$lowMem" ]] && LOW_MEM="$lowMem"
+    [[ -n "$vmid" ]] && VMID="$vmid"
+    [[ -n "$vmx_path" ]] && VMX_PATH="$vmx_path"
+    [[ -n "$diskSize" ]] && VM_DISK_SIZE="$diskSize"
+    [[ -n "$bios" ]] && BIOS_TYPE="$bios"
+    [[ -n "$diskBus" ]] && VM_DISK_BUS="$diskBus"
+    [[ -n "$ci_image" ]] && CLOUDINIT_IMG_PATH="$ci_image"
+    [[ -n "$ci_user" ]] && CLOUDINIT_USER="$ci_user"
+    [[ -n "$ipconfig0" ]] && IPCONFIG0="$ipconfig0"
+    [[ -n "$ipconfig1" ]] && IPCONFIG1="$ipconfig1"
+    [[ -n "$pve_host" ]] && PROXMOX_HOST="$pve_host"
+    [[ -n "$do_region" ]] && DO_REGION="$do_region"
+    [[ -n "$do_size" ]] && DO_SIZE="$do_size"
+    [[ -n "$do_image" ]] && DO_IMAGE="$do_image"
+
+    # Parallel tasks run non-interactively
+    FORCE="yes"
+    CLI_FORCE="yes"
+
+    # Re-run runtime context initialization to resolve SSH connection details and target system
+    init_runtime_context
+
+    # Override NIXUSER from flake metadata AFTER init_runtime_context, which parses TARGET="root@name"
+    # and would clobber our value. Post-install SSH (cmd_deploy Phase 3) uses NIXUSER for the final
+    # convergence step (e.g. nixos@host, not root@host).
+    [[ -n "$username" ]] && NIXUSER="$username"
+
+    # Register host-specific secrets trap and copy secrets
+    local manage_secrets=1
+    case "$MODE" in
+        proxmox-destroy | proxmox-get-vmip | digitalocean-destroy | vmware-destroy | copy-repo | wsl) manage_secrets=0 ;;
+    esac
+
+    if [[ $manage_secrets -eq 1 ]]; then
+         generate_host_key_if_missing "$HOST"
+         validate_and_sync_tailscale_preauth_key "$HOST"
+         stage_secrets_pre "$HOST"
+         trap 'stage_secrets_post "$HOST"' EXIT
+    fi
+
+    # Run the execution mode
+    run_mode
+}
+
+cmd_deploy_batch() {
+    local hosts_list=()
+    if [[ -n "${BATCH_HOSTS:-}" ]]; then
+        IFS=',' read -r -a hosts_list <<< "$BATCH_HOSTS"
+    else
+        info "Querying Flake for hosts configured with deployment metadata..."
+        local force_opt=""
+        supports_nix_force_flag && force_opt="--force"
+        local json_hosts
+        json_hosts=$(nix eval --json --impure $force_opt --extra-experimental-features "nix-command flakes" --expr "
+          let
+            flake = builtins.getFlake \"$FLAKE_URI\";
+            nixosConfigs = flake.nixosConfigurations or {};
+            names = builtins.attrNames nixosConfigs;
+            hasDeployment = name:
+              let
+                cfg = nixosConfigs.\${name}.config or {};
+                deploy = cfg.deployment or {};
+              in (deploy.vmid or \"\") != \"\" || (deploy.digitalocean.region or \"\") != \"\" || (deploy.targetIp or \"\") != \"\" || (deploy.vmware.vmxPath or \"\") != \"\";
+            filteredNames = builtins.filter hasDeployment names;
+          in filteredNames
+        " 2>/dev/null || echo "[]")
+
+        local parsed
+        parsed=$(echo "$json_hosts" | jq -r '.[]' 2>/dev/null || echo "")
+        if [[ -z "$parsed" ]]; then
+            parsed=$(echo "$json_hosts" | tr -d '[]"\r\n ' | tr ',' '\n')
+        fi
+        while read -r line; do
+            [[ -n "$line" ]] && hosts_list+=("$line")
+        done <<< "$parsed"
+    fi
+
+    if [[ ${#hosts_list[@]} -eq 0 ]]; then
+        die "No deployment-configured hosts found to deploy."
+    fi
+
+    local hosts_str=""
+    for h in "${hosts_list[@]}"; do
+        hosts_str+="\"$h\" "
+    done
+
+    local force_opt=""
+    supports_nix_force_flag && force_opt="--force"
+    local meta_json
+    meta_json=$(nix eval --json --impure $force_opt --extra-experimental-features "nix-command flakes" --expr "
+      let
+        flake = builtins.getFlake \"$FLAKE_URI\";
+        nixosConfigs = flake.nixosConfigurations or {};
+        names = [ ${hosts_str} ];
+        getHostMeta = name:
+          let
+            cfg = nixosConfigs.\${name}.config or {};
+            deploy = cfg.deployment or {};
+            proxmox = deploy.proxmox or {};
+            ci = proxmox.cloudInit or {};
+            do = deploy.digitalocean or {};
+            vmw = deploy.vmware or {};
+          in {
+            name = name;
+            targetIp = deploy.targetIp or \"\";
+            vmid = deploy.vmid or \"\";
+            pve_host = proxmox.host or \"\";
+            bios = proxmox.bios or \"\";
+            diskBus = proxmox.diskBus or \"\";
+            do_region = do.region or \"\";
+            do_size = do.size or \"\";
+            do_image = do.image or \"\";
+            ci_image = ci.image or \"\";
+            ci_user = ci.user or \"\";
+            ipconfig0 = ci.ipconfig0 or \"\";
+            ipconfig1 = ci.ipconfig1 or \"\";
+            vmx_path = vmw.vmxPath or \"\";
+            builder = deploy.builder or \"\";
+            lowMem = deploy.lowMem or \"\";
+            diskSize = deploy.diskSize or \"\";
+            username = (builtins.tryEval cfg.user).value or \"\";
+          };
+      in builtins.map getHostMeta names
+    " 2>/dev/null || echo "[]")
+
+    local len
+    len=$(echo "$meta_json" | jq '. | length' 2>/dev/null || echo "0")
+
+    info "Planned batch deployment configurations:"
+    info "============================================================================================================"
+    printf "%-25s %-25s %-6s %-15s %-30s\n" "Host" "Provider/Mode" "VMID" "IP/Target" "Details"
+    info "------------------------------------------------------------------------------------------------------------"
+
+    if [[ "$len" -eq 0 ]]; then
+        for h in "${hosts_list[@]}"; do
+            printf "%-25s %-25s %-6s %-15s %-30s\n" "$h" "Unknown" "N/A" "[Dynamic]" "No details queryable"
+        done
+    else
+        for ((i=0; i<len; i++)); do
+            local name targetIp vmid bios diskBus do_region do_size do_image ci_image pve_host vmx_path
+            name=$(echo "$meta_json" | jq -r ".[$i].name")
+            targetIp=$(echo "$meta_json" | jq -r ".[$i].targetIp")
+            vmid=$(echo "$meta_json" | jq -r ".[$i].vmid")
+            bios=$(echo "$meta_json" | jq -r ".[$i].bios")
+            diskBus=$(echo "$meta_json" | jq -r ".[$i].diskBus")
+            do_region=$(echo "$meta_json" | jq -r ".[$i].do_region")
+            do_size=$(echo "$meta_json" | jq -r ".[$i].do_size")
+            do_image=$(echo "$meta_json" | jq -r ".[$i].do_image")
+            ci_image=$(echo "$meta_json" | jq -r ".[$i].ci_image")
+            pve_host=$(echo "$meta_json" | jq -r ".[$i].pve_host")
+            vmx_path=$(echo "$meta_json" | jq -r ".[$i].vmx_path")
+
+            local provider="Remote Switch"
+            local details=""
+
+            if [[ -n "$vmid" ]]; then
+                local display_host="${pve_host:-pve1.lamhub.com}"
+                if [[ "$REDEPLOY_BATCH" == "yes" ]]; then
+                    if [[ -n "$ci_image" ]]; then
+                        provider="Proxmox CI (Redeploy)"
+                    else
+                        provider="Proxmox VM (Redeploy)"
+                    fi
+                else
+                    if [[ -n "$ci_image" ]]; then
+                        provider="Proxmox CI"
+                    else
+                        provider="Proxmox VM"
+                    fi
+                fi
+                details="host: $display_host, bios: $bios, bus: $diskBus"
+                [[ -n "$ci_image" ]] && details+=", img: $(basename "$ci_image")"
+            elif [[ -n "$do_region" ]]; then
+                provider="DigitalOcean"
+                details="region: $do_region, size: $do_size, image: $do_image"
+            elif [[ -n "$vmx_path" ]]; then
+                if [[ "$REDEPLOY_BATCH" == "yes" ]]; then
+                    provider="VMware VM (Redeploy)"
+                else
+                    provider="VMware VM"
+                fi
+                details="vmx: $(basename "$vmx_path")"
+            else
+                details="Standard remote nixos rebuild"
+            fi
+
+            local display_ip="${targetIp:-[Dynamic/DNS]}"
+            printf "%-25s %-25s %-6s %-15s %-30s\n" "$name" "$provider" "${vmid:-N/A}" "$display_ip" "$details"
+        done
+    fi
+    info "============================================================================================================"
+
+    if [[ "$PLAN_ONLY" == "yes" ]]; then
+        info "Plan completed. No operations were executed."
+        return 0
+    fi
+
+    if [[ "$REDEPLOY_BATCH" == "yes" ]]; then
+        warn "========================================================================"
+        warn "WARNING: This is a DESTRUCTIVE action!"
+        warn "It will STOP and DESTROY all Proxmox/VMware VM/CI hosts in the plan above"
+        warn "before recreating them from scratch!"
+        warn "========================================================================"
+        confirm_or_exit "Are you sure you want to proceed with this destructive batch redeployment?"
+    else
+        confirm_or_exit "Do you want to execute deployment for all the planned hosts?"
+    fi
+
+    # Execute batch deployment in parallel
+    if [[ "$len" -gt 0 ]]; then
+        local pids=()
+        local log_files=()
+        local host_names=()
+        local start_times=()
+
+        # Sequentially prepare keys and stage secrets to prevent background prompt issues and write collisions
+        info "Pre-generating SSH host keys and pre-staging secrets sequentially..."
+        for ((i=0; i<len; i++)); do
+            local name
+            name=$(echo "$meta_json" | jq -r ".[$i].name")
+            generate_host_key_if_missing "$name"
+            validate_and_sync_tailscale_preauth_key "$name"
+            stage_secrets_pre "$name"
+        done
+
+        # Register cleanup trap for the parent process
+        trap 'rm -rf "./secrets"' EXIT
+
+        for ((i=0; i<len; i++)); do
+            local name vmid do_region ci_image vmx_path
+            name=$(echo "$meta_json" | jq -r ".[$i].name")
+            vmid=$(echo "$meta_json" | jq -r ".[$i].vmid")
+            do_region=$(echo "$meta_json" | jq -r ".[$i].do_region")
+            ci_image=$(echo "$meta_json" | jq -r ".[$i].ci_image")
+            vmx_path=$(echo "$meta_json" | jq -r ".[$i].vmx_path")
+
+            local target_cmd=""
+            if [[ -n "$vmid" ]]; then
+                if [[ "$REDEPLOY_BATCH" == "yes" ]]; then
+                    target_cmd="proxmox redeploy"
+                elif [[ -n "$ci_image" ]]; then
+                    target_cmd="proxmox create-cloudinit"
+                else
+                    target_cmd="proxmox deploy"
+                fi
+            elif [[ -n "$do_region" ]]; then
+                target_cmd="digitalocean deploy"
+            elif [[ -n "$vmx_path" ]]; then
+                if [[ "$REDEPLOY_BATCH" == "yes" ]]; then
+                    target_cmd="vmware redeploy"
+                else
+                    target_cmd="vmware deploy"
+                fi
+            else
+                target_cmd="switch"
+            fi
+
+            local log_file
+            log_file=$(mktemp)
+            log_files+=("$log_file")
+            host_names+=("$name")
+            start_times+=("$(date +%s)")
+
+            info "Launching parallel deployment for host: $name (logging to $log_file)..."
+
+            # Extract specific host metadata block as JSON object
+            local host_meta
+            host_meta=$(echo "$meta_json" | jq -c ".[$i]")
+
+            # Execute recursively in a background subshell using the task executor function
+            ( execute_task_job "$name" "$target_cmd" "$host_meta" ) > "$log_file" 2>&1 &
+            pids+=("$!")
+        done
+
+        # Wait for all background jobs and monitor status.
+        # Print status of whichever host completes first, using `wait -n`.
+        local failed=0
+        local completed=()
+        for idx in "${!pids[@]}"; do
+            completed+=("no")
+        done
+
+        local completed_count=0
+        local total_jobs=${#pids[@]}
+
+        while [[ $completed_count -lt $total_jobs ]]; do
+            # Wait for the next background job to finish.
+            # We ignore its exit code directly because we retrieve it specifically via `wait $pid` below.
+            wait -n 2>/dev/null || true
+
+            # Identify which job(s) just finished
+            for idx in "${!pids[@]}"; do
+                if [[ "${completed[$idx]}" == "no" ]]; then
+                    local pid="${pids[$idx]}"
+                    if ! kill -0 "$pid" 2>/dev/null; then
+                        local hname="${host_names[$idx]}"
+                        local lfile="${log_files[$idx]}"
+                        local start_t="${start_times[$idx]}"
+                        local exit_code=0
+                        wait "$pid" || exit_code=$?
+
+                        local duration=$(( $(date +%s) - start_t ))
+                        local time_str="$((duration / 60))m $((duration % 60))s"
+
+                        if [[ $exit_code -ne 0 ]]; then
+                            error "Parallel deployment FAILED for host: $hname (Exit Code: $exit_code) in $time_str"
+                            error "----------------- Last 30 lines of $hname log -----------------"
+                            tail -n 30 "$lfile"
+                            error "---------------------------------------------------------------"
+                            failed=1
+                        else
+                            info "Parallel deployment SUCCESS for host: $hname in $time_str"
+                            info "----------------- Last 15 lines of $hname log -----------------"
+                            tail -n 15 "$lfile"
+                            info "---------------------------------------------------------------"
+                        fi
+                        # Do NOT clean up temp log file for now
+                        # rm -f "$lfile"
+                        completed[$idx]="yes"
+                        ((completed_count++)) || true
+                    fi
+                fi
+            done
+        done
+
+        if [[ $failed -eq 1 ]]; then
+            die "One or more parallel deployments failed."
+        else
+            info "All parallel deployments completed successfully."
+            info "Note: Temporary log files have been preserved for review in your system tmp directory."
+        fi
+    fi
+}
+run_mode() {
+    case "$MODE" in
+        copy-repo | copy-keys | deploy-batch) ;;
+        *) ensure_metadata_loaded ;;
+    esac
+
+    case "$MODE" in
+        switch) cmd_switch ;;
+        bootentry) cmd_switch bootentry ;;
+        build) nix_build "$HOST" ;;
+        test) cmd_switch test ;;
+        bootstrap) cmd_deploy ;;
+        switch-hm) cmd_switch_hm ;;
+        copy-repo) cmd_copy_repo ;;
+        copy-keys) cmd_copy_keys ;;
+        proxmox-deploy) cmd_proxmox_deploy ;;
+        proxmox-redeploy) cmd_proxmox_redeploy ;;
+        proxmox-destroy) cmd_proxmox_destroy ;;
+        proxmox-get-vmip) cmd_proxmox_get_vmip ;;
+        proxmox-create-cloudinit) cmd_proxmox_create_cloudinit ;;
+        digitalocean-deploy) cmd_digitalocean_deploy ;;
+        digitalocean-destroy) cmd_digitalocean_destroy ;;
+        vmware-deploy) cmd_vmware_deploy ;;
+        vmware-redeploy) cmd_vmware_redeploy ;;
+        vmware-destroy) cmd_vmware_destroy ;;
+        wsl) cmd_wsl ;;
+        deploy-batch) cmd_deploy_batch ;;
+        *) die "Invalid Command: $MODE" ;;
+    esac
+}
+
+# --- Main Entrypoint Execution ---
+main() {
+    parse_arguments "$@"
+
+    if [[ "$MODE" == "deploy-batch" ]]; then
+          NIX_CFG="$DEFAULT_NIX_CFG"
+          case "$NIX_REPO" in
+              tea) FLAKE_URI="${DEFAULT_TEA_SSH_URI}/${NIX_CFG}" ;;
+              github) FLAKE_URI="${DEFAULT_GITHUB_URI}/${NIX_CFG}" ;;
+              local) FLAKE_URI="path:$ROOT_DIR" ;;
+              *) FLAKE_URI="$NIX_REPO" ;;
+          esac
+         export FLAKE_URI NIX_CFG ROOT_DIR FORCE DEBUG PLAN_ONLY BATCH_HOSTS REDEPLOY_BATCH
+
+         run_mode
+         exit 0
+    fi
+
+    init_runtime_context
+
+    # Handle secrets & identity setup (except for destructive destroy commands)
+    local manage_secrets=1
+    case "$MODE" in
+        proxmox-destroy | proxmox-get-vmip | digitalocean-destroy | vmware-destroy | copy-repo | wsl) manage_secrets=0 ;;
+    esac
+
+    if [[ $manage_secrets -eq 1 ]]; then
+         generate_host_key_if_missing "$HOST"
+         validate_and_sync_tailscale_preauth_key "$HOST"
+         stage_secrets_pre "$HOST"
+         trap stage_secrets_post EXIT
+    fi
+
+    local start_time
+    start_time=$(date +%s)
+    info "Starting command: '$MODE' for target '$TARGET' ($CONNECTION_IP)..."
+
+    run_mode
+
+    local duration=$(( $(date +%s) - start_time ))
+    info "=================================================================="
+    info "Execution '$MODE' completed successfully in $((duration / 60))m $((duration % 60))s."
+    info "=================================================================="
+}
+
+main "$@"

@@ -63,7 +63,7 @@ in {
           database.LOG_SQL = false;
           server = {
             DISABLE_ROUTER_LOG = true;
-            ROOT_URL = "http://${mydefs.teaURL}/";
+            ROOT_URL = "https://${mydefs.teaURL}/";
             DOMAIN = "${mydefs.teaURL}";
             SSH_DOMAIN = "${mydefs.teaURL}";
           };
@@ -91,36 +91,84 @@ in {
         mailerPasswordFile = config.sops.secrets."smtp-password".path;
       };
 
-      # backup strategy
-      cron = let
-        gitea = "${pkgs.gitea}/bin/gitea";
-        appini = "/var/lib/gitea/custom/conf/app.ini";
-        bkdir = "/mnt/arthur_z2/Backup/gitea";
-      in {
-        enable = true;
-        # NOTE: using double-quote will need escape for special characters: slash...
-        # run this 15-min prior to our main system backup task
-        systemCronJobs = [
-          ''
-            # uncomment for testing every 3 minutes
-            # */3 * * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-testing-$(date +\%a).zip
-            # Daily at 22:45PM: 7-day rolling backup
-            45 22 * * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-daily-$(date +\%a).zip
-            # Weekly on sunday (0, 23:15PM)
-            15 23 * * 0  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-weekly-$(date +\%V).zip
-            # Monthly on the first day (1, 01:00AM)
-            00 01 1 * *  git ${gitea} dump -c ${appini} -f ${bkdir}/teadump-monthly-$(date +\%b).zip
-          ''
-        ];
-      };
-
       nginx.virtualHosts."${mydefs.teaURL}" = {
         http2 = true;
-        # forceSSL = true;
-        # enableACME = true;
+        forceSSL = true;
+        useACMEHost = config.modules.os.linux.services.acme.domain;
         root = "/srv/www/${mydefs.teaURL}";
         locations."/".proxyPass = "http://127.0.0.1:3000";
       };
     };
+
+    # backup strategy
+    systemd.services = let
+      gitea = "${pkgs.gitea}/bin/gitea";
+      appini = "/var/lib/gitea/custom/conf/app.ini";
+      bkdir = "/mnt/arthur_z2/Backup/gitea";
+      mkBackupService = suffix: schedule: {
+        description = "Gitea Backup - ${suffix}";
+        serviceConfig = {
+          User = "git";
+          Group = "gitea";
+          Type = "oneshot";
+        };
+        script = ''
+          TARGET_FILE="${bkdir}/teadump-${suffix}.zip"
+          if [ ! -w "${bkdir}" ]; then
+            echo "Error: ${bkdir} is not writable by user $(whoami)"
+            exit 1
+          fi
+          # Gitea dump fails if file exists, so we must remove it first
+          if [ -f "$TARGET_FILE" ]; then
+            rm -f "$TARGET_FILE"
+          fi
+          ${gitea} dump -c ${appini} -f "$TARGET_FILE"
+        '';
+      };
+    in {
+      gitea-dump-daily = mkBackupService "daily-$(date +\%a)" "";
+      gitea-dump-weekly = mkBackupService "weekly-$(date +\%V)" "";
+      gitea-dump-monthly = mkBackupService "monthly-$(date +\%b)" "";
+      gitea-dump-testing = mkBackupService "testing-$(date +\%a)" "";
+    };
+
+    systemd.timers = {
+      # gitea-dump-testing = {
+      #   wantedBy = ["timers.target"];
+      #   timerConfig = {
+      #     OnCalendar = "*:0/3";
+      #     Persistent = true;
+      #   };
+      # };
+      gitea-dump-daily = {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = "*-*-* 22:45:00";
+          Persistent = true;
+        };
+      };
+      gitea-dump-weekly = {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = "Sun *-*-* 23:15:00";
+          Persistent = true;
+        };
+      };
+      gitea-dump-monthly = {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = "*-*-01 01:00:00";
+          Persistent = true;
+        };
+      };
+    };
+    persist.state.directories = [
+      {
+        directory = "/var/lib/gitea";
+        user = "git";
+        group = "gitea";
+        mode = "0750";
+      }
+    ];
   };
 }
