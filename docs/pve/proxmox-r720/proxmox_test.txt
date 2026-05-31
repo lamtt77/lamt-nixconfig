@@ -1,0 +1,20 @@
+#!/bin/bash
+# Test network (Dell R720)
+ping 192.168.1.1
+ping 192.168.1.6
+
+# Test FC and iSCSI (HP ProLiant)
+# systool not installed; use:
+cat /sys/class/fc_host/host*/port_state  # Should show "Online"
+iscsiadm -m session
+lsblk  # Example: sda-sdh (SAS disks), nvme0n1 (NVMe boot)
+pvesm status
+
+# Test FreeNAS FC and ZFS
+# SSH to FreeNAS (root@192.168.1.6)
+camcontrol devlist  # Should show QLogic FC and LSI SAS devices
+ctladm islist       # iSCSI targets (sessions)
+zpool status        # ZFS pools (auto-imported)
+
+# Test iSCSI reconnection on pve1
+# After login and clear: pvesm status should show active zfs storages

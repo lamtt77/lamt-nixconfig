@@ -4,15 +4,7 @@
   lib,
   pkgs,
   ...
-}: let
-  blog = pkgs.stdenv.mkDerivation {
-    name = "blog";
-    src = ../../blog;
-    buildInputs = [pkgs.hugo];
-    buildPhase = "hugo --minify";
-    installPhase = "cp -r public $out";
-  };
-in {
+}: {
   imports = [
     ./hardware-medo.nix
     (import ../_disko/digitalocean.nix {
@@ -20,13 +12,23 @@ in {
     })
   ];
 
+  deployment = {
+    lowMem = "yes";       # 1GB Droplet requires low-mem optimizations
+    tailscaleNamespace = "cloud";
+    digitalocean = {
+      region = "sgp1";
+      size = "s-1vcpu-1gb";
+      image = "ubuntu-24-04-x64";
+    };
+  };
+
   boot = {
     loader = {
       systemd-boot.enable = lib.mkForce false;
       efi.canTouchEfiVariables = lib.mkForce false;
       grub = {
         enable = true;
-        device = "";
+        device = "nodev";
       };
     };
 
@@ -69,7 +71,7 @@ in {
     # This declaratively handles the firewall and NAT rules from PostUp/PostDown scripts.
     firewall = {
       allowedTCPPorts = [22 80 443]; # SSH and Caddy
-      allowedUDPPorts = [57921]; # WireGuard
+      allowedUDPPorts = [443 57921]; # Caddy (HTTP/3 QUIC) and WireGuard
 
       # Allow DNS requests from WireGuard clients to dnsmasq
       interfaces.wg0do = {
@@ -90,11 +92,11 @@ in {
       base = {
         services = {
           sops.enable = true;
-        };
-      };
-      base = {
-        services = {
-          tailscale.enable = true;
+          tailscale = {
+            enable = true;
+            exitNode = true;
+            authKeyFile = config.sops.secrets.tailscale_preauth_key.path;
+          };
         };
       };
       linux = {
@@ -105,6 +107,7 @@ in {
       };
     };
   };
+  sops.secrets.tailscale_preauth_key = {};
   sops.secrets.wg0do_private_key = {
     # The key file will be owned by root and readable by the 'systemd-network' group.
     owner = config.users.users.root.name;
@@ -127,8 +130,11 @@ in {
     };
     caddy = {
       enable = true;
+      globalConfig = ''
+        skip_install_trust
+      '';
       virtualHosts."blog.lamhub.com".extraConfig = ''
-        root * ${blog}
+        root * ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.blog}
         header Cache-Control max-age=3600
         header ETag {file.etag}
         file_server
@@ -136,7 +142,7 @@ in {
       '';
       virtualHosts."blog.lamhub.me".extraConfig = ''
         tls internal
-        root * ${blog}
+        root * ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.blog}
         file_server
       '';
       virtualHosts."lamhub.com".extraConfig = ''

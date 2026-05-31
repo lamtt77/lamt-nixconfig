@@ -24,8 +24,7 @@ in {
         nodePackages.typescript-language-server
         rust-analyzer
         tailwindcss-language-server
-        taplo-lsp
-        terraform-ls
+        # terraform-ls
         vscode-langservers-extracted
         yaml-language-server
       ];
@@ -42,7 +41,7 @@ in {
         biome
         clang-tools
         docker-compose-language-service
-        dockerfile-language-server-nodejs
+        dockerfile-language-server
         golangci-lint
         golangci-lint-langserver
         gopls
@@ -58,7 +57,7 @@ in {
 
     programs.helix = {
       enable = true;
-      package = inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.helix;
+      package = inputs.nixpkgs-unstable.legacyPackages.${pkgs.stdenv.hostPlatform.system}.helix;
       # defaultEditor = true;
 
       settings = {

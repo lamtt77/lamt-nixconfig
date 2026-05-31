@@ -61,16 +61,17 @@ in {
       enableSubmission = true;
       enableSubmissions = true;
 
-      networks = mydefs.defaultNetworks;
-
-      inherit (mydefs) relayHost;
-      inherit (mydefs) relayPort;
       rootAlias = mydefs.infoEmail;
 
-      sslCert = sslServerCert;
-      sslKey = sslServerKey;
+      settings.main = {
+        mynetworks = mydefs.defaultNetworks;
+        relayhost = ["[${mydefs.relayHost}]:${toString mydefs.relayPort}"];
 
-      config = {
+        smtpd_tls_chain_files = [
+          sslServerKey
+          sslServerCert
+        ];
+
         smtp_tls_security_level = "encrypt";
         smtp_sasl_auth_enable = "yes";
         smtp_sasl_security_options = "";
@@ -85,12 +86,10 @@ in {
         # mynetworks does not require auth
         smtpd_client_restrictions = "permit_mynetworks,permit_sasl_authenticated,reject";
         milter_macro_daemon_name = "ORIGINATING";
-      };
 
-      extraConfig = ''
-        smtpd_sasl_path = private/auth
-        smtpd_sasl_authenticated_header = yes
-      '';
+        smtpd_sasl_path = "private/auth";
+        smtpd_sasl_authenticated_header = "yes";
+      };
     };
   };
 }

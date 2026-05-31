@@ -5,29 +5,22 @@ set -e
 # fresh Proxmox VM that has been restored from a cloud-init snapshot.
 
 # --- Configuration ---
-VMID="115"
+VMID="203"
 SNAPSHOT_NAME="cloudinit_fresh"
-PROXMOX_HOST="pve1.lamhub.com" # From Makefile
+PROXMOX_HOST="pve1.lamhub.com"
 PROXMOX_USER="root"
-DEPLOY_HOST="192.168.1.162"
-DEPLOY_USER="deploy"
-TARGET_IP="192.168.1.158"
-TARGET_SSH_USER="ubuntu"      # Default user for the cloud-init image
+TARGET_IP="${1:-192.168.1.154}"
 
-# Variables for the make command
+# Deployment Variables
 NIXHOST="medo"
 NIXUSER="nixos"
-NIXREPO="local"
-SECRETS="yes"
+BOOTSTRAP_USER="ubuntu" # Initial user on the cloud-init image
 FORCE="yes"
 LOW_MEM="yes"
+BUILD_ON="local"
 
-# SSH Options (mirrored from Makefile for consistency)
+# SSH Options
 SSH_OPTIONS="-A -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 -o ServerAliveCountMax=3"
-
-# --- Main Script ---
-
-echo "--- Running on deploy host ---"
 
 # --- Helper Functions ---
 log() {
@@ -35,14 +28,13 @@ log() {
     echo "--- $1 ---"
 }
 
-# This function runs a command on the Proxmox host.
-# It's called from the deploy host.
 run_on_proxmox() {
     local cmd="$@"
     echo "Executing on Proxmox ($PROXMOX_HOST): $cmd" >&2
     ssh $SSH_OPTIONS "${PROXMOX_USER}@${PROXMOX_HOST}" "$cmd"
 }
 
+# --- Main Script ---
 
 log "Starting test for host '$NIXHOST' on Proxmox VM $VMID"
 
@@ -50,8 +42,7 @@ log "Restoring snapshot '$SNAPSHOT_NAME' on VM $VMID"
 run_on_proxmox "qm rollback $VMID $SNAPSHOT_NAME"
 
 log "Ensuring VM $VMID is running"
-# Check the status. The output is "status: <state>"
-VM_STATUS=$(run_on_proxmox "qm status $VMID | awk '{print \$2}'" || echo "unknown")
+VM_STATUS=$(run_on_proxmox "qm status $VMID | awk '{print $2}'" || echo "unknown")
 
 if [ "$VM_STATUS" == "running" ]; then
     echo "VM $VMID is already running."
@@ -76,16 +67,13 @@ for i in {1..20}; do
 done
 
 log "Running NixOS bootstrap command"
-# We use `remote/bootstrap` as it's the correct underlying target for this scenario.
-# The `digitalocean/convert-switch` target is a specific wrapper for that platform.
-make remote/bootstrap \
-    NIXADDR="$TARGET_IP" \
-    NIXHOST="$NIXHOST" \
-    NIXUSER="$NIXUSER" \
-    SSHUSER="$TARGET_SSH_USER" \
-    NIXREPO="$NIXREPO" \
-    SECRETS="$SECRETS" \
+# Using new Makefile interface
+make deploy \
+    NIXTARGET="$NIXUSER@$NIXHOST" \
+    NIXIP="$TARGET_IP" \
+    BOOTSTRAP_USER="$BOOTSTRAP_USER" \
     FORCE="$FORCE" \
-    LOW_MEM="$LOW_MEM"
+    LOW_MEM="$LOW_MEM" \
+    BUILD_ON="$BUILD_ON"
 
 log "Test script finished successfully."

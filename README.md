@@ -1,466 +1,272 @@
-# LamT NixOS System Configurations
+# LamT Nix Configuration
 
-This repository is my NixOS system configuration. I have slowly but fully migrated my legacy
-dotfiles configuration (arch/freebsd/...) to Nix.
-All Linux, WSL, and macOS configurations will be managed by Nix.
+Modular and automated system management for macOS, Linux, and WSL. This repository features a smart deployment orchestrator that handles cross-architecture builds and cloud provisioning.
 
 ## Table of Contents
 
 - [Features](#features)
-- [Security Features](#security-features)
 - [Prerequisites](#prerequisites)
-- [Installation and Deployment](#installation-and-deployment)
-- [Post-Deployment Verification](#post-deployment-verification)
-- [Platform-Specific Setup](#platform-specific-setup)
-- [Operations](#operations)
-- [Credits](#credits)
+- [Repository Sources](#repository-sources)
+- [Quick Start](#quick-start)
+- [Deployment & Bootstrap](#deployment--bootstrap)
+- [Smart Build Strategies](#smart-build-strategies)
+- [Infrastructure & Cloud](#infrastructure--cloud)
+- [Secrets & Keys](#secrets--keys)
+- [Platform Specifics](#platform-specifics)
 
 ## Features
 
-- Super one-liner system deployment
-- Unified config for macOS (Apple Silicon & Intel), Linux, and Windows WSL2
-- Modules/Services can easily enable/disable on demand
-- home-manager integrated as nixos modules + standalone support
-- Flexible deployment: Local builds with remote copying, remote builds, cross-compilation support
-- Kexec boot acceleration and low-memory optimizations
-- Automated Proxmox VM provisioning and NixOS bootstrapping
-- Secrets Management
-
-## Security Features
-
-- **Pre-commit Git Hook**: Automatically prevents accidental commits of sensitive files in the
-  `secrets/` directory. The hook detects staged secrets files, unstages them, and aborts the
-  commit with a clear error message. Use `git commit --no-verify` to intentionally commit secrets
-  when necessary.
+- **Unified Interface**: A thin `Makefile` and direct Rust CLI (`installer-rs`) wrapping all local and remote workflows.
+- **Batch/Fleet Concurrent Operations**: Natively supports parallel multi-host concurrent deployments and configuration updates using asynchronous `tokio` threads, isolated per-host log files, and concurrent visual progress indicators (`indicatif`).
+- **Smart Builder Broker**: Automatically tests default remote builder (`deploy@utils`) SSH compatibility and architecture compatibility before choosing build strategies.
+- **Safety Switch Rollback**: Employs a magic rollback safety switch on target configuration updates; if activation fails or SSH connection drops, the target automatically rolls back to the previous working profile after 60 seconds.
+- **Headless Bootstrap**: Automated VM provisioning (Proxmox), cloud Droplet creation (DigitalOcean), and live kexec Linux takeovers.
+- **Flexible Orchestration**: Supports local builds, remote builders, native target compilation (directing compilation directories to `/mnt` to prevent `tmpfs` space exhaustion), or remote instantiation (`nix-store --realise` to prevent target OOM).
+- **Identity & Secrets Alignment**: Zero-trust key translation (`ssh-to-age`), automatic SOPS encryption alignments, and declarative Tailscale key registrations.
 
 ## Prerequisites
 
-- Boot with EFI BIOS using the [NixOS Minimal ISO](https://nixos.org/download/)
+- **Target**: Machine booted with [NixOS Minimal ISO](https://nixos.org/download/) (Recommended) or any running Linux system with SSH access (via kexec takeover, e.g., Ubuntu cloud images).
+- **Host**: Any machine with Nix installed.
 
-## Installation and Deployment
+## Repository Sources
 
-### Non-Secrets Host Deployment
+Run operations from different sources using `NIXREPO=[local|github|tea]`:
 
-Format and build a brand new Host. One-liner headless installation!
+1.  **Local (Default)**: Uses the current directory (requires `git clone`).
+2.  **GitHub**: Fetches latest config from GitHub.
+3.  **Tea**: Fetches from private Gitea instance.
 
-_WARNING_: This will ERASE ALL DATA on the machine's hard disk! Use at your own risk!!!
+**Zero Setup (Run without Cloning):**
 
-- Method 1: Directly from GitHub:
-
-_One-liner_:
-
-```bash
-$ nix run --extra-experimental-features "nix-command flakes" \
-    github:lamtt77/lamt-nixconfig#installer-staging -- --build-on local utils
-```
-
-_Alternatively_:
+_Note: When running via `nix run`, use `--` to separate the installer-rs arguments._
 
 ```bash
-$ sudo su
-$ passwd <set-temp-root-psw>
-$ nix run --extra-experimental-features "nix-command flakes" \
-    github:lamtt77/lamt-nixconfig#installer-staging gaming && reboot
-After logged in back:
-$ cd lamt-nixconfig && nixos-rebuild switch --flake .#gaming
+# Run from GitHub
+nix run github:lamtt77/lamt-nixconfig#installer-rs -- deploy --target utils
+
+# Run from Tea (Gitea)
+nix run 'git+ssh://git@tea.lamhub.com/lamtt77/lamt-nixconfig#installer-rs' -- switch --target host
+
+# Run locally (Help menu)
+nix run .#installer-rs -- --help
 ```
 
-### Installer Options
+| Command       | Description               | Example                                             |
+| :------------ | :------------------------ | :-------------------------------------------------- |
+| `make switch` | Update current machine    | `make switch`                                       |
+| `make switch` | Update remote host        | `make switch ARGS="--target router-main"`           |
+| `make deploy` | **WIPE DISK** & Bootstrap | `make deploy ARGS="--target nas"`                   |
+| `make switch` | Verify changes (dry-run)  | `make switch ARGS="--target gaming --action test"`  |
+| `make switch` | Build only (no switch)    | `make switch ARGS="--target gaming --action build"` |
+| `make switch` | Home Manager only         | `make switch ARGS="--target user@host --hm"`        |
 
-The installer supports various options for different deployment scenarios:
+### Target Host Format
 
-- **`--build-on <mode>`**: Build location - `local` (build on deployment machine, copy to target), `remote` (build on target), `auto` (default: remote), `cross` (enable cross-compilation)
-- **`--cross`**: Shortcut for `--build-on cross`
-- **`--cross-hosts <hosts>`**: Space-separated list of hosts requiring cross-compilation on aarch64-linux
-- **`--kexec <mode>`**: Kexec boot for faster deployment - `yes`, `no`, `auto` (default: auto)
-- **`--low-mem <mode>`**: Low memory optimizations - `yes` (for <4GB RAM), `no` (default)
-- **`--full <mode>`**: Full build mode - `yes` (build full system), `no` (staged), `auto` (default based on build-on)
-- **`--log-level <level>`**: Logging verbosity - `debug`, `info`, `warn`, `error` (default: info)
+Commands that accept target systems (via `--target` / `-t` or `--hosts`) support a flexible specification format:
 
-#### BUILD_ON Mode Behavior
+```
+[username@]hostname[=ip]
+```
 
-- **BUILD_ON=auto + systems match**: BUILD_ON=local, FLAKE_CONFIG_ATTR=nixosConfigurations (no cross).
-- **BUILD_ON=auto + systems differ**: BUILD_ON=local, FLAKE_CONFIG_ATTR=crossNixosConfigurations (local cross-build).
-- **BUILD_ON=remote (explicit)**: BUILD_ON=remote, FLAKE_CONFIG_ATTR=nixosConfigurations (native build on target, no cross).
-- **BUILD_ON=cross (explicit)**: BUILD_ON=local, FLAKE_CONFIG_ATTR=crossNixosConfigurations.
+- **Hostname only**: `avon` (autodetects target IP via hypervisor scan or Tailscale)
+- **With username**: `nixos@avon` (overrides default user to `nixos`)
+- **With IP override**: `avon=192.168.1.18` (forces target IP to `192.168.1.18`, bypassing dynamic scanning)
+- **Combined**: `nixos@avon=192.168.1.18` (overrides both target user and IP)
 
-For cross-compilation scenarios (e.g., deploying arm64 from x86_64), use `--build-on local` with `--cross-hosts` to enable build progress logs and efficient remote store copying.
+## Deployment & Bootstrap
 
-Notes:
+**⚠️ DANGER**: `make deploy` will **WIPE ALL DATA** on the target's primary disk!
 
-- Connect and set up the above in a remote SSH terminal (for copy & paste)
-- Clear nix cache if getting old code:
+### Bootstrap Workflow
+
+The `installer-rs` orchestrator follows a streamlined, single-stage deployment pipeline to bootstrap target machines:
+
+1. **Partitions Disk**: Automatically runs `disko` on the target to format and partition physical storage under `/mnt`.
+2. **Builds Configuration**: Compiles the NixOS system closure. Depending on the resolved `--build-on` strategy, this is done either:
+   - Locally on the orchestrator,
+   - Delegated to a remote builder (e.g. `deploy@utils`),
+   - Via remote realization (instantiates locally, transfers `.drv` recipes, and runs `nix-store --realise` directly on the target to prevent memory exhaustion), or
+   - Compiled natively on the target.
+3. **Installs NixOS**: Installs the built closure directly onto `/mnt`.
+4. **Bootstraps Credentials**: Stages SSH host key pairs, SOPS decryption secrets, and pre-auth Headscale/Tailscale keys once.
+5. **Reboots**: Reboots the target machine directly into the final, fully initialized system.
+
+The installer-rs tool automatically detects if the target is a running non-NixOS system (e.g., stock Ubuntu) and uses `kexec` to take over the kernel without a manual reboot. Use `KEXEC_BOOT=yes` to force this behavior.
+
+**Options:**
+
+- `--force` / `-F`: Skip safety warning and destructive confirmation prompts.
+- `--repo-src`: Source repository type (`local`, `github`, `tea`). Defaults to `local`.
+- `--build-on`: Choose builder strategy (`local`, `builder`, `realise`, `target`). Defaults to automatic resolution.
+  - `local`: Builds configuration locally.
+  - `builder`: Delegated to a remote builder (defaults to `deploy@utils` or custom `BUILDER` env).
+  - `realise` (or `instantiated`): Performs instantiation locally, copies inputs/derivations, and realizes them on target.
+  - `target`: Syncs the full configuration repository and compiles natively directly on the target.
+- `--plan`: Show dry-run configuration sizing (cores, RAM, disk size) and resolved strategy.
+- `--redeploy`: Wipe and recreate virtualization VM/droplet instances from scratch (Proxmox/DigitalOcean).
+
+### Deployment Examples
 
 ```bash
-$ rm -rf ~/.cache/nix/
+# Deploy to generic Cloud Image (e.g. Ubuntu) with kexec takeover
+make deploy ARGS="--target gaming"
+
+# Re-provision/Wipe an existing VM with VM recreation (DANGER: Wipes VM & Disk)
+make deploy ARGS="--target medo --redeploy"
+
+# Deploy with realization strategy (Solutions B/C) for low-memory environments
+make deploy ARGS="--target my-droplet --build-on realise"
+
+# Perform a batch deploy for multiple hosts concurrently
+make deploy ARGS="--hosts avon,utils"
+
+# Choose repository source (local, github, tea)
+make switch ARGS="--target router --repo-src github"
 ```
 
-- Method 2: Locally:
+## Infrastructure & Cloud
 
-From the target host:
+### Proxmox (Headless IaC)
+
+The orchestrator handles the entire VM lifecycle including specialized network configurations.
+
+**Advanced Networking:**
+
+- **Router Provisioning**: Hosts named `router-*` automatically receive two interfaces: WAN (`vmbr0`) and LAN (`vmbr1`).
+- **Static IP & VLAN Injection**: Bootstrapping in environments without DHCP via `STATIC_IP` and `BOOTSTRAP_VLAN`.
+- **ARP Cache Warming**: Automatically ensures builder-to-target connectivity for newly created VMs.
 
 ```bash
-$ sudo su
-$ passwd <set-temp-root-psw>
-$ ip addr; note the IP address of this host (example: 192.168.1.100)
+# Deploy 'avon' configuration (automatically provisions Proxmox VM based on declarative flake metadata)
+nix run .#installer-rs -- deploy --target avon
+
+# Redeploy (Stop + Destroy + Create + Bootstrap) - DANGER
+nix run .#installer-rs -- deploy --target avon --redeploy
+
+# Destroy a VM (DANGER)
+nix run .#installer-rs -- destroy --target avon
+
+# Get IP of a running VM
+nix run .#installer-rs -- info --target avon --ip
 ```
 
-From the main deployment machine:
+**Requirements:**
+
+- Proxmox hypervisor credentials and defaults parsed directly from `defines.nix` (or defaults in `config.rs`).
+- SSH access to Proxmox host.
+- A NixOS ISO image available on the Proxmox storage.
+
+### DigitalOcean
+
+Convert stock Linux droplets to NixOS via kexec.
+
+- **Requirement**: `doctl` installed and authenticated with your `DO_SSH_KEYS`.
 
 ```bash
-$ git clone https://github.com/lamtt77/lamt-nixconfig && cd lamt-nixconfig
-$ NIXADDR=192.168.1.100 NIXHOST=gaming make remote/bootstrap
+# Provision and Bootstrap
+nix run .#installer-rs -- deploy --target medo
+
+# Destroy a Droplet
+nix run .#installer-rs -- destroy --target medo
 ```
 
-The remote bootstrap process uses a flexible installer supporting both local and remote builds:
+### Bare Metal
 
-- **BUILD_ON=remote** (default): Builds on the target machine. Uses two-stage installation for reliability.
-  - **Stage 0**: Disk partitioning (via disko), minimal NixOS install, repo persistence, SSH setup.
-  - **Stage 1**: Switches to full configuration after reboot.
-- **BUILD_ON=local**: Builds on deployment machine, copies to target. Performs full installation in one stage, skips unnecessary reboot for direct installs.
+- **`modules.os.linux.services.pxe-ipxe`**: Deploys a complete PXE boot environment (iPXE, Nginx, TFTP) capable of:
+  - Auto-installing Proxmox VE (via `proxmox-auto-installer`).
+  - Auto-installing Ubuntu (via `cloud-init` / `autoinstall`).
+  - Serving custom post-install scripts and network configurations.
+- **`modules.os.linux.services.refind-booter`**: Generates a custom rEFInd bootable USB image.
+  - **Use Case**: Chainloading EFI bootloaders on NVMe drives for legacy servers (like the Dell R720) that cannot natively boot from NVMe.
+  - **Usage**:
+    1.  **Build the image**:
+        ```bash
+        nix build .#nixosConfigurations.<host>.config.system.build.refindBootImg
+        ```
+    2.  **Flash to USB**:
+        ```bash
+        sudo dd if=result of=/dev/sdX bs=1M status=progress
+        ```
 
-Features include cross-compilation support, build progress logs, remote store for efficient copying, kexec boot acceleration, and low-memory optimizations. Automatically handles SSH keys, flake.lock syncing, and GITHUB_TOKEN for authenticated builds.
+## Secrets & Keys
 
-### Low Memory Mode
+### Secrets Management (`sops-nix`)
 
-For systems with limited RAM (< 4GB), use `LOW_MEM=yes` (or `--low-mem yes` in the installer) to apply memory optimizations:
+The installer automatically stages `../lamt-secrets/sops/<host>.yaml` during deployment.
 
-- Disables binary caches/substituters to reduce memory usage
-- Uses disk-based temporary files instead of RAM
-- Reduces Nix GC heap size and disables auto-GC
-- Creates swap space during installation (5GB on /var/swapfile or 1GB on /swapfile)
-- Limits parallel jobs to 1 core
+**Zero-Trust Automated Re-Keying:**
+For new or updated hosts, the orchestrator automatically handles host key and secrets alignment:
 
-Example usage:
+1. Pre-generates the target's SSH host key locally if missing.
+2. Translates the SSH public key to an `age` key.
+3. Validates that the host and its key are correctly registered in the secrets configuration (`../lamt-secrets/.sops.yaml`).
+4. If a mismatch or missing host is detected, it registers the new key and automatically re-encrypts the target's secrets configuration using `sops updatekeys` (after user confirmation, or automatically with `FORCE=yes`).
+5. Stages the generated private SSH host key to `/mnt/etc/ssh/` on target installation, ensuring the target can decrypt its secrets on first boot without any manual key-scanning or re-keying loops.
+
+To force-update an existing host key on the target, run:
 
 ```bash
-$ NIXADDR=192.168.1.100 NIXHOST=gaming LOW_MEM=yes make remote/bootstrap
+UPDATE_HOST_KEY=yes make switch ARGS="-t host"
 ```
 
-Or with the installer:
+**Tailscale Pre-auth Key Auto-Registration:**
+For hosts utilizing declarative Tailscale enrollment, the orchestrator manages pre-auth keys:
 
-```bash
-$ nix run github:lamtt77/lamt-nixconfig#installer-staging -- --low-mem yes --target-host root@192.168.1.100 gaming
-```
+1. Validates the pre-auth key in `../lamt-secrets/sops/<host>.yaml` by querying your Headscale server (`avon`).
+2. Checks if the key is missing, expired, or invalid.
+3. Automatically prompts (or uses non-interactive defaults) to generate a new 1-year (365d) reusable pre-auth key for the corresponding namespace (`lamt`, `cloud`, or `fcm`), updates the sops file, and stages it on the host.
+4. Auto-enrolls the host during activation using the native `services.tailscale.authKeyFile` option.
 
-For Proxmox VMs with low memory:
+### Utility Commands
 
-```bash
-$ VMID=103 VM_MEMORY=1024 NIXHOST=gaming LOW_MEM=yes make proxmox/deploy
-```
+- **Sync keys**: `make sync ARGS="--target router-main --keys"`
+- **Sync repo**: `make sync ARGS="--target router-main --repo"`
 
-### Secrets Host Deployment:
-
-#### Follow the non-secrets host deployment 'Method 2' and set 'SECRETS=yes':
-
-```bash
-$ NIXADDR=192.168.1.18 NIXHOST=avon NIXUSER=nixos SECRETS=yes make remote/bootstrap
-```
-
-#### FORCE: _WARNING: Disko format is pre-confirmed! Cannot be undone!!!_
-
-```bash
-$ NIXADDR=192.168.1.18 NIXHOST=avon NIXUSER=nixos SECRETS=yes FORCE=yes make remote/bootstrap
-```
-
-Note: Setting 'SECRETS=no' will still install the host normally, without secret fields
-
-### Proxmox VM Deployment
-
-Deploy NixOS VMs on a Proxmox host with automated VM creation, IP detection, and bootstrapping.
-
-Set required variables (no defaults for host IP and storage):
-
-- `PROXMOX_HOST`: Proxmox server IP
-- `VMID`: VM ID
-- `VM_MEMORY`: RAM in MB
-- `VM_CORES`: CPU cores
-- `VM_DISK_SIZE`: Disk size in GB
-- `VM_BRIDGE`: Network bridge
-- `VM_STORAGE`: Storage pool
-- `VM_NAME`: VM name
-- `VM_SUBNET`: Subnet for IP detection
-- `NIXOS_ISO`: NixOS ISO path on Proxmox
-
-#### Super One-liner Full Automated Deployment
-
-```bash
-$ BUILD_ON=local VMID=103 VM_MEMORY=16384 VM_CORES=8 VM_DISK_SIZE=128 \
-  NIXHOST=avon NIXUSER=nixos SECRETS=yes FORCE=yes make proxmox/deploy
-```
-
-==> Remote bootstrap completed successfully in 3 minutes and 3 seconds.
-==> NixOS VM deployed successfully at IP: 192.168.x.x
-
-```bash
-$ NIXHOST=gaming NIXUSER=vivi make proxmox/deploy
-```
-
-This creates the VM, starts it, detects the IP via nmap, and bootstraps NixOS.
-
-#### Cloud-Init VM for Testing
-
-For testing deployments in a safe environment, create cloud-init enabled VMs:
-
-```bash
-$ make proxmox/create-cloudinit-vm-seabios
-```
-
-This creates a VM with cloud-init support using SeaBIOS, ideal for testing NixOS configurations without affecting production systems.
-
-### DigitalOcean Droplet Deployment
-
-Deploy NixOS on a DigitalOcean droplet by converting an existing Ubuntu installation.
-
-Set required variables:
-
-- `NIXADDR`: Droplet IP address
-- `NIXHOST`: Host configuration name (e.g., medo)
-
-#### One-liner Conversion
-
-```bash
-$ NIXADDR=<droplet-ip> NIXHOST=medo make digitalocean/convert-switch
-```
-
-This process:
-
-- Connects to the Ubuntu droplet via SSH
-- Partitions the disk using disko (BIOS boot + /boot + /)
-- Builds and installs NixOS with cloud-init for networking
-- Reboots into NixOS; SSH access established post-reboot
-
-#### Updating the Droplet
-
-After initial deployment, update the configuration:
-
-```bash
-$ NIXADDR=<droplet-ip> NIXHOST=medo NIXUSER=nixos make remote/copy-switch
-```
-
-#### Step-by-Step Deployment
-
-1. Create VM:
-
-```bash
-$ make proxmox/create-vm
-```
-
-2. Start VM:
-
-```bash
-$ make proxmox/start-vm
-```
-
-3. Detect VM IP:
-
-```bash
-$ make proxmox/get-vm-ip
-```
-
-4. Bootstrap NixOS (using the detected IP from /tmp/vm_ip.env):
-
-```bash
-$ source /tmp/vm_ip.env && NIXADDR=$NIXADDR make remote/bootstrap
-```
-
-## Post-Deployment Verification
-
-After successful deployment, verify the system stability and configuration:
-
-1. **SSH Connectivity**:
-
-```bash
-$ ssh root@<NIXADDR>  # e.g., ssh root@192.168.1.180
-```
-
-2. **System Services**:
-
-```bash
-$ systemctl status nix-daemon
-$ journalctl -u nix-daemon --no-pager -n 20
-```
-
-3. **Configuration Validation**:
-
-```bash
-$ nixos-rebuild test --flake .#<NIXHOST>
-$ lsblk  # Check disk partitioning
-```
-
-If issues arise, troubleshoot via `journalctl` or re-run `make remote/switch` from the deployment machine.
-
-## Troubleshooting
-
-### SSH Host Keys
-
-After deployment, verify both RSA and Ed25519 host keys are available:
-
-```bash
-$ ssh-keyscan -t rsa,ed25519 <NIXADDR>
-```
-
-If Ed25519 is missing despite being present on the server, restart the SSH service:
-
-```bash
-$ sudo systemctl restart sshd
-```
-
-This ensures `sshd` loads all generated keys, as it may not auto-reload after key generation.
-
-### Common Issues
-
-- **GitHub Rate Limits**: Set `GITHUB_TOKEN` for authenticated builds.
-- **SSH Connectivity**: Ensure port 22 is open; check firewall with `sudo iptables -L`.
-- **Disk Partitioning**: Verify disko config matches hardware; use `lsblk` to confirm.
-- **Secrets Decryption**: If SOPS fails, check keys in `secrets/sops/<host>.yaml`.
-- **Service Failures**: Use `journalctl -u <service>` for logs.
-
-## Platform-Specific Setup
+## Platform Specifics
 
 ### macOS / Darwin
 
-- Installer: [Determinate Systems Nix Installer](https://determinate.systems/posts/determinate-nix-installer/)
+1.  **Install Nix**: Recommended via [Determinate Systems](https://determinate.systems/posts/determinate-nix-installer/):
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+    ```
+2.  **Apply Configuration**:
+    - **Full System**: `make switch` (or `make switch NIXTARGET=user@macair15-m2`)
+    - **User Only (Home Manager)**: `make switch/hm` (No sudo required)
 
-```bash
-curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-```
-
-After completion, verify with 'nix --version'. You are now ready to switch to the config:
-
-```bash
-$ NIXHOST=macair15-m2 make switch
-```
-
-For user-only configuration updates (no sudo/Touch ID required):
-
-```bash
-$ make switch/hm
-```
-
-- Note: Alternatively, you can use the official installer from
-  [https://nixos.org/download/](https://nixos.org/download/). I use the Determinate Systems installer
-  because it supports easy uninstallation.
-
-```bash
-$ sh <(curl -L https://nixos.org/nix/install)
-```
+> [!TIP]
+> Alternatively, use the official installer: `sh <(curl -L https://nixos.org/nix/install)`.
 
 ### WSL
 
-Enable WSL if not already done (check status with 'wsl --status')
+#### Method 1: Pre-built (NixOS-WSL)
 
-```bash
-$ wsl --install --no-distribution
-```
+1. Download the latest `nixos-wsl.tar.gz` from [NixOS-WSL releases](https://github.com/nix-community/NixOS-WSL/releases).
+2. Import and switch:
+   ```bash
+   wsl --import NixOS %USERPROFILE%\NixOS\ nixos-wsl.tar.gz
+   wsl -d NixOS
+   # Inside WSL:
+   sudo nixos-rebuild switch --flake "github:lamtt77/lamt-nixconfig#wsl"
+   ```
 
-For more info, refer to: [WSL basic commands](https://learn.microsoft.com/en-us/windows/wsl/basic-commands)
+#### Method 2: Custom Tarball (Recommended)
 
-#### Method 1: [NixOS-WSL](https://github.com/nix-community/NixOS-WSL)
-
-- Download the pre-built at [latest NixOS-WSL release](https://github.com/nix-community/NixOS-WSL/releases/latest)
-
-```bash
-$ wsl --import NixOS %USERPROFILE%\NixOS\ nixos-wsl.tar.gz
-$ wsl -d NixOS
-$ git clone https://github.com/lamtt77/lamt-nixconfig && cd lamt-nixconfig
-$ sudo nixos-rebuild switch --flake ".#wsl"
-```
-
-#### Method 2: build your own reuseable tarball: recommended
-
-```bash
-$ wsl --import NixOS %USERPROFILE%\NixOS\ nixos-wsl.tar.gz
-$ wsl -d NixOS
-$ git clone https://github.com/lamtt77/lamt-nixconfig && cd lamt-nixconfig
-$ nix build .#nixosConfigurations.wsl.config.system.build.tarballBuilder
-```
-
-Copy/rename the generated tarball to %USERPROFILE%\Downloads\nixos-wsl-custom.tar.gz, then:
-
-```bash
-$ wsl --import NixOS $env:USERPROFILE\NixOS\ nixos-wsl-custom.tar.gz
-$ wsl -d NixOS
-```
-
-- The first time wsl may start as root, switch to your username to initialize:
-
-```bash
-$ su lamt
-```
-
-- Note: Method 2 can be built with 'nix build' from any x86_64-linux host or WSL distro (such
-  as Ubuntu) with Nix pre-installed
-
-- Cross-platform tarball build issue:
-  Currently, cross build the tarball from aarch64-linux is having the below issue:
-
-```
-$ make wsl
-...
-installing the boot loader...
-chroot: failed to run command '/nix/var/nix/profiles/system/activate': No such file or directory
-chroot: failed to run command '/nix/var/nix/profiles/system/sw/bin/bash': No such file or directory
-```
-
-## Operations
-
-### Updating Existing Hosts
-
-Once a host is deployed, you can update its configuration using several `make` targets from your deployment machine.
-
-#### Remote Build (`remote/copy-switch`)
-
-This method syncs your local source code to the target machine and then builds the new configuration on the target machine itself before activating it. This is useful when the target machine has sufficient resources.
-
-```bash
-# Sync source code, then build and switch on the remote host
-$ NIXHOST=gaming NIXADDR=192.168.1.165 NIXUSER=vivi make remote/copy-switch
-```
-
-#### Local Build (`builder/switch`)
-
-This target offloads the build process from the target host. It builds the configuration on your local (control) machine, copies the binary artifacts to the target, and then activates the new configuration. This is ideal for updating low-powered devices or for cross-architecture updates (e.g., updating a Linux host from a macOS machine).
-
-**Usage:**
-
-```bash
-$ NIXHOST=gaming NIXADDR=192.168.1.165 NIXUSER=vivi SSHUSER=vivi make builder/switch
-```
-
-**How it Works:**
-
-1.  The system configuration for `NIXHOST` is built on your local machine.
-2.  The resulting `/nix/store` paths are copied to the target host specified by `NIXADDR`.
-3.  The new configuration is activated on the target host.
-
-### Testing the Installer
-
-To validate the installer process on a test host:
-
-1. **Local Test Build**:
-
-```bash
-$ make test NIXHOST=<test-host>
-```
-
-2. **Remote Dry Run** (without disk changes):
-
-   - Set `FORCE=no` and run `make remote/bootstrap` on a VM.
-   - Check logs for errors without actual partitioning.
-
-3. **Full Deployment Test**:
-
-   - Use a disposable VM (e.g., via Proxmox) for end-to-end testing.
-   - Expected outcome: Successful bootstrap in ~5-10 minutes, SSH access post-reboot.
-
-4. **Common Issues**:
-   - GitHub rate limits: Ensure `GITHUB_TOKEN` is set.
-   - SSH host keys: Handled automatically by the installer.
-   - Disk partitioning: Verify disko config matches hardware.
+1. Build the tarball (handles remote builds automatically if on ARM Mac):
+   ```bash
+   make wsl
+   ```
+2. Import the generated image in Windows:
+   ```bash
+   wsl --import NixOS %USERPROFILE%\NixOS\ nixos-wsl-custom.tar.gz
+   ```
+3. Initialize user:
+   ```bash
+   su lamt # First-start is probably root
+   ```
 
 ## Credits
 
 - [Virtual machine as macOS terminal workflow](https://github.com/mitchellh/nixos-config)
-- [Utility libs, Doom Emacs, and modules structure](https://github.com/hlissner/dotfiles)
-- Lots of others' nix configuration around the internet
+- [Utility libs and structure](https://github.com/hlissner/dotfiles)

@@ -1,0 +1,21 @@
+#!/bin/bash
+# SSH to pve1 (192.168.1.15) - reconnect iSCSI after FreeNAS migration
+# Discover targets from FreeNAS (192.168.1.6)
+iscsiadm -m discovery -t sendtargets -p 192.168.1.6
+
+# Login to targets
+iscsiadm -m node -T iqn.2005-10.org.freenas.ctl:fc8g-arthurz2-thin-iscsi -p 192.168.1.6 --login
+iscsiadm -m node -T iqn.2005-10.org.freenas.ctl:fc8g-barex2-iscsi -p 192.168.1.6 --login
+
+# Check sessions
+iscsiadm -m session
+
+# Check LUNs
+ls /dev/disk/by-path/ip*
+
+# Clear suspended pools (if needed)
+zpool clear arthurz2-iscsi-pool
+zpool clear barex2-iscsi-pool
+
+# Verify storage status
+pvesm status

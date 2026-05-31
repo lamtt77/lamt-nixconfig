@@ -1,0 +1,26 @@
+#!/bin/bash
+# Boot Dell R720 from Proxmox VE 9.x ISO via USB or iLO (headless via iLO remote console)
+# Alternative: PXE install via HA NixOS routers (recommended for automation)
+# See proxmox-headless-install-plan.md for PXE setup details
+# Manual steps:
+# 1. Select "Install Proxmox VE"
+# 2. Agree to EULA
+# 3. Select target disk (e.g., /dev/sda, wipes ESXi)
+# 4. Country: Australia, Timezone: Australia/Sydney, Keyboard: us
+# 5. Set root password
+# 6. Network:
+#    Management Interface: eno1
+#    Hostname: pve2
+#    IP: 192.168.1.5/24
+#    Gateway: 192.168.1.1
+#    DNS: 192.168.1.1
+# 7. Proceed with installation
+# Post-install: Remove ISO, reboot
+
+# Post-boot: Update Proxmox
+apt update
+apt full-upgrade -y
+reboot
+
+# If NVMe not detected by BIOS (Dell R720), use rEFInd USB for initial boot
+# See modules/os/linux/services/refind-booter.nix for rEFInd setup

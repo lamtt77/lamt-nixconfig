@@ -22,9 +22,8 @@ in
         envExtra = builtins.readFile "${self}/config/zsh/.z4henv";
 
         shellAliases = {
-          nh-clean = "nh clean all --keep-since 10d --keep 3";
-          swn = "nh os switch ${inputs.self.outPath}";
-          swh = "nh home switch ${inputs.self.outPath}";
+          swn = "sudo nixos-rebuild switch --flake ${inputs.self.outPath}";
+          swh = "home-manager switch --flake ${inputs.self.outPath}";
           swb = "swn;swh";
         };
       };

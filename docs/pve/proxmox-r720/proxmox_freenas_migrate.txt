@@ -1,0 +1,45 @@
+#!/bin/bash
+# Temporarily copy FreeNAS OVA to pve1's local-zfs before installing pve2
+# scp /path/to/backup/FreeNAS.ova root@192.168.1.15:/var/lib/vz/template/iso/
+
+# After pve2 install, copy from pve1 to pve2
+# scp root@192.168.1.15:/var/lib/vz/template/iso/FreeNAS.ova root@192.168.1.5:/var/lib/vz/template/iso/
+
+# Import FreeNAS VM
+qm importovf 100 /var/lib/vz/template/iso/FreeNAS.ova local --format qcow2
+
+# Configure VM
+qm set 100 --name FreeNAS
+qm set 100 --vga std
+qm set 100 --net0 virtio,bridge=vmbr0,tag=10  # VLAN 10
+qm set 100 --cpu host --cores 4
+qm set 100 --memory 8192
+qm set 100 --hostpci0 02:00.0,rombar=1,pcie=1  # QLogic HBA1
+qm set 100 --hostpci1 03:00.0,rombar=1,pcie=1  # QLogic HBA2
+qm set 100 --hostpci2 04:00.0,rombar=1,pcie=1  # LSI HBA
+
+# Start VM
+qm start 100
+
+# Restore FreeNAS config if needed (GUI: https://192.168.1.6)
+# System > General > Upload Config
+# Or via CLI: scp backup to VM and restore
+
+# Post-Migration: Reconnect iSCSI storages on pve1
+# Discover targets from FreeNAS (192.168.1.6)
+iscsiadm -m discovery -t sendtargets -p 192.168.1.6
+# Login to targets
+iscsiadm -m node -T iqn.2005-10.org.freenas.ctl:fc8g-arthurz2-thin-iscsi -p 192.168.1.6 --login
+iscsiadm -m node -T iqn.2005-10.org.freenas.ctl:fc8g-barex2-iscsi -p 192.168.1.6 --login
+# Clear suspended pools
+zpool clear arthurz2-iscsi-pool
+zpool clear barex2-iscsi-pool
+
+# Storage Recovery Notes
+# - Proxmox storage.cfg is cluster-synced; changes on one node affect all.
+# - Removing storages on one node removes on all nodes.
+# - To recover zfs storages after removal: pvesm add zfspool <name> --pool <pool>/<dataset> --content images,rootdir
+# - Example: pvesm add zfspool arthurz2-zfs --pool arthurz2-iscsi-pool/storage --content images,rootdir
+# - For dir storages: pvesm add dir <name> --path <mountpoint> --content iso,vztmpl,backup
+# - If storages inactive on other nodes, leave them or remove carefully to avoid sync removal.
+# - Always check cluster status and sync before storage changes.

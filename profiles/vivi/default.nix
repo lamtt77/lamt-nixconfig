@@ -20,14 +20,13 @@ in {
       fd
       htop
       jq
-      nh
       tldr
       tree
       watch
 
       nodejs
 
-      ranger
+      yazi
     ]
     ++ (lib.optionals isDarwin [
       # standard toolset

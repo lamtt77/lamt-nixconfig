@@ -19,8 +19,13 @@
   # To be able to run e.g. biome extension
   programs.nix-ld.enable = true;
 
-  # systemd.services.systemd-timesyncd.wantedBy = [ "multi-user.target" ];
-  # systemd.timers.systemd-timesyncd = { timerConfig.OnCalendar = "hourly"; };
+  # Define systemd-timesync user and group statically to prevent dbus-broker reload deadlocks
+  # when timesyncd is disabled (e.g. when chrony is enabled instead).
+  users.users.systemd-timesync = {
+    isSystemUser = true;
+    group = "systemd-timesync";
+  };
+  users.groups.systemd-timesync = {};
 
   # Create dirs for home-manager
   systemd.tmpfiles.rules = [

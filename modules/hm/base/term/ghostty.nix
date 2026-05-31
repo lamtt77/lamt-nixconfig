@@ -12,7 +12,7 @@ in {
   };
 
   config = mkIf cfg.enable {
-    home.packages = [pkgs.ghostty];
+    home.packages = [pkgs.unstable.ghostty];
 
     home.file.".config/ghostty/config".text = ''
       # Ghostty configuration
@@ -24,7 +24,7 @@ in {
       font-size = ${
         if pkgs.stdenv.isDarwin
         then "15"
-        else "12"
+        else "10.5"
       }
 
       background-opacity = 0.95
@@ -36,6 +36,7 @@ in {
       cursor-style = block
       shell-integration = zsh
       scrollback-limit = 100000
+      term = xterm-256color
 
       # Key bindings
       keybind = ctrl+shift+b=scroll_page_up

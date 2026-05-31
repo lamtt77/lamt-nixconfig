@@ -1,0 +1,10 @@
+# Access FreeNAS GUI: https://192.168.2.10
+# Login: root, password
+# Navigate: Sharing > Block Shares (iSCSI) > Initiators > Edit
+# Confirm HP ProLiant WWNs (e.g., 0x21000024ff123456, 0x21000024ff123457)
+# Save
+
+# Verify iSCSI target
+# CLI (SSH to FreeNAS):
+camcontrol devlist
+ctladm islist

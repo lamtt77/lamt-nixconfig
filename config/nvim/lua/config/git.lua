@@ -1,4 +1,4 @@
-local common = require("config.utils.common")
+local common = require("config.common")
 
 return {
 	-- Git signs and hunk management

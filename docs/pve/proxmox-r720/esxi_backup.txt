@@ -1,0 +1,20 @@
+#!/bin/bash
+# SSH to Dell R720 ESXi (192.168.1.200)
+# Export FreeNAS VM
+vm_id_freenas=$(vim-cmd vmsvc/getallvms | grep FreeNAS | awk '{print $1}')
+vim-cmd vmsvc/power.off $vm_id_freenas
+mkdir /vmfs/volumes/datastore1/backup
+ovftool vi://root@192.168.1.200/FreeNAS /vmfs/volumes/datastore1/backup/FreeNAS.ova
+
+# Export primary pfSense VM
+vm_id_pfsense=$(vim-cmd vmsvc/getallvms | grep pfSense | awk '{print $1}')
+vim-cmd vmsvc/power.off $vm_id_pfsense
+ovftool vi://root@192.168.1.200/pfSense /vmfs/volumes/datastore1/backup/pfSense.ova
+
+# Backup ESXi network config
+esxcli network vswitch standard list > /vmfs/volumes/datastore1/backup/vswitch_config.txt
+esxcli network ip interface list >> /vmfs/volumes/datastore1/backup/network_config.txt
+
+# Copy backups to external storage
+# From Management PC (192.168.1.50):
+scp root@192.168.1.200:/vmfs/volumes/datastore1/backup/* /path/to/backup/

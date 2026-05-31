@@ -17,37 +17,22 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 -- Plugin specifications - now loaded from modular config files
-local plugins = {}
-
--- Load plugin configurations from modular files
-local plugin_files = {
-  'config.completion',
-  'config.lsp',
-  'config.dap',
-  'config.telescope',
-  'config.file-explorer',
-  'config.theme',
-  'config.workspace',
-  'config.ai',
-  'config.git',
-  'config.utils',
-  'config.formatting',
-  'config.linting',
-}
-
-for _, file in ipairs(plugin_files) do
-  local ok, module_plugins = pcall(require, file)
-  if ok and type(module_plugins) == 'table' then
-    for _, plugin in ipairs(module_plugins) do
-      table.insert(plugins, plugin)
-    end
-  else
-    vim.notify("Failed to load plugin config from " .. file, vim.log.levels.WARN)
-  end
-end
-
 -- Setup lazy.nvim
-require("lazy").setup(plugins, {
+require("lazy").setup({
+  -- Import configurations from modular files
+  { import = "config.completion" },
+  { import = "config.lsp" },
+  { import = "config.dap" },
+  { import = "config.telescope" },
+  { import = "config.file-explorer" },
+  { import = "config.theme" },
+  { import = "config.workspace" },
+  { import = "config.ai" },
+  { import = "config.git" },
+  { import = "config.utils" },
+  { import = "config.formatting" },
+  { import = "config.linting" },
+}, {
   performance = {
     rtp = { reset = false },
   },

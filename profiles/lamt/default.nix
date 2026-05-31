@@ -31,10 +31,10 @@ in {
         gnupg.enableSSHSupport = true;
 
         yt-dlp.enable = true;
-        firefox.enable = !isDarwin;
+        firefox.enable = !isDarwin && (myargs.hostname != "air15vm");
 
         editors = {
-          doomemacs.enable = true;
+          doomemacs.enable = myargs.hostname == "macair15-m2";
           helix.enable = true;
           vscode.enable = true;
           neovim.enable = true;
@@ -48,7 +48,10 @@ in {
   };
 
   programs = {
-    ssh.enable = true;
+    ssh = {
+      enable = true;
+      enableDefaultConfig = false;
+    };
     fzf.enable = true;
     man.enable = true;
 
@@ -59,7 +62,6 @@ in {
   home.packages = let
     # Common packages for all platforms
     commonPackages = with pkgs; [
-      nh
       cachix
       hugo
       killall
@@ -68,6 +70,7 @@ in {
       nix-prefetch-git
       ookla-speedtest
       imagemagick
+      librsvg # SVG rendering support for imagemagick/image.nvim
       ffmpeg
       docker-compose
       mkcert
@@ -98,7 +101,6 @@ in {
 
       # DigitalOcean
       doctl
-      cloudflared
     ];
 
     # Programming languages
@@ -130,6 +132,7 @@ in {
     # Linux AI tools
     linuxAi = with pkgs; [
       unstable.opencode
+      unstable.gemini-cli
     ];
 
     # macOS-specific packages
@@ -155,14 +158,13 @@ in {
       valgrind
       xfce.xfce4-terminal
       zathura
-      bfg-repo-cleaner # remove large files from git history
       awscli2
       ssm-session-manager-plugin # Amazon SSM Session Manager Plugin
       aws-iam-authenticator
       eksctl
-      terraform
-      terraformer # generate terraform configs from existing cloud resources
-      packer # machine image builder
+      # terraform
+      # terraformer # generate terraform configs from existing cloud resources
+      # packer # machine image builder
     ];
   in
     commonPackages

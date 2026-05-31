@@ -1,0 +1,17 @@
+# Access FreeNAS GUI: https://192.168.2.10
+# Login: root, password
+# Navigate: System > General > Save Config
+# Download to Management PC (192.168.1.50)
+
+# CLI (SSH to FreeNAS):
+# Save config
+config save /tmp/freenas_config.db
+scp /tmp/freenas_config.db root@192.168.1.50:/path/to/backup/
+
+# Snapshot ZFS pool
+zpool list
+# Example: pool name 'tank'
+zfs snapshot tank@pre-migration
+zfs list -t snapshot
+# Export snapshot (optional, to external storage)
+# zfs send tank@pre-migration | ssh root@192.168.1.50 "cat > /path/to/backup/tank.snapshot"

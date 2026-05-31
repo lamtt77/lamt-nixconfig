@@ -1,0 +1,40 @@
+#!/bin/bash
+# Note: IOMMU is already enabled via PXE install (intel_iommu=on iommu=pt in kernel params)
+# Skip the following if already done:
+# echo "intel_iommu=on" >> /etc/default/grub  # or amd_iommu=on for AMD
+# update-grub
+# reboot
+#
+# don't do that if planned to passthrough to FreeNAS VM
+
+# Verify HBAs
+lspci | grep -E 'Fibre|LSI'
+# Example (Dell R720):
+# 04:00.0 Fibre Channel: QLogic Corp. ISP2532-based 8Gb Fibre Channel to PCI Express HBA (rev 02)
+# 04:00.1 Fibre Channel: QLogic Corp. ISP2532-based 8Gb Fibre Channel to PCI Express HBA (rev 02)
+# 44:00.0 Serial Attached SCSI controller: Broadcom / LSI SAS2308 PCI-Express Fusion-MPT SAS-2 (rev 05)
+# Note PCI IDs (e.g., 0000:04:00.0, 0000:04:00.1, 0000:44:00.0)
+
+# Get QLogic WWNs
+cat /sys/class/fc_host/host*/port_name
+# Example: 0x21000024ff2ef75d, 0x21000024ff2ef75c
+
+# Load drivers
+modprobe qla2xxx  # QLogic FC
+modprobe mpt3sas  # LSI HBA
+echo "qla2xxx" >> /etc/modules
+echo "mpt3sas" >> /etc/modules
+update-initramfs -u
+
+# Verify FC connectivity (direct to old ProLiant)
+# systool not installed by default; use sysfs instead:
+cat /sys/class/fc_host/host*/port_state  # Should show "Online"
+# Or install sysfsutils: apt update && apt install sysfsutils && systool -c fc_host -v
+# Check for connected FC ports (e.g., remote WWNs if available)
+
+# Verify LSI disks
+lsblk
+# Example: sda to sdh (8x 3.6T SAS disks from LSI HBA)
+
+# Note: Disable LSI HBA boot in BIOS to prevent boot interruptions
+# Dell R720 BIOS: Device Settings > LSI Adapter > Boot Support > Disabled

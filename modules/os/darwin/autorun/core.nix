@@ -5,7 +5,7 @@
 
     # Store management, currently, only nix-darwin supports interval attrs
     # nix.gc.automatic = true;
-    gc.options = "--delete-older-than 15d";
+    gc.options = "--delete-older-than 14d";
 
     gc.interval.Hour = 3;
     optimise.interval.Hour = 4;

@@ -16,7 +16,7 @@ in
         enable = mkEnableOption "Neovim editor";
         package = mkOption {
           type = package;
-          default = pkgs.neovim;
+          default = pkgs.unstable.neovim;
           description = "Neovim package to use";
         };
         extraPackages = mkOption {

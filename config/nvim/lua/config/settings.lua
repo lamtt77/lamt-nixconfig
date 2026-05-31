@@ -11,41 +11,64 @@ vim.opt.termguicolors = true
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
 
-vim.o.sessionoptions="blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal,localoptions"
+vim.o.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal,localoptions"
 
 -- Window split settings
-vim.opt.splitright = false  -- Open vertical splits on the left
-vim.opt.splitbelow = false  -- Open horizontal splits above
+vim.opt.splitright = false -- Open vertical splits on the left
+vim.opt.splitbelow = false -- Open horizontal splits above
 
 -- Theme settings
 vim.opt.background = "dark" -- or "light" for light mode
 
 -- Swap file settings
-vim.opt.directory = vim.fn.stdpath('data') .. '/swap//'
+vim.opt.directory = vim.fn.stdpath("data") .. "/swap//"
 vim.opt.swapfile = true
 
 -- Undo settings
 vim.opt.undofile = true
-vim.opt.undodir = vim.fn.stdpath('data') .. '/undo//'
+vim.opt.undodir = vim.fn.stdpath("data") .. "/undo//"
 vim.opt.undolevels = 10000
 vim.opt.undoreload = 10000
 
 -- Create undo directory if it doesn't exist
-local undo_dir = vim.fn.stdpath('data') .. '/undo'
+local undo_dir = vim.fn.stdpath("data") .. "/undo"
 if vim.fn.isdirectory(undo_dir) == 0 then
-  vim.fn.mkdir(undo_dir, 'p')
+	vim.fn.mkdir(undo_dir, "p")
 end
 
 -- Completion settings
-vim.opt.completeopt = {'menu', 'menuone', 'noselect'}
+vim.opt.completeopt = { "menu", "menuone", "noselect" }
 -- Enable wildmenu for better command line completion
 vim.opt.wildmenu = true
-vim.opt.wildmode = 'list:longest'
+vim.opt.wildmode = "list:longest"
 
 -- Timeout settings for better key mapping recognition
 -- vim.opt.timeoutlen = 1000  -- Default time to wait for mapped sequence to complete
-vim.opt.ttimeoutlen = 100  -- Time to wait for key code sequence to complete
+vim.opt.ttimeoutlen = 100 -- Time to wait for key code sequence to complete
 
 -- Spell checking configuration
-vim.opt.spelllang = 'en_us'             -- Set language to US English
-vim.opt.spellfile = vim.fn.stdpath('config') .. '/spell/en.utf-8.add'  -- Custom dictionary file
+vim.opt.spelllang = "en_us" -- Set language to US English
+vim.opt.spellfile = vim.fn.stdpath("config") .. "/spell/en.utf-8.add" -- Custom dictionary file
+
+-- FIXME: Workaround for Neovim 0.12 treesitter table issue
+-- In some cases, captures return a list of nodes instead of a single node,
+-- causing 'range' method errors in get_node_text and get_range.
+local ts = vim.treesitter
+if ts and ts.get_node_text then
+	local old_get_node_text = ts.get_node_text
+	ts.get_node_text = function(node, source, opts)
+		if type(node) == "table" and node[1] and type(node[1]) == "userdata" then
+			node = node[1]
+		end
+		return old_get_node_text(node, source, opts)
+	end
+end
+if ts and ts.get_range then
+	local old_get_range = ts.get_range
+	ts.get_range = function(node, bufnr, metadata)
+		if type(node) == "table" and node[1] and type(node[1]) == "userdata" then
+			node = node[1]
+		end
+		return old_get_range(node, bufnr, metadata)
+	end
+end

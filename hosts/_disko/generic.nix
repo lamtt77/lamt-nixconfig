@@ -1,6 +1,7 @@
 {
   inputs,
   disks ? ["/dev/sda"],
+  ephemeral ? false,
   ...
 }: {
   imports = [inputs.disko.nixosModules.disko];
@@ -27,7 +28,7 @@
               content = {
                 type = "filesystem";
                 format = "ext4";
-                mountpoint = "/";
+                mountpoint = if ephemeral then "/persist" else "/";
               };
             };
           };

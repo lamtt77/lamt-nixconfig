@@ -16,7 +16,14 @@ in {
   config = mkIf cfg.enable {
     services.openssh = {
       enable = true;
+      hostKeys = [
+        {
+          path = "/etc/ssh/ssh_host_ed25519_key";
+          type = "ed25519";
+        }
+      ];
       settings = {
+        UseDns = false;
         PasswordAuthentication = false;
         PermitRootLogin = "no";
         # Automatically remove stale sockets

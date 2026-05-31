@@ -7,7 +7,6 @@
     };
 
     brews = [
-      "codex"
       "gemini-cli"
       "llama.cpp"
       "sst/tap/opencode"
@@ -30,11 +29,12 @@
       "rectangle"
       "screenflow"
       "slack"
+      "tailscale-app"
       "the-unarchiver"
 
       # AI stuff
+      "codex"
       "claude"
-      "claude-code"
       "cursor"
       "lm-studio"
       "zed"

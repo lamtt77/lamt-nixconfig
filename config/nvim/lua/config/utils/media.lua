@@ -7,7 +7,7 @@ return {
     config = function()
       require("screenshot").setup({
         local_screenshot_dir = "./images",
-        global_screenshot_dir = "~/.local/nvim_screenshots",
+        global_screenshot_dir = vim.fn.stdpath("data") .. "/screenshots",
         keymaps = {
           interactive = "<leader>is",        -- Take interactive screenshot image (local)
           fullscreen = "<leader>if",         -- Take fullscreen screenshot image (local)
@@ -44,6 +44,26 @@ return {
             only_render_image_at_cursor = false,
             floating_windows = false,
             filetypes = { "markdown", "vimwiki" },
+            resolve_image_path = function(document_path, image_path, fallback)
+              -- Handle Hugo static images (absolute path /images/...)
+              if image_path:sub(1, 8) == "/images/" then
+                -- Try to find the project root (where blog/ is)
+                local project_root = vim.fn.getcwd()
+                -- Assuming we are in the root of lamt-nixconfig or inside blog/
+                local possible_paths = {
+                  project_root .. "/blog/static" .. image_path,
+                  project_root .. "/static" .. image_path,
+                }
+                
+                for _, path in ipairs(possible_paths) do
+                  if vim.fn.filereadable(path) == 1 then
+                    return path
+                  end
+                end
+              end
+              
+              return fallback(document_path, image_path)
+            end,
           },
           neorg = {
             enabled = true,
@@ -63,7 +83,8 @@ return {
         window_overlap_clear_enabled = false,
         window_overlap_clear_ft_ignore = { "cmp_menu", "cmp_docs", "snacks_notif", "scrollview", "scrollview_sign" },
         editor_only_render_when_focused = false,
-        hijack_file_patterns = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.avif" },
+        hijack_file_patterns = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.avif", "*.svg" },
+        tmux_show_only_in_active_window = true,
       })
 
       -- Helper function to safely call image methods
@@ -83,43 +104,34 @@ return {
         return result
       end
 
-      -- More conservative approach - let the plugin handle most of the rendering
-      local image_augroup = vim.api.nvim_create_augroup("ImageNvimFirstLoadFix", { clear = true })
-
-      -- Simple trigger for first load
-      vim.api.nvim_create_autocmd({ "BufReadPost", "BufWinEnter" }, {
-        group = image_augroup,
-        pattern = { "*.md", "*.markdown", "*.norg" },
-        callback = function()
-          -- Just trigger a redraw - let the plugin's internal mechanisms handle rendering
-          vim.defer_fn(function()
-            vim.cmd('redraw')
-          end, 200)
-        end,
-      })
-
-      -- Trigger on window events
-      vim.api.nvim_create_autocmd({ "WinEnter", "FocusGained" }, {
-        group = image_augroup,
+      -- Minimal "first load" insurance
+      -- Only triggers once when entering a buffer to ensure kitty graphics are flushed
+      vim.api.nvim_create_autocmd({ "BufWinEnter" }, {
         pattern = { "*.md", "*.markdown", "*.norg" },
         callback = function()
           vim.defer_fn(function()
-            vim.cmd('redraw')
-          end, 100)
+            -- If image plugin is loaded, force a render pass
+            if package.loaded["image"] then
+              pcall(require("image").render)
+            end
+          end, 300)
         end,
       })
 
       -- Global toggle function (accessible to plugins)
       _G.toggle_image_display = function()
-        local success = safe_image_call('is_enabled')
-        if success then
+        if not image then return end
+        
+        -- The plugin API might change, so we wrap this safely
+        local is_enabled = safe_image_call('is_enabled')
+        
+        if is_enabled then
           safe_image_call('disable')
           vim.notify("Image display disabled", vim.log.levels.INFO)
         else
           safe_image_call('enable')
           vim.defer_fn(function()
             safe_image_call('render')
-            vim.cmd('redraw')
           end, 100)
           vim.notify("Image display enabled", vim.log.levels.INFO)
         end
