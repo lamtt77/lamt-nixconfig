@@ -3,7 +3,8 @@
   pkgs,
   ...
 }:
-with lib; {
+with lib;
+{
   fonts =
     optionalAttrs (pkgs.stdenv.isLinux) {
       fontDir.enable = true;

@@ -4,9 +4,11 @@
   mydefs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.acme;
-in {
+in
+{
   options.modules.os.linux.services.acme = {
     enable = mkEnableOption "ACME (Let's Encrypt) configuration";
 
@@ -57,9 +59,11 @@ in {
     security.acme = {
       acceptTerms = true;
       defaults = {
-        server = if cfg.staging
-          then "https://acme-staging-v02.api.letsencrypt.org/directory"
-          else "https://acme-v02.api.letsencrypt.org/directory";
+        server =
+          if cfg.staging then
+            "https://acme-staging-v02.api.letsencrypt.org/directory"
+          else
+            "https://acme-v02.api.letsencrypt.org/directory";
         email = cfg.email;
         renewInterval = "weekly";
       };

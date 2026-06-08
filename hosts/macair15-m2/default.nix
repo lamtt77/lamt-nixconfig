@@ -1,4 +1,9 @@
-{myargs, pkgs, ...}: {
+{
+  myargs,
+  pkgs,
+  ...
+}:
+{
   modules.os.base.services.sops.enable = true;
   modules.os.base.services.wireguard.enable = true;
 

@@ -5,9 +5,11 @@
   ...
 }:
 with builtins;
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.nginx;
-in {
+in
+{
   options.modules.os.linux.services.nginx = {
     enable = mkEnableOption "";
     enableCloudflareSupport = mkEnableOption "";
@@ -15,10 +17,13 @@ in {
 
   config = mkMerge [
     (mkIf cfg.enable {
-      networking.firewall.allowedTCPPorts = [80 443];
+      networking.firewall.allowedTCPPorts = [
+        80
+        443
+      ];
 
-      users.users.${myargs.username}.extraGroups = ["nginx"];
-      users.users.nginx.extraGroups = ["acme"];
+      users.users.${myargs.username}.extraGroups = [ "nginx" ];
+      users.users.nginx.extraGroups = [ "acme" ];
 
       services.nginx = {
         enable = true;
@@ -34,7 +39,7 @@ in {
         # as needed.
         clientMaxBodySize = "256k"; # default 10m
         # Significantly speed up regex matchers
-        appendConfig = ''pcre_jit on;'';
+        appendConfig = "pcre_jit on;";
         commonHttpConfig = ''
           client_body_buffer_size  4k;       # default: 8k
           large_client_header_buffers 2 4k;  # default: 4 8k
@@ -53,12 +58,14 @@ in {
 
     (mkIf cfg.enableCloudflareSupport {
       services.nginx.commonHttpConfig = ''
-        ${concatMapStrings (ip: "set_real_ip_from ${ip};\n")
-          (filter (line: line != "")
-            (splitString "\n" ''
+        ${concatMapStrings (ip: "set_real_ip_from ${ip};\n") (
+          filter (line: line != "") (
+            splitString "\n" ''
               ${readFile (fetchurl "https://www.cloudflare.com/ips-v4/")}
               ${readFile (fetchurl "https://www.cloudflare.com/ips-v6/")}
-            ''))}
+            ''
+          )
+        )}
         real_ip_header CF-Connecting-IP;
       '';
     })
@@ -75,4 +82,3 @@ in {
 #   location ~* /(?:uploads|files)/.*\.php$ {
 #     deny all;
 #   }
-

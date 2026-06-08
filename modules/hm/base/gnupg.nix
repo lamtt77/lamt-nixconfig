@@ -10,14 +10,17 @@
   mydefs,
   ...
 }:
-with lib; let
+with lib;
+let
   inherit (mydefs) gpgDefaultKey gpgSshKeygrip;
   cfg = config.modules.hm.base.gnupg;
   pinentry-program =
-    if pkgs.stdenv.isDarwin
-    then "${lib.getExe pkgs.pinentry_mac}"
-    else "${lib.getExe pkgs.pinentry-gnome3}";
-in {
+    if pkgs.stdenv.isDarwin then
+      "${lib.getExe pkgs.pinentry_mac}"
+    else
+      "${lib.getExe pkgs.pinentry-gnome3}";
+in
+{
   options.modules.hm.base.gnupg = with types; {
     enable = mkEnableOption "GnuPG module";
     defaultCacheTTL = mkOption {
@@ -36,38 +39,40 @@ in {
       SSH_AUTH_SOCK = "$(gpgconf --list-dirs agent-ssh-socket)";
     };
 
-    programs = let
-      fixGpg = ''
-        gpgconf --launch gpg-agent
-        gpg-connect-agent updatestartuptty /bye >/dev/null
-      '';
-    in {
-      # Start gpg-agent if it's not running or tunneled in
-      bash.profileExtra = fixGpg;
-      zsh.initContent = fixGpg;
+    programs =
+      let
+        fixGpg = ''
+          gpgconf --launch gpg-agent
+          gpg-connect-agent updatestartuptty /bye >/dev/null
+        '';
+      in
+      {
+        # Start gpg-agent if it's not running or tunneled in
+        bash.profileExtra = fixGpg;
+        zsh.initContent = fixGpg;
 
-      gpg = {
-        enable = true;
-        homedir = "${config.xdg.configHome}/gnupg";
+        gpg = {
+          enable = true;
+          homedir = "${config.xdg.configHome}/gnupg";
 
-        # # If set `mutableTrust` to false, the path $GNUPGHOME/trustdb.gpg will be overwritten on each activation.
-        # # Thus we can only update trsutedb.gpg via home-manager.
-        # mutableTrust = false;
-        # # If set `mutableKeys` to false, the path $GNUPGHOME/pubring.kbx will become an immutable link to the Nix store, denying modifications.
-        # # Thus we can only update pubring.kbx via home-manager
-        # mutableKeys = false;
+          # # If set `mutableTrust` to false, the path $GNUPGHOME/trustdb.gpg will be overwritten on each activation.
+          # # Thus we can only update trsutedb.gpg via home-manager.
+          # mutableTrust = false;
+          # # If set `mutableKeys` to false, the path $GNUPGHOME/pubring.kbx will become an immutable link to the Nix store, denying modifications.
+          # # Thus we can only update pubring.kbx via home-manager
+          # mutableKeys = false;
 
-        settings = {
-          default-key = gpgDefaultKey;
-          keyserver = "hkps://keys.openpgp.org";
-          keyserver-options = "no-auto-key-retrieve";
-        };
+          settings = {
+            default-key = gpgDefaultKey;
+            keyserver = "hkps://keys.openpgp.org";
+            keyserver-options = "no-auto-key-retrieve";
+          };
 
-        scdaemonSettings = {
-          disable-ccid = true;
+          scdaemonSettings = {
+            disable-ccid = true;
+          };
         };
       };
-    };
 
     # this is for supporting darwin/cross platform, headless pinentry
     xdg.configFile = mkIf cfg.enableSSHSupport {

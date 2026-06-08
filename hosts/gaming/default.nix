@@ -4,23 +4,15 @@
   lib,
   mydefs,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-gaming.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
     })
   ];
-
-  deployment = {
-    vmid = "110";
-    proxmox = {
-      host = mydefs.hosts.pve1.ip;
-      bios = "ovmf";
-      diskBus = "scsi";
-    };
-  };
 
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;

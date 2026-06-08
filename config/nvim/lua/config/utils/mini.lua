@@ -95,6 +95,26 @@ return {
 				},
 			}) -- Indent visualization
 
+			-- Disable indentscope in Neogit and other transient buffers where
+			-- the full-buffer indent scan adds noticeable latency.
+			vim.api.nvim_create_autocmd("FileType", {
+				pattern = {
+					"NeogitStatus",
+					"NeogitCommitMessage",
+					"NeogitLogView",
+					"NeogitDiffView",
+					"NeogitRebaseTodo",
+					"NeogitPopup",
+					"gitcommit",
+					"gitrebase",
+					"help",
+					"man",
+				},
+				callback = function()
+					vim.b.miniindentscope_disable = true
+				end,
+			})
+
 			-- Additional quality-of-life modules
 			require("mini.trailspace").setup() -- Trailing whitespace
 			require("mini.bufremove").setup() -- Smart buffer removal

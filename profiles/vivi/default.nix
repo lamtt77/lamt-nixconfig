@@ -3,17 +3,20 @@
   pkgs,
   myargs,
   ...
-}: let
+}:
+let
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
-in {
+in
+{
   modules.hm.base.bash.enable = true;
   modules.hm.base.zsh.enable = true;
   modules.hm.base.term.kitty.enable = true;
 
   programs.fzf.enable = true;
 
-  home.packages = with pkgs;
+  home.packages =
+    with pkgs;
     [
       asciinema
       bat
@@ -36,6 +39,6 @@ in {
     ])
     ++ (lib.optionals (isLinux && !myargs.wsl) [
       chromium
-      xfce.xfce4-terminal
+      xfce4-terminal
     ]);
 }

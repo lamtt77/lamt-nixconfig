@@ -4,11 +4,13 @@
   my,
   pkgs,
   ...
-}: let
+}:
+let
   inherit (pkgs.stdenv) isDarwin;
   inherit (pkgs.stdenv) isLinux;
   mkLink = my.mkLinkCfg config;
-in {
+in
+{
   xdg.enable = true;
 
   home.sessionVariables = {
@@ -27,15 +29,14 @@ in {
     ".luacheckrc".source = mkLink "config/.luacheckrc";
   };
 
-  xdg.configFile =
-    {
-      "ranger".source = mkLink "config/ranger";
-    }
-    // lib.optionalAttrs isDarwin {
-      "karabiner".source = mkLink "config/karabiner";
-      # Rectangle.app. This has to be imported manually using the app itself.
-      "rectangle".source = mkLink "config/_darwin/rectangle";
-    }
-    // lib.optionalAttrs isLinux {
-    };
+  xdg.configFile = {
+    "ranger".source = mkLink "config/ranger";
+  }
+  // lib.optionalAttrs isDarwin {
+    "karabiner".source = mkLink "config/karabiner";
+    # Rectangle.app. This has to be imported manually using the app itself.
+    "rectangle".source = mkLink "config/_darwin/rectangle";
+  }
+  // lib.optionalAttrs isLinux {
+  };
 }

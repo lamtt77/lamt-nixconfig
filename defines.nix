@@ -7,7 +7,6 @@ rec {
   # globals
   stateVersion = "23.11";
   defaultUsername = "lamt";
-  systems = ["x86_64-linux" "x86_64-darwin" "aarch64-linux" "aarch64-darwin"];
 
   gitUserName = "LamT";
   gmailDomain = "gmail.com";
@@ -27,14 +26,13 @@ rec {
   # openssh authorizedKeys: lamt ssh pubkey
   mySshAuthKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJCiBimBlJYNvMmk8F/UPvBjtgBR8tDIgXyeaUOIEtOA lamt";
 
-  defaultNetworks = ["192.168.1.0/24"];
+  defaultNetworks = [ "192.168.1.0/24" ];
   myDomain = "lamhub.com";
   teaURL = "tea.${myDomain}";
   teaPubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILFQNRnyN+YfSLPEnAlHUAocBYRLZuGUOQuJLVJ0beMr";
   hostURL = "air15.lamhub.lan";
-  nas = "nas.lamhub.me";
-  nasBackupDevice = "${nas}:/mnt/arthur_z2/Backup";
-  nasArthurVM = "${nas}:/mnt/arthur_z2/VM";
+  nasIp = "192.168.1.6";
+  nasArthurVM = "${nasIp}:/mnt/arthur_z2/VM";
 
   # postfix
   relayHost = "smtp.zoho.com";
@@ -45,24 +43,7 @@ rec {
   networkingDefaults = {
     gateway = "192.168.1.1";
     netmask = "24";
-    nameservers = ["192.168.1.1"];
-  };
-
-  # networking configurations per host
-  networking = {
-    avon =
-      networkingDefaults
-      // {
-        ip = "192.168.1.18";
-        interface = "ens18";
-        iperfPort = 5201;
-      };
-    utils =
-      networkingDefaults
-      // {
-        ip = "192.168.1.19";
-        interface = "ens18";
-      };
+    nameservers = [ "192.168.1.1" ];
   };
 
   # Public key corresponding to nix_builder_key in sops secrets.
@@ -70,7 +51,6 @@ rec {
   nixBuilderPubkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPQ6rLqT/I8ihel6CUfXc3MuVzcr/cG7nLe13XMSKnJj nix-builder";
 
   # host-specific configurations
-
   hosts.avon.nas = nasArthurVM;
 
   hosts.pve1 = {

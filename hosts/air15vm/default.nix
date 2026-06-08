@@ -4,27 +4,21 @@
   pkgs,
   mydefs,
   ...
-}: let
+}:
+let
   hostURL = mydefs.hostURL;
-in {
+in
+{
   imports = [
     ./hardware-air15vm.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
     })
   ];
 
-  deployment = {
-    targetIp = ""; # Resolved dynamically via MagicDNS
-    diskSize = "64";
-    vmware = {
-      vmxPath = "/Users/lamt/Virtual Machines.localized/air15vm-nixos-25.11.vmwarevm/air15vm-nixos-25.11.vmx";
-    };
-  };
-
   # Setup qemu so we can run x86_64 binaries
-  boot.binfmt.emulatedSystems = ["x86_64-linux"];
+  boot.binfmt.emulatedSystems = [ "x86_64-linux" ];
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
@@ -34,7 +28,7 @@ in {
   virtualisation.docker.enable = true;
 
   modules.os.base.services.sops.enable = true;
-  sops.secrets.tailscale_preauth_key = {};
+  sops.secrets.tailscale_preauth_key = { };
 
   modules.os.linux.services.openssh.enable = true;
   modules.os.base.services.tailscale = {

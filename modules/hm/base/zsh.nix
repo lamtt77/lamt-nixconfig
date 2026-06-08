@@ -4,28 +4,36 @@
   config,
   lib,
   ...
-}: let
+}:
+let
   cfg = config.modules.hm.base.zsh;
   inherit (inputs) self;
 in
-  with lib; {
-    options.modules.hm.base.zsh = with types; {
-      enable = mkEnableOption "Zsh shell";
+with lib;
+{
+  options.modules.hm.base.zsh = with types; {
+    enable = mkEnableOption "Zsh shell";
+  };
+
+  config = mkIf cfg.enable {
+    home.file = {
+      ".p10k.zsh".source = "${self}/config/zsh/.p10k.zsh";
     };
 
-    config = mkIf cfg.enable {
-      home.file.".p10k.zsh".source = "${self}/config/zsh/.p10k.zsh";
+    programs.zsh = {
+      enable = true;
+      # dotDir = "${config.xdg.configHome}/zsh";
+      dotDir = config.home.homeDirectory;
 
-      programs.zsh = {
-        enable = true;
-        initContent = builtins.readFile "${self}/config/zsh/.z4hrc";
-        envExtra = builtins.readFile "${self}/config/zsh/.z4henv";
+      initContent = builtins.readFile "${self}/config/zsh/.z4hrc";
+      envExtra = builtins.readFile "${self}/config/zsh/.z4henv";
 
-        shellAliases = {
-          swn = "sudo nixos-rebuild switch --flake ${inputs.self.outPath}";
-          swh = "home-manager switch --flake ${inputs.self.outPath}";
-          swb = "swn;swh";
-        };
+      shellAliases = {
+        lamd = "nix run ${inputs.self.outPath}#installer-rs --";
+        swn = "sudo nixos-rebuild switch --flake ${inputs.self.outPath}";
+        swh = "home-manager switch --flake ${inputs.self.outPath}";
+        swb = "swn;swh";
       };
     };
-  }
+  };
+}

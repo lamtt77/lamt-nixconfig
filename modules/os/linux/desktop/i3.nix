@@ -6,10 +6,12 @@
   myargs,
   ...
 }:
-with lib; let
+with lib;
+let
   inherit (inputs) self;
   cfg = config.modules.os.linux.desktop.i3;
-in {
+in
+{
   options.modules.os.linux.desktop.i3 = {
     enable = mkEnableOption "";
   };
@@ -19,7 +21,7 @@ in {
     # such as Flatpak applications.
     xdg.portal = {
       enable = true;
-      extraPortals = [pkgs.xdg-desktop-portal-gtk];
+      extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
       config.common.default = "*";
     };
 
@@ -43,7 +45,7 @@ in {
           # AARCH64: For now, on Apple Silicon, we must manually set the
           # display resolution. This is a known issue with VMware Fusion.
           sessionCommands = ''
-            ${pkgs.xorg.xset}/bin/xset r rate 200 60
+            ${pkgs.xset}/bin/xset r rate 200 60
           '';
         };
 
@@ -78,7 +80,7 @@ in {
         dragon-drop # drag'n'drop from the terminal
         xclip
         xdotool
-        xorg.xwininfo
+        xwininfo
       ];
 
       programs.i3status = {

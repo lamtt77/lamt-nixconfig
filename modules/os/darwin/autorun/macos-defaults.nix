@@ -18,11 +18,11 @@
         #  6: Disable screen saver
         #  7: Dashboard
         # 10: Put display to sleep
+        # 13: Lock Screen
         wvous-tl-corner = 2; # top-left - Mission Control
         wvous-tr-corner = 4; # top-right - Desktop
         wvous-bl-corner = 3; # bottom-left - Application Windows
-        # wvous-br-corner = 13; # bottom-right - Lock Screen
-        wvous-br-corner = null;
+        wvous-br-corner = 3;
       };
 
       # customize finder

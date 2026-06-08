@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.polkit;
-in {
+in
+{
   options.modules.hm.base.polkit = with types; {
     enable = mkEnableOption "Polkit Gnome";
   };
@@ -15,8 +17,8 @@ in {
     systemd.user.services.polkit-gnome-authentication-agent-1 = {
       Unit = {
         Description = "polkit-gnome-authentication-agent-1";
-        PartOf = ["graphical-session.target"];
-        After = ["graphical-session.target"];
+        PartOf = [ "graphical-session.target" ];
+        After = [ "graphical-session.target" ];
       };
       Service = {
         Environment = "";
@@ -24,9 +26,9 @@ in {
         Restart = "on-failure";
         RestartSec = 10;
       };
-      Install.WantedBy = ["graphical-session.target"];
+      Install.WantedBy = [ "graphical-session.target" ];
     };
 
-    home.packages = [pkgs.polkit_gnome];
+    home.packages = [ pkgs.polkit_gnome ];
   };
 }

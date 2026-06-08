@@ -2,9 +2,13 @@
   config,
   lib,
   pkgs,
-  ...}:with lib; let
+  ...
+}:
+with lib;
+let
   cfg = config.modules.os.linux.services.dell-ipmi-fan;
-in {
+in
+{
   options.modules.os.linux.services.dell-ipmi-fan = {
     enable = mkEnableOption "Dell IPMI Fan Control service";
 
@@ -52,7 +56,12 @@ in {
   config = mkIf cfg.enable {
     systemd.services.dell-ipmi-fan-control = {
       description = "Dell IPMI Fan Control Service";
-      path = with pkgs; [ipmitool gnugrep coreutils gawk];
+      path = with pkgs; [
+        ipmitool
+        gnugrep
+        coreutils
+        gawk
+      ];
 
       serviceConfig = {
         Type = "oneshot";
@@ -102,7 +111,7 @@ in {
 
     systemd.timers.dell-ipmi-fan-control = {
       description = "Timer for Dell IPMI Fan Control";
-      wantedBy = ["timers.target"];
+      wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = cfg.interval;
         Persistent = true;

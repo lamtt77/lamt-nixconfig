@@ -7,7 +7,7 @@
 stdenv.mkDerivation {
   name = "blog";
   src = ../../blog;
-  buildInputs = [hugo];
+  buildInputs = [ hugo ];
 
   buildPhase = ''
     rm -rf themes

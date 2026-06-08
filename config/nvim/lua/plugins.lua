@@ -4,15 +4,18 @@
 -- Bootstrap lazy.nvim if not installed
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 ---@type uv
-if not vim.loop.fs_stat(lazypath) then
-  vim.fn.system({
+if not vim.uv.fs_stat(lazypath) then
+  local result = vim.system({
     "git",
     "clone",
     "--filter=blob:none",
     "https://github.com/folke/lazy.nvim.git",
     "--branch=stable",
     lazypath,
-  })
+  }, { text = true }):wait()
+  if result.code ~= 0 then
+    error("Failed to clone lazy.nvim:\n" .. (result.stderr or "unknown error"))
+  end
 end
 vim.opt.rtp:prepend(lazypath)
 
@@ -32,6 +35,7 @@ require("lazy").setup({
   { import = "config.utils" },
   { import = "config.formatting" },
   { import = "config.linting" },
+  { import = "config.markdown" },
 }, {
   performance = {
     rtp = { reset = false },

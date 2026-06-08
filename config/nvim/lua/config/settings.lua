@@ -7,11 +7,21 @@ vim.opt.shiftwidth = 2
 vim.opt.smartindent = true
 vim.opt.termguicolors = true
 
+-- Keep legacy syntax available for filetypes without a Treesitter parser.
+-- The Treesitter setup disables it per buffer after its highlighter attaches.
+vim.cmd("syntax enable")
+
+-- Cap legacy VimL syntax column to prevent regex engine from scanning long
+-- lines before Treesitter attaches or in buffers that use syntax fallback.
+vim.opt.synmaxcol = 256
+
 -- disable netrw
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
 
-vim.o.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal,localoptions"
+-- Persist the visible workspace, not hidden cross-project buffers or terminals.
+-- Restoring those buffers eagerly triggers avoidable filetype, LSP, and plugin work.
+vim.o.sessionoptions = "blank,curdir,folds,tabpages,winsize,winpos,localoptions"
 
 -- Window split settings
 vim.opt.splitright = false -- Open vertical splits on the left

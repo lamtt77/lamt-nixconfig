@@ -12,9 +12,11 @@
   myargs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.gitea;
-in {
+in
+{
   options.modules.os.linux.services.gitea = {
     enable = mkEnableOption "";
   };
@@ -39,7 +41,7 @@ in {
       isSystemUser = true;
     };
 
-    users.users.${myargs.username}.extraGroups = ["gitea"];
+    users.users.${myargs.username}.extraGroups = [ "gitea" ];
     services = {
       gitea = {
         enable = true;
@@ -101,36 +103,38 @@ in {
     };
 
     # backup strategy
-    systemd.services = let
-      gitea = "${pkgs.gitea}/bin/gitea";
-      appini = "/var/lib/gitea/custom/conf/app.ini";
-      bkdir = "/mnt/arthur_z2/Backup/gitea";
-      mkBackupService = suffix: schedule: {
-        description = "Gitea Backup - ${suffix}";
-        serviceConfig = {
-          User = "git";
-          Group = "gitea";
-          Type = "oneshot";
+    systemd.services =
+      let
+        gitea = "${pkgs.gitea}/bin/gitea";
+        appini = "/var/lib/gitea/custom/conf/app.ini";
+        bkdir = "/mnt/arthur_z2/Backup/gitea";
+        mkBackupService = suffix: schedule: {
+          description = "Gitea Backup - ${suffix}";
+          serviceConfig = {
+            User = "git";
+            Group = "gitea";
+            Type = "oneshot";
+          };
+          script = ''
+            TARGET_FILE="${bkdir}/teadump-${suffix}.zip"
+            if [ ! -w "${bkdir}" ]; then
+              echo "Error: ${bkdir} is not writable by user $(whoami)"
+              exit 1
+            fi
+            # Gitea dump fails if file exists, so we must remove it first
+            if [ -f "$TARGET_FILE" ]; then
+              rm -f "$TARGET_FILE"
+            fi
+            ${gitea} dump -c ${appini} -f "$TARGET_FILE"
+          '';
         };
-        script = ''
-          TARGET_FILE="${bkdir}/teadump-${suffix}.zip"
-          if [ ! -w "${bkdir}" ]; then
-            echo "Error: ${bkdir} is not writable by user $(whoami)"
-            exit 1
-          fi
-          # Gitea dump fails if file exists, so we must remove it first
-          if [ -f "$TARGET_FILE" ]; then
-            rm -f "$TARGET_FILE"
-          fi
-          ${gitea} dump -c ${appini} -f "$TARGET_FILE"
-        '';
+      in
+      {
+        gitea-dump-daily = mkBackupService "daily-$(date +\%a)" "";
+        gitea-dump-weekly = mkBackupService "weekly-$(date +\%V)" "";
+        gitea-dump-monthly = mkBackupService "monthly-$(date +\%b)" "";
+        gitea-dump-testing = mkBackupService "testing-$(date +\%a)" "";
       };
-    in {
-      gitea-dump-daily = mkBackupService "daily-$(date +\%a)" "";
-      gitea-dump-weekly = mkBackupService "weekly-$(date +\%V)" "";
-      gitea-dump-monthly = mkBackupService "monthly-$(date +\%b)" "";
-      gitea-dump-testing = mkBackupService "testing-$(date +\%a)" "";
-    };
 
     systemd.timers = {
       # gitea-dump-testing = {
@@ -141,21 +145,21 @@ in {
       #   };
       # };
       gitea-dump-daily = {
-        wantedBy = ["timers.target"];
+        wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "*-*-* 22:45:00";
           Persistent = true;
         };
       };
       gitea-dump-weekly = {
-        wantedBy = ["timers.target"];
+        wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "Sun *-*-* 23:15:00";
           Persistent = true;
         };
       };
       gitea-dump-monthly = {
-        wantedBy = ["timers.target"];
+        wantedBy = [ "timers.target" ];
         timerConfig = {
           OnCalendar = "*-*-01 01:00:00";
           Persistent = true;

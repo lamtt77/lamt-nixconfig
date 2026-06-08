@@ -1,11 +1,8 @@
-local common = require("config.common")
-
 return {
 	-- Git signs and hunk management
 	{
 		"lewis6991/gitsigns.nvim",
-		event = "VeryLazy",
-		cond = common.is_git_repo,
+		event = { "BufReadPre", "BufNewFile" },
 		config = function()
 			require("gitsigns").setup({
 				signs = {
@@ -61,7 +58,7 @@ return {
 
 	-- Modern Git interface (Magit-inspired)
 	{
-		"TimUntersberger/neogit",
+		"NeogitOrg/neogit",
 		cmd = "Neogit",
 		keys = {
 			{ "<leader>gg", "<cmd>Neogit<CR>", desc = "Neogit status" },
@@ -69,8 +66,12 @@ return {
 		dependencies = { "sindrets/diffview.nvim" },
 		config = function()
 			require("neogit").setup({
+				filewatcher = {
+					enabled = false,
+				},
 				integrations = {
 					diffview = true,
+					fzf_lua = false,
 					telescope = true,
 				},
 				graph_style = "unicode",
@@ -93,7 +94,6 @@ return {
 	{
 		"sindrets/diffview.nvim",
 		cmd = { "DiffviewOpen", "DiffviewClose", "DiffviewFileHistory" },
-		cond = common.is_git_repo,
 		config = function()
 			require("diffview").setup({
 				enhanced_diff_hl = true,

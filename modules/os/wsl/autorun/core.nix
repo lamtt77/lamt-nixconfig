@@ -2,7 +2,8 @@
   mydefs,
   myargs,
   ...
-}: {
+}:
+{
   wsl = {
     enable = true;
     defaultUser = myargs.username;

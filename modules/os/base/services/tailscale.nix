@@ -5,10 +5,12 @@
   myargs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.base.services.tailscale;
   isLinux = hasSuffix "-linux" myargs.system;
-in {
+in
+{
   options = {
     modules.os.base.services.tailscale = {
       enable = lib.mkEnableOption "Tailscale Service";
@@ -36,8 +38,8 @@ in {
     }
     (optionalAttrs isLinux {
       services.tailscale.extraUpFlags = mkMerge [
-        (mkIf (cfg.loginServer != "") ["--login-server=${cfg.loginServer}"])
-        (mkIf cfg.exitNode ["--advertise-exit-node"])
+        (mkIf (cfg.loginServer != "") [ "--login-server=${cfg.loginServer}" ])
+        (mkIf cfg.exitNode [ "--advertise-exit-node" ])
       ];
 
       services.tailscale.authKeyFile = mkIf (cfg.authKeyFile != null) cfg.authKeyFile;
@@ -46,7 +48,7 @@ in {
 
       networking.nat = mkIf cfg.exitNode {
         enable = mkDefault true;
-        internalInterfaces = ["tailscale0"];
+        internalInterfaces = [ "tailscale0" ];
       };
 
       boot.kernel.sysctl = mkIf cfg.exitNode {
@@ -56,16 +58,7 @@ in {
 
       services.resolved = {
         enable = true;
-        # Disable mDNS and LLMNR to prevent ~13s timeouts on reverse DNS
-        # lookups for LAN IPs (e.g., getent hosts 192.168.1.x).
-        # These multicast protocols never have PTR records for RFC1918
-        # addresses and cause SSH session setup to hang via PAM/systemd-logind.
-        extraConfig = ''
-          MulticastDNS=no
-          LLMNR=no
-        '';
       };
     })
   ]);
 }
-

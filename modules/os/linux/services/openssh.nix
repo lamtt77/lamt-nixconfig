@@ -4,9 +4,11 @@
   mydefs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.openssh;
-in {
+in
+{
   options = with types; {
     modules.os.linux.services.openssh = {
       enable = mkEnableOption "OpenSSH service";
@@ -43,6 +45,6 @@ in {
     '';
 
     # programs.ssh.startAgent = true;
-    networking.firewall.allowedTCPPorts = [22];
+    networking.firewall.allowedTCPPorts = [ 22 ];
   };
 }

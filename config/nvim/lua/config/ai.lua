@@ -18,7 +18,7 @@ local function get_secret(secret_ref)
 	if secret_ref:match("^pass://") then
 		-- SECURITY: Properly escape the path to prevent injection
 		local path = secret_ref:gsub("^pass://", "")
-		
+
 		-- Use vim.system (NVIM 0.10+) for better control/timeout
 		local obj = vim.system({ "pass", "show", path }, { text = true, timeout = 5000 }):wait()
 		if obj.code == 0 then
@@ -202,17 +202,19 @@ return {
 			or "make",
 		cmd = { "AvanteToggle", "AvanteAsk", "AvanteEdit" },
 		version = false, -- Never set this value to "*"! Never!
-		config = function()
+		config = function(_, opts)
 			-- Initialize secrets when Avante is actually loaded
 			ensure_secrets()
-			-- Ensure Avante is properly set up
-			require("avante").setup()
+			require("avante").setup(opts)
 		end,
 		---@module 'avante.config'
 		---@type table
 		opts = {
 			instructions_file = "avante.md",
 			provider = "gemini",
+			selector = {
+				provider = "telescope",
+			},
 			providers = {
 				gemini = {
 					-- API key is set via AVANTE_GEMINI_API_KEY environment variable

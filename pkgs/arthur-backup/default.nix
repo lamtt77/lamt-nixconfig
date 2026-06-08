@@ -1,9 +1,9 @@
-{pkgs, ...}:
+{ pkgs, ... }:
 pkgs.stdenv.mkDerivation {
   name = "arthur-backup";
   src = ./.;
 
-  buildInputs = [pkgs.makeWrapper];
+  buildInputs = [ pkgs.makeWrapper ];
 
   installPhase = ''
     mkdir -p $out/bin

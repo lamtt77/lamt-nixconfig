@@ -47,7 +47,6 @@ return {
           treesitter = true,
           notify = false,
           mini = true,  -- Enable mini integration
-          telescope = true,
           lsp_trouble = false,
           lsp_saga = false,
           which_key = false,  -- Disabled since we removed which-key

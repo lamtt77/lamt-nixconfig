@@ -4,23 +4,25 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.cloudflared;
-in {
+in
+{
   options.modules.os.linux.services.cloudflared = {
     enable = mkEnableOption "Cloudflare Tunnel service";
   };
 
   config = mkIf cfg.enable {
     environment.systemPackages = [
-      pkgs.unstable.cloudflared
+      pkgs.cloudflared
     ];
 
     users.users.cloudflared = {
       group = "cloudflared";
       isSystemUser = true;
     };
-    users.groups.cloudflared = {};
+    users.groups.cloudflared = { };
 
     services.cloudflared.enable = true;
   };

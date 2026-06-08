@@ -1,20 +1,18 @@
 use super::IdentityService;
 use crate::context::RuntimeContext;
 use crate::process::CommandExecutor;
-use crate::process::LogTarget;
-use dialoguer::Confirm;
+use crate::process::Logger;
 use serde::Deserialize;
 use std::env;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 pub struct TailscaleService {
-    _log_target: Arc<Mutex<LogTarget>>,
+    _logger: Logger,
 }
 
 impl TailscaleService {
-    pub fn new(log_target: Arc<Mutex<LogTarget>>) -> Self {
-        Self { _log_target: log_target }
+    pub fn new(logger: Logger) -> Self {
+        Self { _logger: logger }
     }
 
     /// Resolves the secrets repository absolute path.
@@ -27,7 +25,12 @@ impl TailscaleService {
             return None;
         }
         let output = std::process::Command::new("sops")
-            .args(&["-d", "--extract", "[\"tailscale_preauth_key\"]", &secrets_file.to_string_lossy()])
+            .args([
+                "-d",
+                "--extract",
+                "[\"tailscale_preauth_key\"]",
+                &secrets_file.to_string_lossy(),
+            ])
             .output();
         if let Ok(out) = output {
             if out.status.success() {
@@ -40,14 +43,22 @@ impl TailscaleService {
         None
     }
 
-    fn set_tailscale_preauth_key(&self, secrets_file: &Path, new_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn set_tailscale_preauth_key(
+        &self,
+        secrets_file: &Path,
+        new_key: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let set_expr = format!("[\"tailscale_preauth_key\"] \"{}\"", new_key);
         let output = std::process::Command::new("sops")
-            .args(&["--set", &set_expr, &secrets_file.to_string_lossy()])
+            .args(["--set", &set_expr, &secrets_file.to_string_lossy()])
             .output()?;
         if !output.status.success() {
             let err_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Failed to update tailscale_preauth_key in SOPS file: {}", err_msg).into());
+            return Err(format!(
+                "Failed to update tailscale_preauth_key in SOPS file: {}",
+                err_msg
+            )
+            .into());
         }
         Ok(())
     }
@@ -76,12 +87,10 @@ impl IdentityService for TailscaleService {
     }
 
     fn pre_install(&self, ctx: &RuntimeContext) -> Result<(), Box<dyn std::error::Error>> {
-        let secrets_repo = self.get_secrets_repo();
-        let host_secret_file = secrets_repo.join("sops").join(format!("{}.yaml", ctx.hostname));
-
-        if !host_secret_file.exists() {
+        let Some(source) = crate::config::resolve_host_sops_source(&ctx.hostname) else {
             return Ok(());
-        }
+        };
+        let host_secret_file = source.path;
 
         let existing_key = self.get_tailscale_preauth_key(&host_secret_file);
         if existing_key.is_none() {
@@ -90,12 +99,18 @@ impl IdentityService for TailscaleService {
         }
         let existing_key = existing_key.unwrap();
 
-        let avon_ip = env::var("HEADSCALE_COORDINATOR_IP").unwrap_or_else(|_| "100.64.0.1".to_string());
-        let avon_user = env::var("HEADSCALE_COORDINATOR_USER").unwrap_or_else(|_| "nixos".to_string());
+        let avon_ip =
+            env::var("HEADSCALE_COORDINATOR_IP").unwrap_or_else(|_| "100.64.0.1".to_string());
+        let avon_user =
+            env::var("HEADSCALE_COORDINATOR_USER").unwrap_or_else(|_| "nixos".to_string());
         let avon_ssh = format!("{}@{}", avon_user, avon_ip);
 
         // Ping check to avoid long SSH timeouts if coordinator is unreachable
-        println!("Checking Headscale coordinator status at {}...", avon_ip);
+        crate::info!(
+            &self._logger,
+            "Checking Headscale coordinator status at {}...",
+            avon_ip
+        );
         let ping_args = if cfg!(target_os = "macos") {
             vec!["-c", "1", "-t", "2", &avon_ip]
         } else {
@@ -108,32 +123,32 @@ impl IdentityService for TailscaleService {
             .unwrap_or(false);
 
         if !ping_success {
-            println!("Warning: Headscale coordinator ({}) is unreachable. Skipping pre-auth key validation.", avon_ip);
+            crate::warn!(
+                &self._logger,
+                "Headscale coordinator ({}) is unreachable. Skipping pre-auth key validation.",
+                avon_ip
+            );
             return Ok(());
         }
 
-        println!("Validating Tailscale pre-auth key for {} on Headscale...", ctx.hostname);
-        
+        crate::info!(
+            &self._logger,
+            "Validating Tailscale pre-auth key for {} on Headscale...",
+            ctx.hostname
+        );
+
         // Fetch all users
-        let users_json = CommandExecutor::execute(
-            "ssh",
-            &[
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "UserKnownHostsFile=/dev/null",
-                "-o", "LogLevel=ERROR",
-                "-o", "ConnectTimeout=3",
-                "-o", "PasswordAuthentication=no",
-                &avon_ssh,
-                "sudo headscale users list --output json",
-            ],
-            Arc::new(Mutex::new(LogTarget::Silent)),
-        )?;
+        let mut fetch_args = crate::remote::ssh::SshOptions::probe(3).ssh_args_before_target();
+        fetch_args.push(avon_ssh.to_string());
+        fetch_args.push("sudo headscale users list --output json".to_string());
+        let fetch_args_str: Vec<&str> = fetch_args.iter().map(|s| s.as_str()).collect();
+        let users_json = CommandExecutor::execute("ssh", &fetch_args_str, Logger::silent())?;
 
         let users: Vec<HeadscaleUser> = match serde_json::from_str(&users_json) {
             Ok(u) => u,
             Err(e) => {
-                println!("Error parsing Headscale users JSON: {:?}", e);
-                println!("Raw JSON was:\n{}", users_json);
+                crate::error!(&self._logger, "Error parsing Headscale users JSON: {:?}", e);
+                crate::info!(&self._logger, "Raw JSON was:\n{}", users_json);
                 Vec::new()
             }
         };
@@ -151,31 +166,27 @@ impl IdentityService for TailscaleService {
                 serde_json::Value::String(s) => s.clone(),
                 _ => String::new(),
             };
-            let list_cmd = format!("sudo headscale preauthkeys list -u {} --output json", user_id_str);
-            if let Ok(keys_json) = CommandExecutor::execute(
-                "ssh",
-                &[
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "UserKnownHostsFile=/dev/null",
-                    "-o", "LogLevel=ERROR",
-                    "-o", "ConnectTimeout=3",
-                    "-o", "PasswordAuthentication=no",
-                    &avon_ssh,
-                    &list_cmd,
-                ],
-                Arc::new(Mutex::new(LogTarget::Silent)),
-            ) {
+            let list_cmd = format!(
+                "sudo headscale preauthkeys list -u {} --output json",
+                user_id_str
+            );
+            let mut list_args = crate::remote::ssh::SshOptions::probe(3).ssh_args_before_target();
+            list_args.push(avon_ssh.to_string());
+            list_args.push(list_cmd.clone());
+            let list_args_str: Vec<&str> = list_args.iter().map(|s| s.as_str()).collect();
+            if let Ok(keys_json) = CommandExecutor::execute("ssh", &list_args_str, Logger::silent())
+            {
                 let keys: Vec<HeadscalePreauthKey> = match serde_json::from_str(&keys_json) {
                     Ok(k) => k,
                     Err(e) => {
-                        println!("Error parsing Headscale keys JSON: {:?}", e);
-                        println!("Raw JSON was:\n{}", keys_json);
+                        crate::error!(&self._logger, "Error parsing Headscale keys JSON: {:?}", e);
+                        crate::info!(&self._logger, "Raw JSON was:\n{}", keys_json);
                         Vec::new()
                     }
                 };
                 if let Some(key_match) = keys.into_iter().find(|k| k.key == existing_key) {
                     found_username = user.name.clone();
-                    
+
                     if let Some(exp) = key_match.expiration {
                         let exp_seconds = match &exp.seconds {
                             serde_json::Value::Number(n) => n.as_i64().unwrap_or(0),
@@ -183,7 +194,11 @@ impl IdentityService for TailscaleService {
                             _ => 0,
                         };
                         if exp_seconds < now_seconds {
-                            println!("Warning: Tailscale pre-auth key is EXPIRED for user '{}'.", user.name);
+                            crate::warn!(
+                                &self._logger,
+                                "Tailscale pre-auth key is EXPIRED for user '{}'.",
+                                user.name
+                            );
                             key_invalid = true;
                         }
                     }
@@ -193,33 +208,30 @@ impl IdentityService for TailscaleService {
         }
 
         if found_username.is_empty() {
-            println!("Warning: Tailscale pre-auth key not found or revoked on Headscale coordinator.");
+            crate::warn!(
+                &self._logger,
+                "Tailscale pre-auth key not found or revoked on Headscale coordinator."
+            );
             key_invalid = true;
-        } else if !ctx.deployment.tailscale_namespace.is_empty() && found_username != ctx.deployment.tailscale_namespace {
-            println!(
-                "Warning: Tailscale pre-auth key is registered under namespace '{}', but target namespace is '{}'. Key is mismatched.",
-                found_username, ctx.deployment.tailscale_namespace
+        } else if !ctx.deployment.tailscale_namespace.is_empty()
+            && found_username != ctx.deployment.tailscale_namespace
+        {
+            crate::warn!(
+                &self._logger,
+                "Tailscale pre-auth key is registered under namespace '{}', but target namespace is '{}'. Key is mismatched.",
+                found_username,
+                ctx.deployment.tailscale_namespace
             );
             key_invalid = true;
         }
 
         if key_invalid {
-            let cli_force = env::var("CLI_FORCE").unwrap_or_default() == "yes";
-            let mut regenerate = false;
-
-            if cli_force {
-                println!("Tailscale: Force mode is active. Auto-confirming key regeneration.");
-                regenerate = true;
-            } else {
-                if Confirm::new()
-                    .with_prompt("Would you like to automatically generate a new 1-year (365d) reusable pre-auth key on Headscale?")
-                    .default(false)
-                    .interact()
-                    .unwrap_or(false)
-                {
-                    regenerate = true;
-                }
-            }
+            let cli_force = crate::config::get_runtime_options().force;
+            let regenerate = crate::operation::confirm::confirm_action(
+                "Would you like to automatically generate a new 1-year (365d) reusable pre-auth key on Headscale?",
+                Some("Tailscale: Force mode is active. Auto-confirming key regeneration."),
+                cli_force,
+            ).unwrap_or(false);
 
             if regenerate {
                 let mut target_namespace = if !ctx.deployment.tailscale_namespace.is_empty() {
@@ -232,23 +244,32 @@ impl IdentityService for TailscaleService {
 
                 // Select user namespace if not in force/headless mode
                 if !cli_force {
-                    let namespaces = vec!["lamt", "cloud", "fcm"];
-                    let default_idx = namespaces.iter()
-                        .position(|&ns| ns == target_namespace)
-                        .unwrap_or(0);
+                    crate::info!(
+                        &self._logger,
+                        "Select Headscale user namespace for the pre-auth key:"
+                    );
+                    crate::info!(&self._logger, "  1) lamt");
+                    crate::info!(&self._logger, "  2) cloud");
+                    crate::info!(&self._logger, "  3) fcm");
 
-                    println!("Select Headscale user namespace for the pre-auth key:");
-                    if let Ok(selection) = dialoguer::Select::new()
-                        .items(&namespaces)
-                        .default(default_idx)
-                        .interact()
-                    {
-                        target_namespace = namespaces[selection].to_string();
+                    print!("  Choice [1/2/3]: ");
+                    use std::io::Write;
+                    let _ = std::io::stdout().flush();
+                    let mut input = String::new();
+                    if std::io::stdin().read_line(&mut input).is_ok() {
+                        let trimmed = input.trim();
+                        match trimmed {
+                            "1" => target_namespace = "lamt".to_string(),
+                            "2" => target_namespace = "cloud".to_string(),
+                            "3" => target_namespace = "fcm".to_string(),
+                            _ => {}
+                        }
                     }
                 }
 
                 // Resolve numeric/string ID for the chosen namespace (username)
-                let user_id = users.iter()
+                let user_id = users
+                    .iter()
                     .find(|u| u.name == target_namespace)
                     .map(|u| match &u.id {
                         serde_json::Value::Number(n) => n.to_string(),
@@ -258,24 +279,28 @@ impl IdentityService for TailscaleService {
                     .unwrap_or_default();
 
                 if user_id.is_empty() {
-                    return Err(format!("User namespace '{}' not found in Headscale coordinator.", target_namespace).into());
+                    return Err(format!(
+                        "User namespace '{}' not found in Headscale coordinator.",
+                        target_namespace
+                    )
+                    .into());
                 }
 
-                println!("Generating new pre-auth key on Headscale for user '{}'...", target_namespace);
-                let create_cmd = format!("sudo headscale preauthkeys create -u {} --reusable --expiration 365d", user_id);
-                let new_key = CommandExecutor::execute(
-                    "ssh",
-                    &[
-                        "-o", "StrictHostKeyChecking=no",
-                        "-o", "UserKnownHostsFile=/dev/null",
-                        "-o", "LogLevel=ERROR",
-                        "-o", "ConnectTimeout=10",
-                        "-o", "PasswordAuthentication=no",
-                        &avon_ssh,
-                        &create_cmd,
-                    ],
-                    Arc::new(Mutex::new(LogTarget::Silent)),
-                )?;
+                crate::info!(
+                    &self._logger,
+                    "Generating new pre-auth key on Headscale for user '{}'...",
+                    target_namespace
+                );
+                let create_cmd = format!(
+                    "sudo headscale preauthkeys create -u {} --reusable --expiration 365d",
+                    user_id
+                );
+                let mut create_args =
+                    crate::remote::ssh::SshOptions::probe(10).ssh_args_before_target();
+                create_args.push(avon_ssh.to_string());
+                create_args.push(create_cmd.clone());
+                let create_args_str: Vec<&str> = create_args.iter().map(|s| s.as_str()).collect();
+                let new_key = CommandExecutor::execute("ssh", &create_args_str, Logger::silent())?;
                 let new_key = new_key.trim().to_string();
 
                 if new_key.is_empty() || new_key.contains("Error") {
@@ -283,22 +308,36 @@ impl IdentityService for TailscaleService {
                 }
 
                 self.set_tailscale_preauth_key(&host_secret_file, &new_key)?;
-                let staged_secrets_file = Path::new("secrets/sops").join(format!("{}.yaml", ctx.hostname));
+                let staged_secrets_file =
+                    Path::new("secrets/sops").join(format!("{}.yaml", ctx.hostname));
                 if staged_secrets_file.exists() {
                     self.set_tailscale_preauth_key(&staged_secrets_file, &new_key)?;
                 }
-                println!("Successfully updated tailscale_preauth_key in secrets.");
+                crate::info!(
+                    &self._logger,
+                    "Successfully updated tailscale_preauth_key in secrets."
+                );
             } else {
-                println!("Warning: Skipping pre-auth key update. Declarative Tailscale registration may fail.");
+                crate::warn!(
+                    &self._logger,
+                    "Skipping pre-auth key update. Declarative Tailscale registration may fail."
+                );
             }
         } else {
-            println!("Tailscale pre-auth key is valid (expires after current local time).");
+            crate::info!(
+                &self._logger,
+                "Tailscale pre-auth key is valid (expires after current local time)."
+            );
         }
 
         Ok(())
     }
 
-    fn post_install(&self, _ctx: &RuntimeContext, _mount_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    fn post_install(
+        &self,
+        _ctx: &RuntimeContext,
+        _mount_path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 }
@@ -372,4 +411,3 @@ mod tests {
         assert_eq!(exp.seconds.as_i64().unwrap(), 1811641935);
     }
 }
-

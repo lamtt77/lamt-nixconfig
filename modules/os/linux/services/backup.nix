@@ -6,10 +6,12 @@
   mydefs,
   ...
 }:
-with lib; let
-  inherit (mydefs) nas;
+with lib;
+let
+  nas = mydefs.nasIp;
   cfg = config.services.arthur-backup;
-in {
+in
+{
   options.services.arthur-backup = {
     enable = mkEnableOption "Arthur Universal Backup service";
 
@@ -107,7 +109,15 @@ in {
       };
 
       # Ensure dependencies are installed
-      systemPackages = with pkgs; [rclone restic borgbackup msmtp] ++ [inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.arthur-backup];
+      systemPackages =
+        with pkgs;
+        [
+          rclone
+          restic
+          borgbackup
+          msmtp
+        ]
+        ++ [ inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.arthur-backup ];
 
       # msmtp configuration for email reports
       etc."msmtprc".text = ''
@@ -144,20 +154,15 @@ in {
     };
 
     # Mount points for backup datasets
-    fileSystems = mkMerge (mapAttrsToList (mountPoint: device: {
+    fileSystems = mkMerge (
+      mapAttrsToList (mountPoint: device: {
         "${mountPoint}" = {
           inherit device;
-          fsType =
-            if lib.hasPrefix "${nas}" device
-            then "nfs"
-            else "none";
-          options =
-            if lib.hasPrefix "${nas}" device
-            then ["defaults"]
-            else ["bind"];
+          fsType = if lib.hasPrefix "${nas}" device then "nfs" else "none";
+          options = if lib.hasPrefix "${nas}" device then [ "defaults" ] else [ "bind" ];
         };
-      })
-      cfg.mountPoints);
+      }) cfg.mountPoints
+    );
 
     # Create backup user
     users.users.${cfg.user} = {
@@ -165,9 +170,9 @@ in {
       group = cfg.user;
       home = "/var/lib/${cfg.user}";
       createHome = true;
-      extraGroups = ["gitea"];
+      extraGroups = [ "gitea" ];
     };
-    users.groups.${cfg.user} = {};
+    users.groups.${cfg.user} = { };
 
     systemd = {
       # Create log directory
@@ -176,46 +181,44 @@ in {
       ];
 
       # Systemd services and timers for each scope
-      services = mkMerge (mapAttrsToList (
-          scope: schedule: {
-            "arthur-backup-${scope}" = {
-              description = "Arthur Universal Backup - ${scope}";
-              serviceConfig = {
-                Type = "oneshot";
-                User = cfg.user;
-                Environment = [
-                  "PATH=/run/current-system/sw/bin:/bin"
-                ];
-                ExecStart = "${pkgs.runCommand "run-backup-${scope}" {} ''
-                  cat > $out << 'EOF'
-                  #!/run/current-system/sw/bin/bash
-                  set -euo pipefail
-                  cd ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.arthur-backup}/bin
-                  cp -f ${config.sops.secrets."backup_rclone_config".path} /var/lib/${cfg.user}/rclone.conf
-                  source ${cfg.bkrcFile}
-                  ./arthur_universal_backup --${scope}
-                  EOF
-                  chmod +x $out
-                ''}";
-              };
+      services = mkMerge (
+        mapAttrsToList (scope: schedule: {
+          "arthur-backup-${scope}" = {
+            description = "Arthur Universal Backup - ${scope}";
+            serviceConfig = {
+              Type = "oneshot";
+              User = cfg.user;
+              Environment = [
+                "PATH=/run/current-system/sw/bin:/bin"
+              ];
+              ExecStart = "${pkgs.runCommand "run-backup-${scope}" { } ''
+                cat > $out << 'EOF'
+                #!/run/current-system/sw/bin/bash
+                set -euo pipefail
+                cd ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.arthur-backup}/bin
+                cp -f ${config.sops.secrets."backup_rclone_config".path} /var/lib/${cfg.user}/rclone.conf
+                source ${cfg.bkrcFile}
+                ./arthur_universal_backup --${scope}
+                EOF
+                chmod +x $out
+              ''}";
             };
-          }
-        )
-        cfg.schedules);
+          };
+        }) cfg.schedules
+      );
 
-      timers = mkMerge (mapAttrsToList (
-          scope: schedule: {
-            "arthur-backup-${scope}" = {
-              description = "Timer for Arthur Universal Backup - ${scope}";
-              wantedBy = ["timers.target"];
-              timerConfig = {
-                OnCalendar = schedule;
-                Persistent = true;
-              };
+      timers = mkMerge (
+        mapAttrsToList (scope: schedule: {
+          "arthur-backup-${scope}" = {
+            description = "Timer for Arthur Universal Backup - ${scope}";
+            wantedBy = [ "timers.target" ];
+            timerConfig = {
+              OnCalendar = schedule;
+              Persistent = true;
             };
-          }
-        )
-        cfg.schedules);
+          };
+        }) cfg.schedules
+      );
     };
   };
 }

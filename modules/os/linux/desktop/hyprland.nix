@@ -4,7 +4,8 @@
   pkgs,
   myargs,
   ...
-}: let
+}:
+let
   cfg = config.modules.os.linux.desktop.hyprland;
 
   hypr-run = pkgs.writeShellScriptBin "hypr-run" ''
@@ -19,97 +20,101 @@
     ${pkgs.hyprland}/bin/hyperctl dispatch exit
   '';
 in
-  with lib; {
-    options.modules.os.linux.desktop.hyprland = {
-      enable = mkEnableOption "";
+with lib;
+{
+  options.modules.os.linux.desktop.hyprland = {
+    enable = mkEnableOption "";
+  };
+
+  config = mkIf cfg.enable {
+    xdg.portal.enable = true;
+
+    # Hyprland's aquamarine requires newer MESA drivers.
+    # hardware.graphics = {
+    #   package = pkgs.unstable.mesa;
+    #   package32 = pkgs.unstable.pkgsi686Linux.mesa;
+    # };
+
+    programs.hyprland = {
+      enable = true;
+      xwayland.enable = true;
+      package = pkgs.hyprland;
+      portalPackage = pkgs.xdg-desktop-portal-hyprland;
+
+      # package = inputs.hyprland.packages.${final.system}.hyprland;
+      # portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
     };
 
-    config = mkIf cfg.enable {
-      xdg.portal.enable = true;
+    nix.settings = {
+      substituters = [ "https://hyprland.cachix.org" ];
+      trusted-public-keys = [
+        "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
+      ];
+    };
 
-      # Hyprland's aquamarine requires newer MESA drivers.
-      # hardware.graphics = {
-      #   package = pkgs.unstable.mesa;
-      #   package32 = pkgs.unstable.pkgsi686Linux.mesa;
-      # };
+    environment = {
+      systemPackages = with pkgs; [
+        # Hyprland's default
+        wofi
 
-      programs.hyprland = {
+        hyprlock # *fast* lock screen
+        hyprpicker # screen-space color picker
+        hyprshade # to apply shaders to the screen
+        hyprshot # instead of grim(shot) or maim/slurp
+
+        ## For Hyprland
+        mako # dunst for wayland
+        swaybg # feh (as a wallpaper manager)
+        xorg.xrandr # for XWayland windows
+
+        ## For CLIs
+        gromit-mpx # for drawing on the screen
+        pamixer # for volume control
+        wlr-randr # for monitors that hyprctl can't handle
+        ## Waiting for NixOS/nixpkgs@7249e6c56141 to reach nixos-unstable
+        # wf-recorder    # for screencasting
+      ];
+    };
+
+    services = {
+      greetd = {
         enable = true;
-        xwayland.enable = true;
-        package = pkgs.unstable.hyprland;
-        portalPackage = pkgs.unstable.xdg-desktop-portal-hyprland;
-
-        # package = inputs.hyprland.packages.${final.system}.hyprland;
-        # portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
-      };
-
-      nix.settings = {
-        substituters = ["https://hyprland.cachix.org"];
-        trusted-public-keys = [
-          "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
-        ];
-      };
-
-      environment = {
-        systemPackages = with pkgs; [
-          # Hyprland's default
-          wofi
-
-          hyprlock # *fast* lock screen
-          hyprpicker # screen-space color picker
-          hyprshade # to apply shaders to the screen
-          hyprshot # instead of grim(shot) or maim/slurp
-
-          ## For Hyprland
-          mako # dunst for wayland
-          swaybg # feh (as a wallpaper manager)
-          xorg.xrandr # for XWayland windows
-
-          ## For CLIs
-          gromit-mpx # for drawing on the screen
-          pamixer # for volume control
-          wlr-randr # for monitors that hyprctl can't handle
-          ## Waiting for NixOS/nixpkgs@7249e6c56141 to reach nixos-unstable
-          # wf-recorder    # for screencasting
-        ];
-      };
-
-      services = {
-        greetd = {
-          enable = true;
-          restart = false;
-          settings = {
-            default_session = {
-              command = ''
-                ${makeBinPath [pkgs.greetd.tuigreet]}/tuigreet -r --asterisks --time \
-                  --cmd ${getExe hypr-run}
-              '';
-            };
+        restart = false;
+        settings = {
+          default_session = {
+            command = ''
+              ${makeBinPath [ pkgs.greetd.tuigreet ]}/tuigreet -r --asterisks --time \
+                --cmd ${getExe hypr-run}
+            '';
           };
         };
-
-        # required for screensharing
-        pipewire = {
-          enable = true;
-          alsa.enable = true;
-          pulse.enable = true;
-          wireplumber.enable = true;
-        };
       };
 
-      security.pam.services = {
-        # unlock gnome keyring automatically with greetd
-        greetd.enableGnomeKeyring = true;
+      # required for screensharing
+      pipewire = {
+        enable = true;
+        alsa.enable = true;
+        pulse.enable = true;
+        wireplumber.enable = true;
       };
+    };
 
-      home-manager.users.${myargs.username} = {
+    security.pam.services = {
+      # unlock gnome keyring automatically with greetd
+      greetd.enableGnomeKeyring = true;
+    };
+
+    home-manager.users.${myargs.username} =
+      {
         inputs,
         config,
         my,
         ...
-      }: let
+      }:
+      let
         mkLink = my.mkLinkCfg config;
-      in {
+      in
+      {
         modules.hm.base.polkit.enable = true;
 
         xdg.configFile."hypr/custom.conf".source = mkLink "config/hypr/custom.conf";
@@ -121,10 +126,10 @@ in
           portalPackage = null;
           # default on air15vm: monitor=Virtual-1,3420x1946,0x0,2
           # or lower resolution: monitor=Virtual-1,1710x973,0x0,1
-          extraConfig = ''source=./custom.conf'';
+          extraConfig = "source=./custom.conf";
         };
 
-        home.packages = with pkgs.unstable; [
+        home.packages = with pkgs; [
           # Program     Substitutes for
           ripdrag # dragon-drop
           wev # xev
@@ -169,5 +174,5 @@ in
           style.package = pkgs.adwaita-qt;
         };
       };
-    };
-  }
+  };
+}

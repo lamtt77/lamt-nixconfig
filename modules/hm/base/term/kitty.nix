@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.term.kitty;
-in {
+in
+{
   options.modules.hm.base.term.kitty = with types; {
     enable = mkEnableOption "Kitty Terminal Emulator";
   };
@@ -17,18 +19,12 @@ in {
       themeFile = "gruvbox-dark-hard";
 
       font = {
-        name =
-          if pkgs.stdenv.isDarwin
-          then "Monaco Nerd Font Mono"
-          else "Liberation Mono";
-        size =
-          if pkgs.stdenv.isDarwin
-          then 15.5
-          else 13;
+        name = if pkgs.stdenv.isDarwin then "Monaco Nerd Font Mono" else "Liberation Mono";
+        size = if pkgs.stdenv.isDarwin then 15.5 else 13;
       };
 
       # macOS specific settings
-      darwinLaunchOptions = ["--start-as=maximized"];
+      darwinLaunchOptions = [ "--start-as=maximized" ];
 
       settings = {
         # xterm-kitty does not work over ssh
@@ -38,10 +34,7 @@ in {
         close_on_child_death = true;
         cursor_shape = "beam";
         enable_audio_bell = false;
-        listen_on =
-          if pkgs.stdenv.isLinux
-          then "unix:@kitty"
-          else "unix:/tmp/kitty";
+        listen_on = if pkgs.stdenv.isLinux then "unix:@kitty" else "unix:/tmp/kitty";
         mouse_hide_wait = 0;
         scrollback_lines = 100000;
         strip_trailing_spaces = "always";
@@ -60,9 +53,10 @@ in {
       keybindings = {
         "kitty_mod+b" = "launch --type overlay --stdin-source=@screen_scrollback hx";
         "kitty_mod+n" =
-          if pkgs.stdenv.isLinux
-          then "new_tab_with_cwd cglaunch kitty --detach"
-          else "new_os_window_with_cwd";
+          if pkgs.stdenv.isLinux then
+            "new_tab_with_cwd cglaunch kitty --detach"
+          else
+            "new_os_window_with_cwd";
         "kitty_mod+0" = "change_font_size all 0";
         "kitty_mod+с" = "copy_to_clipboard";
         "kitty_mod+v" = "paste_from_clipboard";

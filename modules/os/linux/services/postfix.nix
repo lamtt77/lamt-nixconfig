@@ -10,49 +10,60 @@
   myargs,
   ...
 }:
-with lib; let
+with lib;
+let
   sslServerCert = config.sops.secrets."ssl_cert".path;
   sslServerKey = config.sops.secrets."ssl_key".path;
   sslCACert = config.sops.secrets."ssl_cacert".path;
   cfg = config.modules.os.linux.services.postfix;
-in {
+in
+{
   options.modules.os.linux.services.postfix = {
     enable = mkEnableOption "";
   };
 
   config = mkIf cfg.enable {
-    networking.firewall.allowedTCPPorts = [25 465 587];
+    networking.firewall.allowedTCPPorts = [
+      25
+      465
+      587
+    ];
     sops = {
       secrets = {
         # initial secrets
         "sasl_password".owner = "postfix";
-        "sender_relay" = {};
-        "ssl_cert" = {};
-        "ssl_key" = {};
-        "ssl_cacert" = {};
+        "sender_relay" = { };
+        "ssl_cert" = { };
+        "ssl_key" = { };
+        "ssl_cacert" = { };
       };
     };
 
-    users.users.${myargs.username}.packages = with pkgs; [openssl];
+    users.users.${myargs.username}.packages = with pkgs; [ openssl ];
 
     # TODO: extract to dovecot module if planned to use imap and pop3
     services.dovecot2 = {
       enable = true;
+      package = pkgs.dovecot_2_4;
 
-      inherit sslServerCert sslServerKey sslCACert;
+      settings = {
+        dovecot_config_version = config.services.dovecot2.package.version;
+        dovecot_storage_version = config.services.dovecot2.package.version;
 
-      # auth will be the accessible unix users of dovecot host
-      extraConfig = ''
-        ssl = required
+        ssl = "required";
+        ssl_server_cert_file = "${sslServerCert}";
+        ssl_server_key_file = "${sslServerKey}";
+        ssl_server_ca_file = "${sslCACert}";
 
-        service auth {
-          unix_listener /var/lib/postfix/queue/private/auth {
-            mode = 0660
-            user = postfix
-            group = postfix
-          }
-        }
-      '';
+        # auth will be the accessible unix users of dovecot host
+        "service auth" = {
+          "unix_listener /var/lib/postfix/queue/private/auth" = {
+            mode = "0660";
+            user = "postfix";
+            group = "postfix";
+          };
+        };
+      };
     };
 
     services.postfix = {
@@ -65,7 +76,7 @@ in {
 
       settings.main = {
         mynetworks = mydefs.defaultNetworks;
-        relayhost = ["[${mydefs.relayHost}]:${toString mydefs.relayPort}"];
+        relayhost = [ "[${mydefs.relayHost}]:${toString mydefs.relayPort}" ];
 
         smtpd_tls_chain_files = [
           sslServerKey

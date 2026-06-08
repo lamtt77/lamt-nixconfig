@@ -1,4 +1,5 @@
-{lib, ...}: {
+{ lib, ... }:
+{
   options = {
     user = lib.mkOption {
       type = lib.types.str;
@@ -12,6 +13,12 @@
         description = "Target IP address, tailscale/magicDNS hostname, or FQDN of the node for remote deployment";
       };
 
+      sshProxyJump = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        description = "SSH proxy jump host (e.g. user@host)";
+      };
+
       builder = lib.mkOption {
         type = lib.types.str;
         default = "";
@@ -22,6 +29,12 @@
         type = lib.types.str;
         default = "";
         description = "Apply RAM-constrained compilation limits ('yes' or 'no')";
+      };
+
+      substituteOnDestination = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Allow target-side substitution during nix copy to the destination host";
       };
 
       vmid = lib.mkOption {
@@ -65,6 +78,50 @@
           type = lib.types.str;
           default = "";
           description = "SCSI controller type for Proxmox VM (e.g. 'virtio-scsi-single', 'virtio-scsi-pci', 'lsi'). Only relevant when diskBus = 'scsi'. Defaults to 'virtio-scsi-single' for cloud-init VMs.";
+        };
+
+        diskStorage = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Proxmox storage pool for VM disk provisioning. If empty, defaults to the installer's built-in default.";
+        };
+
+        network = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Proxmox net0 bridge and configuration string. If empty, defaults to the installer's built-in default.";
+        };
+
+        extraNetworks = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = "Additional Proxmox network configuration strings (net1, net2, etc.).";
+        };
+
+        pxe = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether to provision the VM for PXE booting (omitting CDROM attachment and boot order net0 first).";
+        };
+
+        iso = {
+          type = lib.mkOption {
+            type = lib.types.str;
+            default = "std";
+            description = "ISO flavor to use for NixOS installation. 'std' (default) uses the standard qemu ISO; 'vlan' uses the VLAN-capable ISO.";
+          };
+
+          storage = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "The Proxmox storage pool where the ISO is located. If empty, defaults to the installer's built-in default.";
+          };
+
+          customPath = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "Full Proxmox storage path to a custom ISO (e.g., arthurz2-dir:iso/my-custom.iso). When set, overrides the type-based ISO selection entirely.";
+          };
         };
 
         cores = lib.mkOption {

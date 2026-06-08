@@ -6,25 +6,26 @@
   lib,
   mydefs,
   ...
-}: {
+}:
+{
   options.modules.os.linux.services.gitea-runner = {
     enable = lib.mkEnableOption "Gitea Actions runner";
   };
 
   config = lib.mkIf config.modules.os.linux.services.gitea-runner.enable {
     # Install the gitea-actions-runner package
-    environment.systemPackages = [pkgs.gitea-actions-runner];
+    environment.systemPackages = [ pkgs.gitea-actions-runner ];
 
     # Trust gitea-runner for Nix builds
-    nix.settings.trusted-users = ["gitea-runner"];
+    nix.settings.trusted-users = [ "gitea-runner" ];
 
     # Ensure user and group exist for secrets
     users.users.gitea-runner = {
       isSystemUser = true;
       group = "gitea-runner";
-      extraGroups = ["docker"];
+      extraGroups = [ "docker" ];
     };
-    users.groups.gitea-runner = {};
+    users.groups.gitea-runner = { };
 
     # Use sops for token
     sops.secrets."gitea-runner-token" = {
@@ -47,9 +48,13 @@
 
     systemd.services.gitea-actions-runner = {
       description = "Gitea Actions Runner Registration and Daemon";
-      after = ["network.target" "docker.service" "systemd-tmpfiles-setup.service"];
-      requires = ["systemd-tmpfiles-setup.service"];
-      wantedBy = ["multi-user.target"];
+      after = [
+        "network.target"
+        "docker.service"
+        "systemd-tmpfiles-setup.service"
+      ];
+      requires = [ "systemd-tmpfiles-setup.service" ];
+      wantedBy = [ "multi-user.target" ];
       path = [
         pkgs.bash
         pkgs.git
@@ -72,7 +77,7 @@
           # Read the Gitea admin token from secrets
           token=$(cat ${config.sops.secrets."gitea-runner-token".path})
 
-          ${pkgs.gitea-actions-runner}/bin/act_runner register \
+          ${pkgs.gitea-actions-runner}/bin/gitea-runner register \
             --no-interactive \
             --token "$token" \
             --instance "https://${mydefs.teaURL}" \
@@ -89,7 +94,7 @@
         User = "gitea-runner";
         Group = "gitea-runner";
         WorkingDirectory = "/var/lib/gitea-actions-runner";
-        ExecStart = "${pkgs.gitea-actions-runner}/bin/act_runner daemon";
+        ExecStart = "${pkgs.gitea-actions-runner}/bin/gitea-runner daemon";
         Environment = [
           "CONFIG_FILE=/var/lib/gitea-actions-runner/.runner"
           "HOME=/var/lib/gitea-actions-runner"

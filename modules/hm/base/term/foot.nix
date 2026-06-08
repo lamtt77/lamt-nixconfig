@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.term.foot;
-in {
+in
+{
   options.modules.hm.base.term.foot = with types; {
     enable = mkEnableOption "Foot shell";
   };

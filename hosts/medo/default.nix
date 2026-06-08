@@ -4,23 +4,14 @@
   lib,
   pkgs,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-medo.nix
     (import ../_disko/digitalocean.nix {
       inherit inputs;
     })
   ];
-
-  deployment = {
-    lowMem = "yes";       # 1GB Droplet requires low-mem optimizations
-    tailscaleNamespace = "cloud";
-    digitalocean = {
-      region = "sgp1";
-      size = "s-1vcpu-1gb";
-      image = "ubuntu-24-04-x64";
-    };
-  };
 
   boot = {
     loader = {
@@ -40,13 +31,16 @@
   networking = {
     hostName = "medo";
     useDHCP = false;
-    nameservers = ["1.1.1.1" "8.8.8.8"];
+    nameservers = [
+      "1.1.1.1"
+      "8.8.8.8"
+    ];
 
     # --- WireGuard Server ---
     # This replaces the generic `modules.os.base.services.wireguard.enable = true;`
     # and declaratively sets up the interface and peers.
     wireguard.interfaces.wg0do = {
-      ips = ["10.9.0.1/24"];
+      ips = [ "10.9.0.1/24" ];
       listenPort = 57921;
 
       privateKeyFile = config.sops.secrets.wg0do_private_key.path;
@@ -54,15 +48,15 @@
       peers = [
         {
           publicKey = "/Vsxe0gjSrwW0rSQaqoQk0UEXOnRe/cEBWXuMJLG7Ws=";
-          allowedIPs = ["10.9.0.2/32"];
+          allowedIPs = [ "10.9.0.2/32" ];
         }
         {
           publicKey = "0ILrE4OxliW69TOVZGyQFxcswt8CG+2cBc+76iQt0CA=";
-          allowedIPs = ["10.9.0.3/32"];
+          allowedIPs = [ "10.9.0.3/32" ];
         }
         {
           publicKey = "082NF0z+hyso3urs13+OTGdIf7v5SGjZ42mbP7JHEk8=";
-          allowedIPs = ["10.9.0.4/32"];
+          allowedIPs = [ "10.9.0.4/32" ];
         }
       ];
     };
@@ -70,20 +64,27 @@
     # --- Firewall & NAT ---
     # This declaratively handles the firewall and NAT rules from PostUp/PostDown scripts.
     firewall = {
-      allowedTCPPorts = [22 80 443]; # SSH and Caddy
-      allowedUDPPorts = [443 57921]; # Caddy (HTTP/3 QUIC) and WireGuard
+      allowedTCPPorts = [
+        22
+        80
+        443
+      ]; # SSH and Caddy
+      allowedUDPPorts = [
+        443
+        57921
+      ]; # Caddy (HTTP/3 QUIC) and WireGuard
 
       # Allow DNS requests from WireGuard clients to dnsmasq
       interfaces.wg0do = {
-        allowedTCPPorts = [53];
-        allowedUDPPorts = [53];
+        allowedTCPPorts = [ 53 ];
+        allowedUDPPorts = [ 53 ];
       };
     };
 
     # The NAT module automatically handles forwarding and masquerading.
     nat = {
       enable = true;
-      internalInterfaces = ["wg0do"];
+      internalInterfaces = [ "wg0do" ];
     };
   };
 
@@ -107,7 +108,7 @@
       };
     };
   };
-  sops.secrets.tailscale_preauth_key = {};
+  sops.secrets.tailscale_preauth_key = { };
   sops.secrets.wg0do_private_key = {
     # The key file will be owned by root and readable by the 'systemd-network' group.
     owner = config.users.users.root.name;
@@ -118,14 +119,23 @@
     cloud-init = {
       enable = true;
       network.enable = true;
+      settings = {
+        # SOPS decrypts with the pre-staged host SSH key. Do not let cloud-init
+        # delete and regenerate it on first boot.
+        ssh_deletekeys = false;
+        ssh_genkeytypes = [ ];
+      };
     };
     # --- DNS for VPN Clients ---
     dnsmasq = {
       enable = true;
       settings = {
-        listen-address = ["10.9.0.1"];
+        listen-address = [ "10.9.0.1" ];
         bind-interfaces = true;
-        server = ["1.1.1.1" "8.8.8.8"]; # Forwards queries to Cloudflare/Google DNS
+        server = [
+          "1.1.1.1"
+          "8.8.8.8"
+        ]; # Forwards queries to Cloudflare/Google DNS
       };
     };
     caddy = {

@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.term.alacritty;
-in {
+in
+{
   options.modules.hm.base.term.alacritty = with types; {
     enable = mkEnableOption "Alacritty shell";
   };
@@ -25,19 +27,20 @@ in {
         cursor.style = "Block";
 
         font =
-          if pkgs.stdenv.isDarwin
-          then {
-            normal = {
-              family = "Monaco Nerd Font Mono";
+          if pkgs.stdenv.isDarwin then
+            {
+              normal = {
+                family = "Monaco Nerd Font Mono";
+              };
+              size = 15;
+            }
+          else
+            {
+              normal = {
+                family = "Liberation Mono";
+              };
+              size = 12;
             };
-            size = 15;
-          }
-          else {
-            normal = {
-              family = "Liberation Mono";
-            };
-            size = 12;
-          };
 
         keyboard.bindings = [
           {

@@ -3,12 +3,13 @@
   config,
   lib,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-vm-wintel.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
     })
   ];
 

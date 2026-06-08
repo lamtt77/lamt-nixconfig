@@ -2,21 +2,20 @@
   description = "LamT Nix System Configuration";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
-    # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
 
-    home-manager.url = "github:nix-community/home-manager/release-25.11";
-    # home-manager.url = "github:nix-community/home-manager/master";
+    home-manager.url = "github:nix-community/home-manager/release-26.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    darwin.url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
+    darwin.url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
     darwin.inputs.nixpkgs.follows = "nixpkgs";
 
-    flake-utils.url = "github:numtide/flake-utils";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
     flake-registry.url = "github:nixos/flake-registry";
     flake-registry.flake = false;
@@ -49,249 +48,42 @@
       url = "github:adityatelange/hugo-PaperMod";
       flake = false;
     };
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = {
-    self,
-    nixpkgs,
-    nixpkgs-unstable,
-    home-manager,
-    darwin,
-    flake-utils,
-    ...
-  } @ inputs: let
-    mydefs = import ./defines.nix;
-    # nixos modules can access all libs, hm modules only access to itself 'hm' and 'my'
-    lib =
-      nixpkgs.lib.extend (final: prev: {
-        my = import ./lib {
-          inherit inputs mydefs;
-          lib = final;
-        };
-      })
-      // home-manager.lib;
 
-    inherit (lib) attrValues;
-    inherit (lib.my) mapModules mkPkgs mkSystem mkHost mkHome;
+  outputs =
+    inputs@{ flake-parts, treefmt-nix, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
 
-    username = mydefs.defaultUsername;
+      imports = [
+        treefmt-nix.flakeModule
+        ./flake/hosts.nix
+        ./flake/per-system.nix
+      ];
 
-    overlays = import ./overlays/overlays.nix {inherit inputs;};
+      flake = {
+        overlays = import ./overlays/overlays.nix { inherit inputs; };
 
-    perSystem = flake-utils.lib.eachSystem mydefs.systems (system: let
-      pkgs = mkPkgs {inherit system;} nixpkgs (attrValues self.overlays);
-    in {
-      # auto load all pkgs exclude pkgs/_manual
-      packages = mapModules ./pkgs (p: pkgs.callPackage p {inherit inputs mydefs;});
-
-      # apps run by calling this flake directly
-      # Github: nix run github:lamtt77/lamt-nixconfig#appname
-      # Local: nix run '.#readme'
-      apps = import ./apps {inherit inputs pkgs mydefs;};
-
-      # formatter
-      formatter = pkgs.alejandra;
-
-      # Accessible through 'nix develop' or 'nix-shell' (legacy)
-      devShells = {
-        default = pkgs.callPackage ./shells/shell.nix {inherit inputs;};
-        node = pkgs.callPackage ./shells/node.nix {};
-        python = pkgs.callPackage ./shells/python.nix {};
-        pythonVenv = pkgs.callPackage ./shells/pythonVenv.nix {};
-        lint = pkgs.callPackage ./shells/lint.nix {};
-      };
-
-      legacyPackages = pkgs;
-    });
-
-    # nix build .#homeConfigurations.lamt_macair15-m2.activationPackage
-    homeConfigurations = {
-      "${username}_macair15-m2" = mkHome {
-        system = "aarch64-darwin";
-        hostname = "macair15-m2";
-        inherit username nixpkgs mydefs;
-        darwin = true;
+        lib =
+          inputs.nixpkgs.lib.extend (
+            final: prev: {
+              my = import ./lib {
+                inherit inputs;
+                mydefs = import ./defines.nix;
+                lib = final;
+              };
+            }
+          )
+          // inputs.home-manager.lib;
       };
     };
-
-    # nix build .#darwinConfigurations.macair15-m2.system
-    darwinConfigurations = {
-      macair15-m2 = mkSystem {
-        system = "aarch64-darwin";
-        hostname = "macair15-m2";
-        inherit username nixpkgs mydefs;
-        darwin = true;
-      };
-      # imac-m1 = mkSystem { system = "aarch64-darwin"; hostname = "imac-m1"; inherit username nixpkgs mydefs; darwin = true; };
-      # macpro-intel = mkSystem { system = "x86_64-darwin"; hostname = "macpro-intel"; inherit username nixpkgs mydefs; darwin = true; };
-    };
-
-    # nix build .#nixosConfigurations.macair15-m2.config.system.build.toplevel
-    nixosConfigurations = {
-      air15vm = mkSystem {
-        system = "aarch64-linux";
-        hostname = "air15vm";
-        inherit username nixpkgs mydefs;
-      };
-      # air15utm = mkSystem { system = "aarch64-linux"; hostname = "air15utm"; inherit username nixpkgs mydefs; };
-      vm-esxi = mkSystem {
-        system = "x86_64-linux";
-        hostname = "vm-esxi";
-        inherit username nixpkgs mydefs;
-      };
-      # vm-wintel = mkSystem { system = "x86_64-linux"; hostname = "vm-wintel"; inherit username nixpkgs mydefs; };
-
-      # nix build .#nixosConfigurations.wsl.config.system.build.tarballBuilder
-      wsl = mkSystem {
-        system = "x86_64-linux";
-        hostname = "wsl";
-        inherit username nixpkgs mydefs;
-        wsl = true;
-      };
-      # currently Windows Arm for aarch64 only supports WSL v1,
-      # while nixos-wsl requires WSL v2, so this may not be working well
-      # wsl-aarch64 = mkSystem { system = "aarch64-linux"; hostname = "wsl"; inherit username nixpkgs mydefs; wsl = true; };
-
-      # servers
-      avon = mkSystem {
-        system = "x86_64-linux";
-        hostname = "avon";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      avon-esxi = mkSystem {
-        system = "x86_64-linux";
-        hostname = "avon-esxi";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      # continuous integration and utilities
-      utils = mkSystem {
-        system = "x86_64-linux";
-        hostname = "utils";
-        username = "deploy";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      # routers
-      router-main = mkSystem {
-        system = "x86_64-linux";
-        hostname = "router-main";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      router-backup = mkSystem {
-        system = "x86_64-linux";
-        hostname = "router-backup";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      # game stuffs
-      gaming = mkSystem {
-        system = "x86_64-linux";
-        hostname = "gaming";
-        username = "vivi";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      # DigitalOcean servers
-      medo = mkSystem {
-        system = "x86_64-linux";
-        hostname = "medo";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      medo-test = mkSystem {
-        system = "x86_64-linux";
-        hostname = "medo-test";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      ubuntu-cloudinit-test = mkSystem {
-        system = "x86_64-linux";
-        hostname = "ubuntu-cloudinit-test";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-      };
-
-      minimal-iso-aarch64 = nixpkgs.lib.nixosSystem {
-        system = "aarch64-linux";
-        modules = [
-          ./hosts/minimal-iso/default.nix
-          ({lib, ...}: {
-            nixpkgs.hostPlatform = "aarch64-linux";
-          })
-        ];
-      };
-
-      minimal-iso-x86 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./hosts/minimal-iso/default.nix
-          ({lib, ...}: {
-            nixpkgs.hostPlatform = "x86_64-linux";
-          })
-        ];
-      };
-
-      minimal-iso-vlan = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        modules = [
-          ./hosts/minimal-iso/default.nix
-          ({lib, ...}: {
-            nixpkgs.hostPlatform = "x86_64-linux";
-            iso.vlan.enable = true;
-          })
-        ];
-      };
-    };
-
-    crossNixosConfigurations = {
-      gaming = mkSystem {
-        system = "x86_64-linux";
-        hostname = "gaming";
-        username = "vivi";
-        inherit nixpkgs mydefs;
-        server = true;
-        localSystem = "aarch64-linux";
-        crossSystem = {config = "x86_64-unknown-linux-gnu";};
-      };
-      vm-esxi = mkSystem {
-        system = "x86_64-linux";
-        hostname = "vm-esxi";
-        username = "nixos";
-        inherit nixpkgs mydefs;
-        server = true;
-        localSystem = "aarch64-linux";
-        crossSystem = {config = "x86_64-unknown-linux-gnu";};
-      };
-      wsl = mkSystem {
-        system = "x86_64-linux";
-        hostname = "wsl";
-        username = "lamt";
-        inherit nixpkgs mydefs;
-        wsl = true;
-        localSystem = "aarch64-linux";
-        crossSystem = {config = "x86_64-unknown-linux-gnu";};
-      };
-    };
-  in
-    {
-      inherit lib overlays darwinConfigurations nixosConfigurations homeConfigurations crossNixosConfigurations;
-    }
-    // perSystem;
 }

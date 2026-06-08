@@ -4,28 +4,22 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.term.ghostty;
-in {
+in
+{
   options.modules.hm.base.term.ghostty = with types; {
     enable = mkEnableOption "Ghostty Terminal Emulator";
   };
 
   config = mkIf cfg.enable {
-    home.packages = [pkgs.unstable.ghostty];
+    home.packages = [ pkgs.ghostty ];
 
     home.file.".config/ghostty/config".text = ''
       # Ghostty configuration
-      font-family = ${
-        if pkgs.stdenv.isDarwin
-        then "Monaco Nerd Font Mono"
-        else "Liberation Mono"
-      }
-      font-size = ${
-        if pkgs.stdenv.isDarwin
-        then "15"
-        else "10.5"
-      }
+      font-family = ${if pkgs.stdenv.isDarwin then "Monaco Nerd Font Mono" else "Liberation Mono"}
+      font-size = ${if pkgs.stdenv.isDarwin then "15" else "10.5"}
 
       background-opacity = 0.95
       background-blur-radius = 20

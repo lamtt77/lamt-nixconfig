@@ -1,22 +1,28 @@
 # Technical Details: ACME and SSL Configuration
 
-## Global ACME (Let's Encrypt) Support
+## ACME (Let's Encrypt) Support
 
-The `modules/os/base/_server.nix` configuration enables global ACME support in NixOS for automatic SSL certificate management:
+The reusable ACME configuration lives in `modules/os/linux/services/acme.nix` and is enabled per host with:
 
-- `acceptTerms = true`: Automatically accepts Let's Encrypt's terms of service for certificate issuance.
-- `defaults.email = "info@lamhub.com"`: Sets the default contact email for ACME account registration, used for notifications and account management.
+```nix
+modules.os.linux.services.acme.enable = true;
+```
 
-This global configuration allows NixOS to handle certificate storage in `/var/lib/acme` and manage renewal automatically.
+When enabled, it configures:
+
+- `security.acme.acceptTerms = true`: Automatically accepts Let's Encrypt's terms of service for certificate issuance.
+- `security.acme.defaults.email = "info@lamhub.com"`: Sets the default contact email for ACME account registration, used for notifications and account management.
+- A wildcard `lamhub.com` certificate using the configured DNS provider and SOPS-managed provider token.
+
+This host-scoped configuration allows NixOS to handle certificate storage in `/var/lib/acme` and manage renewal automatically. Hosts that enable nginx virtual hosts using `useACMEHost` should also enable this ACME module.
 
 ## Caddy Integration for blog.lamhub.com
 
-The blog site at `blog.lamhub.com` leverages this global ACME setup through Caddy (configured in `hosts/medo/default.nix`):
+The blog site at `blog.lamhub.com` uses Caddy (configured in `hosts/medo/default.nix`):
 
 - Caddy serves the site without explicit `tls internal`, which triggers ACME certificate requests automatically.
-- NixOS's ACME integration handles certificate storage and renewal.
-- Caddy accesses system-managed certificates for HTTPS, using the global email and terms acceptance.
-- No domain-specific ACME config is needed in Caddy; it leverages the system's defaults.
+- Caddy manages its own public certificate flow for `blog.lamhub.com`.
+- `blog.lamhub.me` intentionally uses `tls internal`.
 
 ## Migration Notes
 

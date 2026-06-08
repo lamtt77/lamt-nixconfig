@@ -1,8 +1,10 @@
-{pkgs, ...}: let
+{ pkgs, ... }:
+let
   # there is no inputs when calling from /etc/nixos/configuration.nix
   # note that the current dir in this case should be /etc/nixos, a bit hacky :)
   mydefs = import ./defines.nix;
-in {
+in
+{
   # create zram swap now, so it will be ready after the 1st reboot
   imports = [
     ./zramswap.nix
@@ -44,6 +46,6 @@ in {
   programs.ssh.startAgent = true;
 
   users.users.root = {
-    openssh.authorizedKeys.keys = ["${mydefs.mySshAuthKey}"];
+    openssh.authorizedKeys.keys = [ "${mydefs.mySshAuthKey}" ];
   };
 }

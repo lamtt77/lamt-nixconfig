@@ -3,9 +3,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.fail2ban;
-in {
+in
+{
   options.modules.os.linux.services.fail2ban = {
     enable = mkEnableOption "";
   };
@@ -14,7 +16,11 @@ in {
     services.fail2ban = {
       enable = true;
       maxretry = 5;
-      ignoreIP = ["127.0.0.1/16" "192.168.1.0/24" "lam.lamhub.com"];
+      ignoreIP = [
+        "127.0.0.1/16"
+        "192.168.1.0/24"
+        "lam.lamhub.com"
+      ];
       banaction-allports = "iptables-allports";
       bantime-increment = {
         enable = true;

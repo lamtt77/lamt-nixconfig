@@ -1,8 +1,9 @@
-{pkgs, ...}: {
-  # https://github.com/LnL7/nix-darwin/pull/787                                                                                                 │
-  # security.pam.enableSudoTouchIdAuth = true;
+{ pkgs, ... }:
+{
+  # https://github.com/LnL7/nix-darwin/pull/787
+  # security.pam.services.sudo_local.touchIdAuth = true;
 
-  # Install pam_reattach, in order for touchid works in tmux
+  # # Install pam_reattach, in order for touchid works in tmux
   environment.systemPackages = [
     pkgs.pam-reattach
   ];

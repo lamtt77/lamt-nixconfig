@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.editors.vscode;
-in {
+in
+{
   options = with types; {
     modules.hm.base.editors.vscode = {
       enable = mkEnableOption "Vscode Tool";

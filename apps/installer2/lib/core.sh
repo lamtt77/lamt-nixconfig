@@ -155,17 +155,12 @@ stage_secrets_pre() {
 
 stage_secrets_post() {
     local host="${1:-}"
-    if [[ -n "$host" ]]; then
-        if [[ -f "./secrets/sops/${host}.yaml" ]]; then
+    if [[ -d "./secrets" ]]; then
+        if [[ -n "$host" && -f "./secrets/sops/${host}.yaml" ]]; then
             info "Cleaning up copied secrets for $host..."
-            rm -f "./secrets/sops/${host}.yaml"
-        fi
-        rmdir "./secrets/sops" 2>/dev/null || true
-        rmdir "./secrets" 2>/dev/null || true
-    else
-        if [[ -d "./secrets" ]]; then
+        else
             info "Cleaning up copied secrets..."
-            rm -rf "./secrets"
         fi
+        rm -rf "./secrets"
     fi
 }

@@ -3,17 +3,16 @@ return {
 	{
 		"saghen/blink.cmp",
 		dependencies = {
-			"L3MON4D3/LuaSnip",
 			"rafamadriz/friendly-snippets",
 		},
 		version = "*",
 		config = function()
 			local blink = require("blink.cmp")
 
-			-- Load friendly snippets
-			require("luasnip.loaders.from_vscode").lazy_load()
-
 			blink.setup({
+				snippets = {
+					preset = "default",
+				},
 				keymap = {
 					preset = "default",
 					["<CR>"] = { "select_and_accept", "fallback" },
@@ -58,12 +57,7 @@ return {
 				signature = { enabled = true },
 			})
 
-			-- Snippets configuration
-			require("luasnip").config.set_config({
-				history = true,
-				updateevents = "TextChanged,TextChangedI",
-				enable_autosnippets = true,
-			})
+
 
 			-- Manual dictionary completion trigger
 			vim.keymap.set("i", "<A-d>", function()

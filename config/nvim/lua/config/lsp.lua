@@ -1,7 +1,13 @@
 -- LSP Configuration
+local function get_capabilities()
+	local capabilities = vim.lsp.protocol.make_client_capabilities()
+	return require("blink.cmp").get_lsp_capabilities(capabilities)
+end
+
 return {
 	{
 		"neovim/nvim-lspconfig",
+		event = { "BufReadPre", "BufNewFile" },
 		version = "*",
 		config = function()
 			-- Diagnostic configuration
@@ -26,8 +32,13 @@ return {
 			})
 
 			-- Setup capabilities
-			local capabilities = vim.lsp.protocol.make_client_capabilities()
-			capabilities = require("blink.cmp").get_lsp_capabilities(capabilities)
+			local capabilities = get_capabilities()
+			-- Disable dynamic file watching to prevent high CPU load on macOS
+			if capabilities.workspace then
+				capabilities.workspace.didChangeWatchedFiles = {
+					dynamicRegistration = false,
+				}
+			end
 
 			-- LspAttach autocommand for buffer-local keybindings
 			vim.api.nvim_create_autocmd("LspAttach", {
@@ -104,7 +115,12 @@ return {
 						Lua = {
 							runtime = { version = "LuaJIT" },
 							diagnostics = { globals = { "vim" } },
-							workspace = { library = vim.api.nvim_get_runtime_file("", true) },
+							-- Narrow to just the Neovim stdlib; indexing all runtime files
+							-- (nvim_get_runtime_file("", true)) is very expensive on attach.
+							workspace = {
+								library = { vim.fn.expand("$VIMRUNTIME/lua") },
+								checkThirdParty = false,
+							},
 							telemetry = { enable = false },
 						},
 					},
@@ -122,7 +138,9 @@ return {
 					capabilities = capabilities,
 					settings = {
 						["nil"] = {
-							nix = { autoArchive = true },
+							-- autoArchive runs `nix flake archive` on open, which blocks
+							-- for seconds while it fetches flake inputs over the network.
+							nix = { autoArchive = false },
 						},
 					},
 				},
@@ -157,18 +175,49 @@ return {
 	-- Treesitter
 	{
 		"nvim-treesitter/nvim-treesitter",
-		event = "BufReadPre",
+		event = { "BufReadPre", "BufNewFile" },
 		cmd = { "TSUpdate", "TSInstall", "TSConfigInfo" },
 		build = ":TSUpdate",
 		config = function()
 			require("nvim-treesitter.configs").setup({
-				ensure_installed = { "lua", "vim", "vimdoc", "python", "javascript", "typescript", "nix" },
-				highlight = { enable = true },
+				ensure_installed = { "lua", "vim", "vimdoc", "python", "javascript", "typescript", "nix", "rust" },
+				highlight = {
+					enable = true,
+					-- Disable legacy VimL syntax when Treesitter is active.
+					-- syntax/rust.vim (and others) run a full regex sync pass that
+					-- showed as the #1 profiler offender (~100 s overflow) when
+					-- opening Rust files from Neogit.
+					disable = function(_, buf)
+						-- Only disable for large files where regex is slowest
+						local max_lines = 5000
+						local ok, stats = pcall(vim.uv.fs_stat, vim.api.nvim_buf_get_name(buf))
+						if ok and stats and stats.size > 1024 * 1024 then
+							return true -- also bail on files > 1 MB
+						end
+						local line_count = vim.api.nvim_buf_line_count(buf)
+						return line_count > max_lines
+					end,
+					-- After TS attaches, turn off the VimL :syntax engine so both
+					-- don't run at the same time on the same buffer.
+					additional_vim_regex_highlighting = false,
+				},
 				indent = { enable = true },
 				modules = {},
 				sync_install = false,
 				ignore_install = {},
 				auto_install = false,
+			})
+
+			-- Retain Vim syntax as a fallback, but stop it once Treesitter has
+			-- successfully attached to avoid running both highlighters.
+			vim.api.nvim_create_autocmd("FileType", {
+				group = vim.api.nvim_create_augroup("TreesitterSyntaxFallback", { clear = true }),
+				callback = function(args)
+					local buf = args.buf
+					if vim.treesitter.highlighter.active[buf] then
+						vim.bo[buf].syntax = ""
+					end
+				end,
 			})
 		end,
 	},
@@ -176,9 +225,10 @@ return {
 	-- Rust tools (LSP successor)
 	{
 		"mrcjkb/rustaceanvim",
-		version = "^5",
-		lazy = false,
+		version = "^9",
+		ft = "rust",
 		config = function()
+			local capabilities = get_capabilities()
 			vim.g.rustaceanvim = {
 				server = {
 					on_attach = function(_, bufnr)
@@ -191,7 +241,26 @@ return {
 							vim.cmd.RustLsp("codeAction")
 						end, { buffer = bufnr, desc = "Rust code action" })
 					end,
-					capabilities = require("blink.cmp").get_lsp_capabilities(),
+					capabilities = capabilities,
+					settings = {
+						["rust-analyzer"] = {
+							files = {
+								excludeDirs = {
+									"target",
+									"apps/installer-rs/target",
+									".git",
+									".direnv",
+									".devenv",
+									"_tmp",
+									".cargo",
+								},
+							},
+							checkOnSave = true,
+							check = {
+								command = "check",
+							},
+						},
+					},
 				},
 			}
 		end,

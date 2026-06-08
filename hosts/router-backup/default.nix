@@ -3,24 +3,15 @@
   config,
   mydefs,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-router_backup.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
     })
   ];
-
-  deployment = {
-    targetIp = config.modules.os.linux.services.router.lanIp;
-    vmid = "107";
-    proxmox = {
-      host = mydefs.hosts.pve2.ip;
-      bios = "ovmf";
-      diskBus = "scsi";
-    };
-  };
 
   boot.growPartition = true;
   services.openssh.enable = true;
@@ -50,11 +41,12 @@
     hostname = "router-backup";
     enableHA = true;
     priority = 100;
-    enablePxe = false;
+    enablePxe = true;
+    pxeTarget = "pve2";
   };
 
   services.qemuGuest.enable = true;
 
-  networking.firewall.allowedTCPPorts = [ 5201 ];  # iperf3 server port
-  networking.firewall.allowedUDPPorts = [ 5201 ];  # iperf3 UDP mode
+  networking.firewall.allowedTCPPorts = [ 5201 ]; # iperf3 server port
+  networking.firewall.allowedUDPPorts = [ 5201 ]; # iperf3 UDP mode
 }
