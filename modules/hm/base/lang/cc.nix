@@ -4,9 +4,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.lang.cc;
-in {
+in
+{
   options.modules.hm.base.lang.cc = with types; {
     enable = mkEnableOption "";
   };

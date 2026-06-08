@@ -7,35 +7,34 @@
   my,
   myargs,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-avon.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
       ephemeral = true;
     })
   ];
-
-  deployment = {
-    targetIp = mydefs.networking.avon.ip;
-    vmid = "103";
-    proxmox = {
-      host = mydefs.hosts.pve1.ip;
-      bios = "ovmf";
-      diskBus = "scsi";
-    };
-  };
 
   # Note: If you ever need to resize the disk, you can grow the persistent partition manually by running:
   #   sudo growpart /dev/sda 2
   #   sudo resize2fs /dev/sda2
 
-  networking = my.mkStaticNetworking mydefs.networking.avon // {
-    # iperf testing port
-    firewall.allowedTCPPorts = [mydefs.networking.avon.iperfPort];
-    firewall.allowedUDPPorts = [mydefs.networking.avon.iperfPort];
-  };
+  networking =
+    my.mkStaticNetworking (
+      mydefs.networkingDefaults
+      // {
+        ip = config.deployment.targetIp;
+        interface = "ens18";
+      }
+    )
+    // {
+      # iperf testing port
+      firewall.allowedTCPPorts = [ 5201 ];
+      firewall.allowedUDPPorts = [ 5201 ];
+    };
 
   fileSystems."/mnt/VM" = {
     device = mydefs.hosts.avon.nas;
@@ -92,7 +91,11 @@
   fileSystems."/" = {
     device = "none";
     fsType = "tmpfs";
-    options = [ "defaults" "size=2G" "mode=755" ];
+    options = [
+      "defaults"
+      "size=2G"
+      "mode=755"
+    ];
   };
 
   fileSystems."/persist".neededForBoot = true;

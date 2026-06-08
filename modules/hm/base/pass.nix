@@ -5,9 +5,11 @@
   mydefs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.pass;
-in {
+in
+{
   options.modules.hm.base.pass = with types; {
     enable = mkEnableOption "Password Store Utility";
     passwordStoreDir = mkOption {
@@ -20,7 +22,8 @@ in {
     # home.sessionVariables.PASSWORD_STORE_DIR = cfg.passwordStoreDir;
     programs.password-store = {
       enable = true;
-      package = with pkgs;
+      package =
+        with pkgs;
         pass.withExtensions (exts: [
           exts.pass-otp
           # exts.pass-genphrase

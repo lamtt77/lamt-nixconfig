@@ -1,17 +1,15 @@
 use super::IdentityService;
 use crate::context::RuntimeContext;
-use crate::process::LogTarget;
-use std::fs;
+use crate::process::{CommandExecutor, Logger};
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 pub struct SopsService {
-    log_target: Arc<Mutex<LogTarget>>,
+    _logger: Logger,
 }
 
 impl SopsService {
-    pub fn new(log_target: Arc<Mutex<LogTarget>>) -> Self {
-        Self { log_target }
+    pub fn new(logger: Logger) -> Self {
+        Self { _logger: logger }
     }
 
     /// Resolves the secrets repository absolute path.
@@ -26,42 +24,67 @@ impl IdentityService for SopsService {
     }
 
     fn pre_install(&self, ctx: &RuntimeContext) -> Result<(), Box<dyn std::error::Error>> {
-        let secrets_repo = self.get_secrets_repo();
-        let secrets_src = secrets_repo.join("sops").join(format!("{}.yaml", ctx.hostname));
-
-        if secrets_src.exists() {
-            println!("SOPS: Found secrets file for {} at {}. Copying to build context...", ctx.hostname, secrets_src.display());
-
-            let dest_dir = Path::new("./secrets/sops");
-            fs::create_dir_all(dest_dir)?;
-
-            let dest_file = dest_dir.join(format!("{}.yaml", ctx.hostname));
-            fs::copy(&secrets_src, &dest_file)?;
-        } else {
-            println!("SOPS: No secrets file found for {} at {}. Proceeding without secrets.", ctx.hostname, secrets_src.display());
-        }
-
+        let _ = ctx;
         Ok(())
     }
 
-    fn post_install(&self, ctx: &RuntimeContext, _mount_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-        let dest_file = Path::new("./secrets/sops").join(format!("{}.yaml", ctx.hostname));
-
-        if dest_file.exists() {
-            println!("SOPS: Cleaning up copied secrets file...");
-            let _ = fs::remove_file(&dest_file);
-        }
-
-        // Clean up empty directories
-        let sops_dir = Path::new("./secrets/sops");
-        if sops_dir.exists() {
-            let _ = fs::remove_dir(sops_dir);
-        }
-        let secrets_dir = Path::new("./secrets");
-        if secrets_dir.exists() {
-            let _ = fs::remove_dir(secrets_dir);
-        }
-
+    fn post_install(
+        &self,
+        ctx: &RuntimeContext,
+        _mount_path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = ctx;
         Ok(())
     }
+}
+
+pub fn register_age_key_in_sops(
+    hostname: &str,
+    pub_key_content: &str,
+    secrets_repo: &Path,
+    logger: Logger,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut child = std::process::Command::new("ssh-to-age")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()?;
+
+    use std::io::Write;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(pub_key_content.as_bytes())?;
+    }
+    let output = child.wait_with_output()?;
+    let age_key = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    if age_key.is_empty() {
+        crate::warn!(
+            &logger,
+            "Failed to resolve age key from SSH public key. Skipping SOPS registration."
+        );
+        return Ok(());
+    }
+
+    let sops_mgr = secrets_repo.join("bin").join("sops-host-key-manager");
+    if sops_mgr.exists() {
+        crate::info!(
+            &logger,
+            "Registering/updating host '{}' age key in .sops.yaml...",
+            hostname
+        );
+        let sops_mgr_str = sops_mgr.to_string_lossy().to_string();
+        let silent_log = Logger::silent();
+        CommandExecutor::execute(&sops_mgr_str, &["set-key", hostname, &age_key], silent_log)?;
+        crate::info!(
+            &logger,
+            "Successfully registered/synced keys in secrets repository."
+        );
+    } else {
+        crate::warn!(
+            &logger,
+            "sops-host-key-manager not found at {}. Skipping SOPS registration.",
+            sops_mgr.display()
+        );
+    }
+
+    Ok(())
 }

@@ -6,9 +6,11 @@
   pkgs,
   lib,
   ...
-}: let
+}:
+let
   vaultwardenPath = "/var/lib/bitwarden_rs"; # Default service directory
-in {
+in
+{
   config = lib.mkIf config.services.vaultwarden.enable {
     services.vaultwarden = {
       config = {
@@ -38,35 +40,32 @@ in {
       group = "vaultwarden";
     };
 
-    networking.firewall.allowedTCPPorts = [3012];
+    networking.firewall.allowedTCPPorts = [ 3012 ];
 
     caddy.routes = [
       {
-        match = [{host = [config.hostnames.secrets];}];
+        match = [ { host = [ config.hostnames.secrets ]; } ];
         handle = [
           {
             handler = "reverse_proxy";
             upstreams = [
               {
-                dial = "localhost:${
-                  builtins.toString config.services.vaultwarden.config.ROCKET_PORT
-                }";
+                dial = "localhost:${builtins.toString config.services.vaultwarden.config.ROCKET_PORT}";
               }
             ];
-            headers.request.add."X-Real-IP" = ["{http.request.remote.host}"];
+            headers.request.add."X-Real-IP" = [ "{http.request.remote.host}" ];
           }
         ];
       }
     ];
 
     # Configure Cloudflare DNS to point to this machine
-    services.cloudflare-dyndns.domains = [config.hostnames.secrets];
+    services.cloudflare-dyndns.domains = [ config.hostnames.secrets ];
 
     ## Backup config
 
     # Open to groups, allowing for backups
-    systemd.services.vaultwarden.serviceConfig.StateDirectoryMode =
-      lib.mkForce "0770";
+    systemd.services.vaultwarden.serviceConfig.StateDirectoryMode = lib.mkForce "0770";
     systemd.tmpfiles.rules = [
       "f ${vaultwardenPath}/db.sqlite3 0660 vaultwarden vaultwarden"
       "f ${vaultwardenPath}/db.sqlite3-shm 0660 vaultwarden vaultwarden"
@@ -74,8 +73,8 @@ in {
     ];
 
     # Allow litestream and vaultwarden to share a sqlite database
-    users.users.litestream.extraGroups = ["vaultwarden"];
-    users.users.vaultwarden.extraGroups = ["litestream"];
+    users.users.litestream.extraGroups = [ "vaultwarden" ];
+    users.users.vaultwarden.extraGroups = [ "litestream" ];
 
     # Backup sqlite database with litestream
     services.litestream = {
@@ -95,8 +94,8 @@ in {
 
     # Don't start litestream unless vaultwarden is up
     systemd.services.litestream = {
-      after = ["vaultwarden.service"];
-      requires = ["vaultwarden.service"];
+      after = [ "vaultwarden.service" ];
+      requires = [ "vaultwarden.service" ];
     };
 
     # Run a separate file backup on a schedule
@@ -105,7 +104,7 @@ in {
         OnCalendar = "*-*-* 06:00:00"; # Once per day
         Unit = "vaultwarden-backup.service";
       };
-      wantedBy = ["timers.target"];
+      wantedBy = [ "timers.target" ];
     };
 
     # Backup other Vaultwarden data to object storage

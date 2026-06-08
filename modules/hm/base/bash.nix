@@ -1,11 +1,14 @@
 {
+  inputs,
   config,
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.bash;
-in {
+in
+{
   options.modules.hm.base.bash = with types; {
     enable = mkEnableOption "Bash Shell";
   };
@@ -13,8 +16,11 @@ in {
   config = mkIf cfg.enable {
     programs.bash = {
       enable = true;
-      shellOptions = [];
-      historyControl = ["ignoredups" "ignorespace"];
+      shellOptions = [ ];
+      historyControl = [
+        "ignoredups"
+        "ignorespace"
+      ];
 
       shellAliases = {
         ga = "git add";
@@ -26,6 +32,7 @@ in {
         gp = "git push";
         gs = "git status";
         gt = "git tag";
+        lamd = "nix run ${inputs.self.outPath}#installer-rs --";
       };
     };
   };

@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.term.tmux;
-in {
+in
+{
   options.modules.hm.base.term.tmux = with types; {
     enable = mkEnableOption "Tmux Multiplexer";
   };
@@ -43,7 +45,10 @@ in {
         # Set scrollback history limit
         set -g history-limit 100000
 
+        # yazi image preview support
         set -g allow-passthrough on
+        set -ga update-environment TERM
+        set -ga update-environment TERM_PROGRAM
 
         set -ga terminal-overrides ",*256col*:Tc"
 
@@ -70,14 +75,10 @@ in {
 
         # Clipboard integration
         bind -T copy-mode-vi y send -X copy-pipe-and-cancel "${
-          if pkgs.stdenv.isDarwin
-          then "pbcopy"
-          else "xclip -selection clipboard"
+          if pkgs.stdenv.isDarwin then "pbcopy" else "xclip -selection clipboard"
         }"
         bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-pipe-and-cancel "${
-          if pkgs.stdenv.isDarwin
-          then "pbcopy"
-          else "xclip -selection clipboard"
+          if pkgs.stdenv.isDarwin then "pbcopy" else "xclip -selection clipboard"
         }"
       '';
     };

@@ -1,9 +1,11 @@
-{pkgs, ...}: {
+{ pkgs, ... }:
+{
   homebrew = {
     enable = true; # disable for faster rebuild
     onActivation = {
       cleanup = "zap"; # uninstalls all formulae not listed in brewfile
-      upgrade = true; # run 'brew upgrade' on activation
+      extraFlags = [ "--force-cleanup" ];
+      upgrade = false; # avoid brew upgrade during routine darwin-rebuild switch
     };
 
     brews = [

@@ -821,7 +821,7 @@ cmd_deploy_batch() {
         done
 
         # Register cleanup trap for the parent process
-        trap 'rm -rf "./secrets"' EXIT
+        trap stage_secrets_post EXIT
 
         for ((i=0; i<len; i++)); do
             local name vmid do_region ci_image vmx_path

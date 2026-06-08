@@ -4,9 +4,12 @@
   mydefs,
   pkgs,
   ...
-}: with lib; let
+}:
+with lib;
+let
   cfg = config.modules.os.linux.services.router;
-in {
+in
+{
   options.modules.os.linux.services.router = {
     enable = mkEnableOption "NixOS router/firewall service";
 
@@ -47,14 +50,29 @@ in {
 
     dnsServers = mkOption {
       type = types.listOf types.str;
-      default = ["1.1.1.1" "8.8.8.8"];
+      default = [
+        "1.1.1.1"
+        "8.8.8.8"
+      ];
       description = "DNS servers";
+    };
+
+    extraInternalInterfaces = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      description = "Additional internal interfaces included in router NAT.";
     };
 
     enableHA = mkOption {
       type = types.bool;
       default = true;
       description = "Enable HA with Keepalived";
+    };
+
+    enableDhcp = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Enable the production LAN Kea DHCP service";
     };
 
     priority = mkOption {
@@ -67,14 +85,26 @@ in {
       default = false;
       description = "Enable PXE boot service";
     };
+
+    pxeTarget = mkOption {
+      type = types.enum [
+        "pve1"
+        "pve2"
+        "pve-test"
+      ];
+      default = "pve2";
+      description = "The target profile to boot via PXE (pve1, pve2, or pve-test)";
+    };
+
+    enableDyndns = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Enable Cloudflare Dynamic DNS updates";
+    };
   };
 
   config = mkIf cfg.enable {
-    modules.os.linux.services.router.priority = mkDefault (
-      if cfg.isMaster
-      then 150
-      else 100
-    );
+    modules.os.linux.services.router.priority = mkDefault (if cfg.isMaster then 150 else 100);
 
     networking = {
       hostName = cfg.hostname;
@@ -124,7 +154,7 @@ in {
       nat = {
         enable = true;
         externalInterface = "eth0";
-        internalInterfaces = ["eth1.10"];
+        internalInterfaces = [ "eth1.10" ] ++ cfg.extraInternalInterfaces;
         forwardPorts = [
           {
             sourcePort = 443;
@@ -136,8 +166,16 @@ in {
 
       firewall = {
         enable = true;
-        allowedTCPPorts = [22 80 443] ++ (lib.optionals cfg.enableHA [8000]);
-        allowedUDPPorts = [53 3478];
+        allowedTCPPorts = [
+          22
+          80
+          443
+        ]
+        ++ (lib.optionals cfg.enableHA [ 8000 ]);
+        allowedUDPPorts = [
+          53
+          3478
+        ];
         extraCommands = ''
           iptables -A INPUT -p vrrp -j ACCEPT
           iptables -A OUTPUT -p vrrp -j ACCEPT
@@ -150,13 +188,11 @@ in {
     services.unbound = {
       enable = true;
       settings.server = {
-        interface =
-          ["127.0.0.1" cfg.lanIp]
-          ++ (
-            if cfg.enableHA
-            then [cfg.vipLan]
-            else []
-          );
+        interface = [
+          "127.0.0.1"
+          cfg.lanIp
+        ]
+        ++ (if cfg.enableHA then [ cfg.vipLan ] else [ ]);
         access-control = [
           "192.168.1.0/24 allow"
         ];
@@ -164,7 +200,7 @@ in {
         verbosity = 1;
         local-data = [
           "\"minecraft.lamhub.com A 192.168.1.168\""
-          "\"nas.lamhub.me A 192.168.1.6\""
+          "\"nas.lamhub.lan A ${mydefs.nasIp}\""
           "\"pve1.lamhub.com A ${mydefs.hosts.pve1.ip}\""
           "\"pve2.lamhub.com A ${mydefs.hosts.pve2.ip}\""
           "\"smtp.lamhub.lan A 192.168.1.18\""
@@ -174,12 +210,14 @@ in {
       };
     };
 
-    services.kea = {
+    services.kea = mkIf cfg.enableDhcp {
       dhcp4 = {
         enable = true;
         settings = lib.mkMerge [
           {
-            interfaces-config = {interfaces = ["eth1.10"];};
+            interfaces-config = {
+              interfaces = [ "eth1.10" ];
+            };
             "control-socket" = {
               "socket-type" = "unix";
               "socket-name" = "/run/kea/kea4-ctrl-socket";
@@ -250,7 +288,7 @@ in {
                   #   data = "AB:CD:EF:12:34:56:...."; # <-- Your SHA256 fingerprint
                   # }
                 ];
-                pools = [{pool = "192.168.1.100 - 192.168.1.199";}];
+                pools = [ { pool = "192.168.1.100 - 192.168.1.199"; } ];
                 reservations = [
                   {
                     hw-address = "c8:b8:2f:5d:4b:8d";
@@ -288,10 +326,7 @@ in {
                 library = "${pkgs.kea}/lib/kea/hooks/libdhcp_ha.so";
                 parameters."high-availability" = [
                   {
-                    "this-server-name" =
-                      if cfg.isMaster
-                      then "router-main"
-                      else "router-backup";
+                    "this-server-name" = if cfg.isMaster then "router-main" else "router-backup";
                     "mode" = "hot-standby";
                     "http-host" = cfg.lanIp;
                     "http-port" = 8000;
@@ -324,20 +359,24 @@ in {
       };
     };
 
-    modules.os.linux.services.pxe-ipxe = mkIf cfg.enablePxe {
+    modules.os.linux.services.pve-pxe = mkIf cfg.enablePxe {
       enable = true;
-      # testVM = true;
-      pxeVip = cfg.vipLan;
-      targetHostname = mydefs.hosts.pve2.hostname;
-      targetIp = mydefs.hosts.pve2.ip;
+      assets = pkgs.pve-pxe-assets.mkPvePxeAssets {
+        target = cfg.pxeTarget;
+        bootstrapIp = cfg.vipLan;
+      };
+      interface = "eth1.10";
+      listenAddress = cfg.vipLan;
+      dhcpBackend = "none";
+      vrrpControlled = cfg.enableHA;
     };
 
-    sops.secrets.cloudflare_dns_api_token = {};
+    sops.secrets.cloudflare_dns_api_token = mkIf cfg.enableDyndns { };
 
-    services.cloudflare-dyndns = {
+    services.cloudflare-dyndns = mkIf cfg.enableDyndns {
       enable = true;
       apiTokenFile = config.sops.secrets.cloudflare_dns_api_token.path;
-      domains = ["lam.lamhub.com"];
+      domains = [ "lam.lamhub.com" ];
     };
 
     services.keepalived = mkIf cfg.enableHA {
@@ -345,10 +384,7 @@ in {
       vrrpInstances.lan = {
         interface = "eth1.40";
         virtualRouterId = 52;
-        state =
-          if cfg.isMaster
-          then "MASTER"
-          else "BACKUP";
+        state = if cfg.isMaster then "MASTER" else "BACKUP";
         inherit (cfg) priority;
         virtualIps = [
           {
@@ -360,18 +396,46 @@ in {
             dev = "eth0";
           }
         ];
-        trackInterfaces = ["eth0" "eth1.10" "eth1.40"];
+        trackInterfaces = [
+          "eth0"
+          "eth1.10"
+          "eth1.40"
+        ];
         unicastPeers = [
-          (
-            if cfg.isMaster
-            then "192.168.4.3"
-            else "192.168.4.2"
-          )
+          (if cfg.isMaster then "192.168.4.3" else "192.168.4.2")
         ];
         extraConfig = ''
           garp_master_delay 5
           garp_master_repeat 3
           garp_master_refresh 10
+          notify ${pkgs.writeShellScript "keepalived-lan-notify" ''
+            TYPE=$1
+            NAME=$2
+            STATE=$3
+
+            case "$STATE" in
+              "MASTER")
+                ${
+                  if cfg.enablePxe then
+                    ''
+                      systemctl start pve-answer-server.service atftpd.service
+                    ''
+                  else
+                    "echo 'PXE not enabled on MASTER state'"
+                }
+                ;;
+              "BACKUP"|"FAULT")
+                ${
+                  if cfg.enablePxe then
+                    ''
+                      systemctl stop pve-answer-server.service atftpd.service
+                    ''
+                  else
+                    "echo 'PXE not enabled on BACKUP/FAULT state'"
+                }
+                ;;
+            esac
+          ''}
         '';
       };
     };

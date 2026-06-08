@@ -7,6 +7,8 @@ result*
 .DS_Store
 .kilocode/mcp.json
 _tmp*
+.log*
+
 
 # Hugo
 blog/public/

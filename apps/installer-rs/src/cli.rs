@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
-#[command(name = "lamd", version, about = "NixOS deployment orchestrator in Rust")]
+#[command(
+    name = "lamd",
+    version,
+    about = "NixOS deployment orchestrator in Rust"
+)]
 pub struct Cli {
     #[arg(short, long, global = true)]
     pub debug: bool,
@@ -20,6 +24,9 @@ pub struct Cli {
 
     #[arg(long, global = true, default_value = "local")]
     pub repo_src: String,
+
+    #[arg(long, global = true, default_value_t = 5)]
+    pub parallel: usize,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -40,6 +47,12 @@ pub enum Commands {
 
         #[arg(long)]
         redeploy: bool,
+
+        #[arg(long)]
+        overwrite: bool,
+
+        #[arg(long)]
+        convert_to: Option<String>,
     },
     /// Rebuild and apply configuration profiles to active nodes
     Switch {
@@ -78,6 +91,20 @@ pub enum Commands {
 
         #[arg(long)]
         ip: bool,
+    },
+    /// Execute a command remotely over SSH across one or more hosts
+    Exec {
+        #[arg(long)]
+        hosts: Option<String>,
+
+        #[arg(long, short)]
+        target: Option<String>,
+
+        #[arg(long)]
+        stream: bool,
+
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
     },
     /// Generate shell completions
     Completions {

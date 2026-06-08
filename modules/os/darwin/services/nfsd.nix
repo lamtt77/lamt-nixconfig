@@ -5,9 +5,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.darwin.services.nfsd;
-in {
+in
+{
   options = with types; {
     modules.os.darwin.services.nfsd = {
       enable = mkEnableOption "NFS Daemon";
@@ -15,7 +17,7 @@ in {
   };
   config = mkIf cfg.enable {
     sops.secrets = {
-      "nfsd-exports" = {};
+      "nfsd-exports" = { };
     };
 
     environment.etc = {

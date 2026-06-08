@@ -4,9 +4,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.desktop.plasma;
-in {
+in
+{
   options.modules.os.linux.desktop.plasma = {
     enable = mkEnableOption "";
   };

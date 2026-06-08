@@ -6,29 +6,32 @@
   my,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.modules.hm.base.editors.neovim;
   mkLink = my.mkLinkCfg config;
 in
-  with lib; {
-    options = with types; {
-      modules.hm.base.editors.neovim = {
-        enable = mkEnableOption "Neovim editor";
-        package = mkOption {
-          type = package;
-          default = pkgs.unstable.neovim;
-          description = "Neovim package to use";
-        };
-        extraPackages = mkOption {
-          type = listOf package;
-          default = [];
-          description = "Additional packages to install for Neovim";
-        };
+with lib;
+{
+  options = with types; {
+    modules.hm.base.editors.neovim = {
+      enable = mkEnableOption "Neovim editor";
+      package = mkOption {
+        type = package;
+        default = pkgs.neovim;
+        description = "Neovim package to use";
+      };
+      extraPackages = mkOption {
+        type = listOf package;
+        default = [ ];
+        description = "Additional packages to install for Neovim";
       };
     };
+  };
 
-    config = mkIf cfg.enable {
-      home.packages = let
+  config = mkIf cfg.enable {
+    home.packages =
+      let
         commonDeps = with pkgs; [
           git
           ripgrep
@@ -55,9 +58,9 @@ in
           ruff
           pyright
           # JavaScript/TypeScript
-          nodePackages.eslint
-          nodePackages.prettier
-          nodePackages.typescript-language-server
+          eslint
+          prettier
+          typescript-language-server
           # C/C++
           clang-tools # clangd, clang-format
           cppcheck
@@ -81,15 +84,15 @@ in
           wordnet
         ];
       in
-        [cfg.package]
-        ++ commonDeps
-        ++ lspServers
-        ++ formatters
-        ++ languageTools
-        ++ debugTools
-        ++ devEnv
-        ++ cfg.extraPackages;
+      [ cfg.package ]
+      ++ commonDeps
+      ++ lspServers
+      ++ formatters
+      ++ languageTools
+      ++ debugTools
+      ++ devEnv
+      ++ cfg.extraPackages;
 
-      xdg.configFile."nvim".source = mkLink "config/nvim";
-    };
-  }
+    xdg.configFile."nvim".source = mkLink "config/nvim";
+  };
+}

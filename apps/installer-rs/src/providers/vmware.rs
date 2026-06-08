@@ -1,12 +1,10 @@
 use super::VirtualizationProvider;
 use crate::context::RuntimeContext;
 use crate::process::CommandExecutor;
-use crate::process::LogTarget;
-use crate::log_status;
+use crate::process::Logger;
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
@@ -16,11 +14,11 @@ pub struct VmwareProvider {
     system: String,
     disk_size: String,
     vmrun_bin: String,
-    log_target: Arc<Mutex<LogTarget>>,
+    logger: Logger,
 }
 
 impl VmwareProvider {
-    pub fn new(ctx: &RuntimeContext, log_target: Arc<Mutex<LogTarget>>) -> Self {
+    pub fn new(ctx: &RuntimeContext, logger: Logger) -> Self {
         let vmx_path = ctx.deployment.vmware.vmx_path.clone();
         let vmrun_bin = resolve_vmrun_path();
 
@@ -30,13 +28,14 @@ impl VmwareProvider {
             system: ctx.system.clone(),
             disk_size: ctx.deployment.disk_size.clone(),
             vmrun_bin,
-            log_target,
+            logger,
         }
     }
 
     fn is_running(&self) -> bool {
         let args = ["-T", "fusion", "list"];
-        if let Ok(out) = CommandExecutor::execute(&self.vmrun_bin, &args, Arc::clone(&self.log_target)) {
+        let silent_log = Logger::silent();
+        if let Ok(out) = CommandExecutor::execute(&self.vmrun_bin, &args, silent_log) {
             out.contains(&self.vmx_path)
         } else {
             false
@@ -59,15 +58,21 @@ impl VirtualizationProvider for VmwareProvider {
         }
 
         if self.is_running() || self.exists() {
-            println!("VMware VM is already running or configuration exists.");
+            info!(
+                self.logger,
+                "VMware VM is already running or configuration exists."
+            );
             return Ok(());
         }
 
         let vmx_path = Path::new(&self.vmx_path);
-        let vmx_dir = vmx_path.parent().ok_or_else(|| {
-            format!("Invalid VMX path: {}", self.vmx_path)
-        })?;
-        let vm_name = vmx_path.file_stem().and_then(|s| s.to_str()).unwrap_or(&self.hostname);
+        let vmx_dir = vmx_path
+            .parent()
+            .ok_or_else(|| format!("Invalid VMX path: {}", self.vmx_path))?;
+        let vm_name = vmx_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&self.hostname);
 
         // Determine CPU architecture
         let target_arch = if self.system.contains("x86_64") {
@@ -77,11 +82,16 @@ impl VirtualizationProvider for VmwareProvider {
         };
 
         // Find or download NixOS Minimal ISO
-        let iso_dir_str = env::var("DEFAULT_VMW_ISO_DIR").unwrap_or_else(|_| crate::config::DEFAULT_VMW_ISO_DIR.to_string());
+        let iso_dir_str = env::var("DEFAULT_VMW_ISO_DIR")
+            .unwrap_or_else(|_| crate::config::DEFAULT_VMW_ISO_DIR.to_string());
         let iso_dir = Path::new(&iso_dir_str);
         fs::create_dir_all(iso_dir)?;
 
-        let custom_iso_name = format!("nixos-minimal-25.11.20260522.b77b3de-{}-linux.iso", target_arch);
+        let custom_iso_name = format!(
+            "nixos-minimal-{}-{}-linux.iso",
+            crate::config::nixos_iso_version(),
+            target_arch
+        );
         let custom_iso = iso_dir.join(&custom_iso_name);
         let official_iso_name = format!("latest-nixos-minimal-{}-linux.iso", target_arch);
         let official_iso = iso_dir.join(&official_iso_name);
@@ -89,12 +99,23 @@ impl VirtualizationProvider for VmwareProvider {
 
         // 1. Check workspace own-built ISO first (using config.rs helper)
         if let Some(workspace_iso) = crate::config::find_custom_iso(target_arch) {
-            println!("Found workspace own-built NixOS ISO: {}", workspace_iso.display());
+            info!(
+                self.logger,
+                "Found workspace own-built NixOS ISO: {}",
+                workspace_iso.display()
+            );
             let target_dest = iso_dir.join(workspace_iso.file_name().unwrap());
             if !target_dest.exists() {
-                println!("Copying workspace own-built ISO to target directory: {}...", target_dest.display());
+                info!(
+                    self.logger,
+                    "Copying workspace own-built ISO to target directory: {}...",
+                    target_dest.display()
+                );
                 if let Err(e) = fs::copy(&workspace_iso, &target_dest) {
-                    println!("Warning: Failed to copy own-built ISO from workspace: {:?}", e);
+                    warn!(
+                        self.logger,
+                        "Warning: Failed to copy own-built ISO from workspace: {:?}", e
+                    );
                 }
             }
             if target_dest.exists() {
@@ -104,13 +125,21 @@ impl VirtualizationProvider for VmwareProvider {
 
         // 2. Fallback to custom ISO name in default ISO dir
         if local_iso.is_none() && custom_iso.exists() {
-            println!("Own-built custom NixOS ISO found: {}", custom_iso.display());
+            info!(
+                self.logger,
+                "Own-built custom NixOS ISO found: {}",
+                custom_iso.display()
+            );
             local_iso = Some(custom_iso);
         }
 
         // 3. Fallback to official ISO name in default ISO dir
         if local_iso.is_none() && official_iso.exists() {
-            println!("Official NixOS ISO found: {}", official_iso.display());
+            info!(
+                self.logger,
+                "Official NixOS ISO found: {}",
+                official_iso.display()
+            );
             local_iso = Some(official_iso.clone());
         }
 
@@ -124,10 +153,10 @@ impl VirtualizationProvider for VmwareProvider {
                             let match_custom = filename.starts_with("nixos-minimal-")
                                 && filename.contains(target_arch)
                                 && filename.ends_with(".iso");
-                            let match_generic = filename.contains(target_arch)
-                                && filename.ends_with(".iso");
+                            let match_generic =
+                                filename.contains(target_arch) && filename.ends_with(".iso");
                             if match_custom || match_generic {
-                                println!("Fallback NixOS ISO found: {}", path.display());
+                                info!(self.logger, "Fallback NixOS ISO found: {}", path.display());
                                 local_iso = Some(path);
                                 break;
                             }
@@ -140,21 +169,49 @@ impl VirtualizationProvider for VmwareProvider {
         let selected_iso = match local_iso {
             Some(iso) => iso,
             None => {
-                let channel = "nixos-25.11";
-                let download_url = format!("https://channels.nixos.org/{}/latest-nixos-minimal-{}-linux.iso", channel, target_arch);
-                println!("NixOS ISO not found in {}. Downloading official ISO from {}...", iso_dir.display(), download_url);
-                
-                let curl_args = ["-L", &download_url, "-o", &official_iso.to_string_lossy()];
-                CommandExecutor::execute("curl", &curl_args, Arc::clone(&self.log_target))?;
-                
+                let channel = crate::config::nixos_channel();
+                let download_url = format!(
+                    "https://channels.nixos.org/{}/latest-nixos-minimal-{}-linux.iso",
+                    channel, target_arch
+                );
                 if !official_iso.exists() {
-                    return Err(format!("Failed to download NixOS ISO from {}", download_url).into());
+                    warn!(
+                        self.logger,
+                        "WARNING: Custom built ISO not found in {}. Downloading official NixOS minimal ISO.\n\
+                         Because the official ISO does not contain your SSH public key, you MUST log in to the VM console once booted and run:\n\n\
+                         mkdir -p ~/.ssh && echo '{}' >> ~/.ssh/authorized_keys\n\n\
+                         The installer will poll and wait for up to 5 minutes for the SSH connection to become available.",
+                        iso_dir.display(),
+                        crate::config::ssh_auth_key()
+                    );
+
+                    let curl_args = ["-L", &download_url, "-o", &official_iso.to_string_lossy()];
+                    CommandExecutor::execute("curl", &curl_args, self.logger.clone())?;
+
+                    if !official_iso.exists() {
+                        return Err(
+                            format!("Failed to download NixOS ISO from {}", download_url).into(),
+                        );
+                    }
+                } else {
+                    warn!(
+                        self.logger,
+                        "WARNING: Custom built ISO not found. Using existing official NixOS minimal ISO.\n\
+                         Because the official ISO does not contain your SSH public key, you MUST log in to the VM console once booted and run:\n\n\
+                         mkdir -p ~/.ssh && echo '{}' >> ~/.ssh/authorized_keys\n\n\
+                         The installer will poll and wait for up to 5 minutes for the SSH connection to become available.",
+                        crate::config::ssh_auth_key()
+                    );
                 }
                 official_iso
             }
         };
 
-        println!("NixOS ISO selected: {}", selected_iso.display());
+        info!(
+            self.logger,
+            "NixOS ISO selected: {}",
+            selected_iso.display()
+        );
 
         // Always use "Virtual Disk.vmdk" for the disk name
         let disk_name = "Virtual Disk.vmdk";
@@ -168,13 +225,16 @@ impl VirtualizationProvider for VmwareProvider {
                 self.disk_size.clone()
             }
         });
-        
-        println!("Creating {}GB VMware virtual disk ({}) at {:?}...", env_disk_size, disk_name, vmx_dir);
+
+        info!(
+            self.logger,
+            "Creating {}GB VMware virtual disk ({}) at {:?}...", env_disk_size, disk_name, vmx_dir
+        );
         fs::create_dir_all(vmx_dir)?;
-        
+
         let size_arg = format!("{}GB", env_disk_size);
         let disk_path = vmx_dir.join(disk_name);
-        
+
         let manager_args = [
             "-c",
             "-s",
@@ -185,14 +245,17 @@ impl VirtualizationProvider for VmwareProvider {
             "0",
             &disk_path.to_string_lossy(),
         ];
-        
-        CommandExecutor::execute(&vdiskmanager, &manager_args, Arc::clone(&self.log_target))?;
+
+        CommandExecutor::execute(&vdiskmanager, &manager_args, self.logger.clone())?;
 
         // Generate VMX file content from scratch
         let cores = env::var("VM_CORES").unwrap_or_else(|_| "4".to_string());
         let memory = env::var("VM_MEMORY").unwrap_or_else(|_| "4096".to_string());
-        
-        println!("Generating VMX configuration file at {}...", self.vmx_path);
+
+        info!(
+            self.logger,
+            "Generating VMX configuration file at {}...", self.vmx_path
+        );
         let vmx_content = generate_vmx_content(
             vm_name,
             disk_name,
@@ -202,59 +265,73 @@ impl VirtualizationProvider for VmwareProvider {
             &memory,
         );
         fs::write(vmx_path, vmx_content)?;
-        println!("VMware VMX configuration generated successfully.");
+        info!(
+            self.logger,
+            "VMware VMX configuration generated successfully."
+        );
 
-        println!("Starting VMware VM from VMX path: {}...", self.vmx_path);
+        info!(
+            self.logger,
+            "Starting VMware VM from VMX path: {}...", self.vmx_path
+        );
         let args = ["-T", "fusion", "start", &self.vmx_path, "gui"];
-        CommandExecutor::execute(&self.vmrun_bin, &args, Arc::clone(&self.log_target))?;
+        CommandExecutor::execute(&self.vmrun_bin, &args, self.logger.clone())?;
         Ok(())
     }
 
     fn destroy(&self) -> Result<(), Box<dyn std::error::Error>> {
         if self.is_running() {
-            println!("Stopping VMware VM...");
+            info!(self.logger, "Stopping VMware VM...");
             let stop_args = ["-T", "fusion", "stop", &self.vmx_path, "hard"];
-            let _ = CommandExecutor::execute(&self.vmrun_bin, &stop_args, Arc::clone(&self.log_target));
+            let _ = CommandExecutor::execute(&self.vmrun_bin, &stop_args, self.logger.clone());
         }
 
-        println!("Deleting VMware VM configurations...");
+        info!(self.logger, "Deleting VMware VM configurations...");
         let delete_args = ["-T", "fusion", "deleteVM", &self.vmx_path];
-        let _ = CommandExecutor::execute(&self.vmrun_bin, &delete_args, Arc::clone(&self.log_target));
+        let _ = CommandExecutor::execute(&self.vmrun_bin, &delete_args, self.logger.clone());
 
         // Clean directory files (vmdk, logs, locks)
-        if let Some(parent) = Path::new(&self.vmx_path).parent() {
+        let vmx_path = Path::new(&self.vmx_path);
+        if vmx_path.exists() {
+            let _ = fs::remove_file(vmx_path);
+        }
+        if let Some(parent) = vmx_path.parent() {
             if parent.exists() {
-                println!("Cleaning temporary VM files in directory: {:?}", parent);
-                // Wipe locks and logs
-                if let Ok(entries) = fs::read_dir(parent) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                            if ext == "log" || ext == "lck" || ext == "scoreboard" {
-                                let _ = fs::remove_file(&path);
-                            }
-                        }
-                    }
-                }
+                info!(self.logger, "Removing VM directory manually: {:?}", parent);
+                let _ = fs::remove_dir_all(parent);
             }
         }
 
         Ok(())
     }
 
-    fn get_ip(&self) -> Result<String, Box<dyn std::error::Error>> {
+    fn get_ip(&self, poll: bool) -> Result<String, Box<dyn std::error::Error>> {
         // 1. Parse MAC Address from .vmx file
-        let mac = parse_mac_from_vmx(&self.vmx_path)
-            .ok_or_else(|| format!("Failed to read ethernet MAC address from VMX file at {}", self.vmx_path))?;
+        let mac = parse_mac_from_vmx(&self.vmx_path).ok_or_else(|| {
+            format!(
+                "Failed to read ethernet MAC address from VMX file at {}",
+                self.vmx_path
+            )
+        })?;
 
-        log_status!(self.log_target, "Locating DHCP lease for MAC address: {}...", mac);
+        info!(
+            self.logger,
+            "Locating DHCP lease for MAC address: {}...", mac
+        );
 
-        // 2. Poll lease files for MAC matching IP address (up to 12 times / 60 seconds)
-        for _ in 0..12 {
+        if !poll {
             if let Some(ip) = find_ip_in_leases(&mac) {
                 return Ok(ip);
             }
-            thread::sleep(Duration::from_secs(5));
+            return Err("VM IP not immediately available in DHCP leases".into());
+        }
+
+        // 2. Poll lease files for MAC matching IP address (up to 60 times / 60 seconds)
+        for _ in 0..60 {
+            if let Some(ip) = find_ip_in_leases(&mac) {
+                return Ok(ip);
+            }
+            thread::sleep(Duration::from_secs(1));
         }
 
         Err("Failed to resolve VMware VM IP address from DHCP lease files".into())
@@ -310,86 +387,24 @@ fn generate_vmx_content(
         "vmxnet3"
     };
 
-    format!(
-        r#".encoding = "UTF-8"
-config.version = "8"
-virtualHW.version = "22"
-pciBridge0.present = "TRUE"
-pciBridge4.present = "TRUE"
-pciBridge4.virtualDev = "pcieRootPort"
-pciBridge4.functions = "8"
-pciBridge5.present = "TRUE"
-pciBridge5.virtualDev = "pcieRootPort"
-pciBridge5.functions = "8"
-pciBridge6.present = "TRUE"
-pciBridge6.virtualDev = "pcieRootPort"
-pciBridge6.functions = "8"
-pciBridge7.present = "TRUE"
-pciBridge7.virtualDev = "pcieRootPort"
-pciBridge7.functions = "8"
-vmci0.present = "TRUE"
-hpet0.present = "TRUE"
-nvram = "{name}.nvram"
-virtualHW.productCompatibility = "hosted"
-powerType.powerOff = "soft"
-powerType.powerOn = "soft"
-powerType.suspend = "soft"
-powerType.reset = "soft"
-displayName = "{name}"
-firmware = "efi"
-guestOS = "{guest_os}"
-tools.syncTime = "TRUE"
-tools.upgrade.policy = "upgradeAtPowerCycle"
-sound.autoDetect = "TRUE"
-sound.virtualDev = "hdaudio"
-sound.fileName = "-1"
-sound.present = "TRUE"
-numvcpus = "{cores}"
-cpuid.coresPerSocket = "1"
-memsize = "{memory}"
-sata0.present = "TRUE"
-nvme0.present = "TRUE"
-sata0:0.fileName = "{disk_name}"
-sata0:0.present = "TRUE"
-sata0:1.deviceType = "cdrom-image"
-sata0:1.fileName = "{iso_path}"
-sata0:1.present = "TRUE"
-sata0:1.startConnected = "TRUE"
-sata0:1.autodetect = "FALSE"
-usb.present = "TRUE"
-ehci.present = "TRUE"
-usb_xhci.present = "TRUE"
-ethernet0.connectionType = "nat"
-ethernet0.addressType = "generated"
-ethernet0.virtualDev = "{net_dev}"
-ethernet0.linkStatePropagation.enable = "TRUE"
-ethernet0.present = "TRUE"
-extendedConfigFile = "{name}.vmxf"
-isolation.tools.hgfs.disable = "FALSE"
-hgfs.mapRootShare = "TRUE"
-hgfs.linkRootShare = "TRUE"
-floppy0.present = "FALSE"
-bios.bootOrder = "hdd"
-bios.hddOrder = "sata0:0"
-mks.enable3d = "TRUE"
-gui.fitGuestUsingNativeDisplayResolution = "TRUE"
-vmxstats.filename = "{name}.scoreboard"
-svga.vramSize = "268435456"
-"#,
-        name = name,
-        guest_os = guest_os,
-        cores = cores,
-        memory = memory,
-        disk_name = disk_name,
-        iso_path = iso_path,
-        net_dev = net_dev,
-    )
+    let raw_template = include_str!("vmx_config.template");
+    raw_template
+        .replace("@name@", name)
+        .replace("@guest_os@", guest_os)
+        .replace("@cores@", cores)
+        .replace("@memory@", memory)
+        .replace("@disk_name@", disk_name)
+        .replace("@iso_path@", iso_path)
+        .replace("@net_dev@", net_dev)
 }
 
 fn parse_mac_from_vmx(vmx_path: &str) -> Option<String> {
     let content = fs::read_to_string(vmx_path).ok()?;
     for line in content.lines() {
-        if line.to_lowercase().starts_with("ethernet0.generatedaddress") {
+        if line
+            .to_lowercase()
+            .starts_with("ethernet0.generatedaddress")
+        {
             let parts: Vec<&str> = line.split('=').collect();
             if parts.len() >= 2 {
                 let mac = parts[1].trim().trim_matches('"').trim().to_lowercase();

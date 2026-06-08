@@ -4,9 +4,11 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.yt-dlp;
-in {
+in
+{
   options.modules.hm.base.yt-dlp = with types; {
     enable = mkEnableOption "YouTube Downloader";
   };
@@ -21,6 +23,6 @@ in {
       };
     };
 
-    home.packages = [pkgs.aria2];
+    home.packages = [ pkgs.aria2 ];
   };
 }

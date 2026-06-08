@@ -1,5 +1,6 @@
 # Goal: use as less modules and packages as possible
-{pkgs, ...}: {
+{ pkgs, ... }:
+{
   modules.hm.base.bash.enable = true;
   modules.hm.base.term.tmux.enable = true;
 

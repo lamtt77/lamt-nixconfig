@@ -3,9 +3,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.direnv;
-in {
+in
+{
   options.modules.hm.base.direnv = with types; {
     enable = mkEnableOption "Direnv";
   };
@@ -20,7 +22,7 @@ in {
 
       config = {
         whitelist = {
-          exact = ["$HOME/.envrc"];
+          exact = [ "$HOME/.envrc" ];
         };
       };
     };

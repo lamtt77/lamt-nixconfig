@@ -3,24 +3,15 @@
   config,
   mydefs,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-router_main.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
     })
   ];
-
-  deployment = {
-    targetIp = config.modules.os.linux.services.router.lanIp;
-    vmid = "105";
-    proxmox = {
-      host = mydefs.hosts.pve1.ip;
-      bios = "ovmf";
-      diskBus = "scsi";
-    };
-  };
 
   boot.growPartition = true;
   services.openssh.enable = true;
@@ -38,10 +29,11 @@
     enableHA = true;
     priority = 150;
     enablePxe = true;
+    pxeTarget = "pve1";
   };
 
   services.qemuGuest.enable = true;
 
-  networking.firewall.allowedTCPPorts = [ 5201 ];  # iperf3 server port
-  networking.firewall.allowedUDPPorts = [ 5201 ];  # iperf3 UDP mode
+  networking.firewall.allowedTCPPorts = [ 5201 ]; # iperf3 server port
+  networking.firewall.allowedUDPPorts = [ 5201 ]; # iperf3 UDP mode
 }

@@ -3,9 +3,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.term.zellij;
-in {
+in
+{
   options.modules.hm.base.term.zellij = with types; {
     enable = mkEnableOption "Zellij Terminal Multiplexers";
   };

@@ -12,10 +12,10 @@ The configuration is organized into the following modules under `lua/config/`:
 - **`dap.lua`** - Debug Adapter Protocol setup and configurations
 
 ### UI Modules
-- **`telescope.lua`** - Fuzzy finder and search functionality
+- **`fzf.lua`** - Fuzzy finding, repository discovery, and picker UI
 - **`file-explorer.lua`** - File browsing with Neo-tree
 - **`theme.lua`** - Catppuccin theme configuration
-- **`workspace.lua`** - Project detection and session management
+- **`workspace.lua`** - Automatic per-directory session management
 
 ### Feature Modules
 - **`ai.lua`** - AI-assisted coding plugins and configurations

@@ -3,9 +3,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.hm.base.editors.zed;
-in {
+in
+{
   options = with types; {
     modules.hm.base.editors.zed = {
       enable = mkEnableOption "Zed Editor";

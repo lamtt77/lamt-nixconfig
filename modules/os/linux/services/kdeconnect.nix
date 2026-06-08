@@ -3,9 +3,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.kdeconnect;
-in {
+in
+{
   options = with types; {
     modules.os.linux.services.kdeconnect = {
       enable = mkEnableOption "kdeconnect service";

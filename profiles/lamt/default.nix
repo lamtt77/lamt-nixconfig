@@ -3,10 +3,12 @@
   pkgs,
   myargs,
   ...
-}: let
+}:
+let
   inherit (pkgs.stdenv) isDarwin;
   inherit (pkgs.stdenv) isLinux;
-in {
+in
+{
   modules = {
     hm = {
       base = {
@@ -59,118 +61,119 @@ in {
     yazi.enable = true;
   };
 
-  home.packages = let
-    # Common packages for all platforms
-    commonPackages = with pkgs; [
-      cachix
-      hugo
-      killall
-      unzip
-      chezmoi
-      nix-prefetch-git
-      ookla-speedtest
-      imagemagick
-      librsvg # SVG rendering support for imagemagick/image.nvim
-      ffmpeg
-      docker-compose
-      mkcert
-      asciinema
-      bat
-      htop
-      iperf
-      jq
-      lsof
-      ncdu
-      nvd
-      stow
-      tldr
-      tree
-      watch
-      ansible
-      eza # Better ls
-      neofetch
-      ranger
-      highlight
-      borgbackup
-      rclone
-      restic
-      ipmitool
-      powershell
-      p7zip
-      cmus
+  home.packages =
+    let
+      # Common packages for all platforms
+      commonPackages = with pkgs; [
+        cachix
+        hugo
+        killall
+        unzip
+        chezmoi
+        nix-prefetch-git
+        ookla-speedtest
+        imagemagick
+        librsvg # SVG rendering support for imagemagick/image.nvim
+        ffmpeg
+        docker-compose
+        mkcert
+        asciinema
+        bat
+        htop
+        iperf
+        jq
+        lsof
+        ncdu
+        nvd
+        stow
+        tldr
+        tree
+        watch
+        ansible
+        eza # Better ls
+        fastfetch
+        ranger
+        highlight
+        borgbackup
+        rclone
+        restic
+        ipmitool
+        powershell
+        p7zip
+        cmus
 
-      # DigitalOcean
-      doctl
-    ];
+        # DigitalOcean
+        doctl
+      ];
 
-    # Programming languages
-    languages = with pkgs; [
-      cargo
-      zig
-      nodejs
-      clang-tools # C/C++ LSP and tools
-      (python3.withPackages (ps:
-        with ps; [
-          pip
-          pynvim
-          python-lsp-ruff
-          python-lsp-server
-          debugpy
-        ]))
-    ];
+      # Programming languages
+      languages = with pkgs; [
+        cargo
+        clippy
+        rustc
+        rustfmt
+        nixfmt
+        zig
+        nodejs
+        clang-tools # C/C++ LSP and tools
+        (python3.withPackages (
+          ps: with ps; [
+            pip
+            pynvim
+            python-lsp-ruff
+            python-lsp-server
+            debugpy
+          ]
+        ))
+      ];
 
-    # Debugging tools
-    debugging = with pkgs; [
-      vscode-js-debug # JavaScript/TypeScript debugging adapter
-    ];
+      # Debugging tools
+      debugging = with pkgs; [
+        vscode-js-debug # JavaScript/TypeScript debugging adapter
+        hyperfine
+      ];
 
-    # AI tools
-    ai = with pkgs; [
-      helix-gpt
-    ];
+      # Linux AI tools
+      linuxAi = with pkgs; [
+        opencode
+        gemini-cli
+      ];
 
-    # Linux AI tools
-    linuxAi = with pkgs; [
-      unstable.opencode
-      unstable.gemini-cli
-    ];
+      # macOS-specific packages
+      darwinPackages = with pkgs; [
+        coreutils # replace tools `du` so that `ranger` can call
+        diffutils
+        findutils
+        gnutar
+        pngpaste
+      ];
 
-    # macOS-specific packages
-    darwinPackages = with pkgs; [
-      coreutils # replace tools `du` so that `ranger` can call
-      diffutils
-      findutils
-      gnutar
-      pngpaste
-    ];
+      # Linux-specific packages
+      linuxPackages = with pkgs; [
+        xclip
+        maim
+        flameshot
+      ];
 
-    # Linux-specific packages
-    linuxPackages = with pkgs; [
-      xclip
-      maim
-      flameshot
-    ];
-
-    # Linux non-WSL specific packages
-    linuxNonWslPackages = with pkgs; [
-      chromium
-      firefox
-      valgrind
-      xfce.xfce4-terminal
-      zathura
-      awscli2
-      ssm-session-manager-plugin # Amazon SSM Session Manager Plugin
-      aws-iam-authenticator
-      eksctl
-      # terraform
-      # terraformer # generate terraform configs from existing cloud resources
-      # packer # machine image builder
-    ];
-  in
+      # Linux non-WSL specific packages
+      linuxNonWslPackages = with pkgs; [
+        chromium
+        firefox
+        valgrind
+        xfce4-terminal
+        zathura
+        awscli2
+        ssm-session-manager-plugin # Amazon SSM Session Manager Plugin
+        aws-iam-authenticator
+        eksctl
+        # terraform
+        # terraformer # generate terraform configs from existing cloud resources
+        # packer # machine image builder
+      ];
+    in
     commonPackages
     ++ languages
     ++ debugging
-    ++ ai
     ++ (lib.optionals isDarwin darwinPackages)
     ++ (lib.optionals isLinux linuxPackages)
     ++ (lib.optionals isLinux linuxAi)

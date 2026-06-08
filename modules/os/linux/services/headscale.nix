@@ -4,10 +4,12 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.headscale;
   derpPort = 3478;
-in {
+in
+{
   options.modules.os.linux.services.headscale = {
     enable = mkEnableOption "Headscale service";
     domain = mkOption {
@@ -22,7 +24,10 @@ in {
     };
     users = mkOption {
       type = types.listOf types.str;
-      default = ["lamt" "cloud"];
+      default = [
+        "lamt"
+        "cloud"
+      ];
       description = "List of Headscale users to ensure exist. Other existing users will not be deleted.";
     };
   };
@@ -63,20 +68,25 @@ in {
           magic_dns = true;
           # Public fallback for all nodes. Each host's system DNS (e.g.
           # 192.168.1.1 on LAN hosts) takes precedence for non-tailnet domains.
-          nameservers.global = [ "1.1.1.1" "8.8.8.8" ];
+          nameservers.global = [
+            "1.1.1.1"
+            "8.8.8.8"
+          ];
         };
         policy = {
           mode = "file";
-          path = "${pkgs.writeText "policy.hujson" (builtins.toJSON {
-            # only 'lamt' accessing full tailnet
-            acls = [
-              {
-                action = "accept";
-                src = ["lamt@"];
-                dst = ["*:*"];
-              }
-            ];
-          })}";
+          path = "${pkgs.writeText "policy.hujson" (
+            builtins.toJSON {
+              # only 'lamt' accessing full tailnet
+              acls = [
+                {
+                  action = "accept";
+                  src = [ "lamt@" ];
+                  dst = [ "*:*" ];
+                }
+              ];
+            }
+          )}";
         };
       };
     };
@@ -96,7 +106,7 @@ in {
     };
 
     # Derp server
-    networking.firewall.allowedUDPPorts = [derpPort];
+    networking.firewall.allowedUDPPorts = [ derpPort ];
 
     systemd.services.headscale-users = {
       description = "Ensure Headscale users exist";

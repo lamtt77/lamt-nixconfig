@@ -6,32 +6,29 @@
   mydefs,
   my,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-utils.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/sda"];
+      disks = [ "/dev/sda" ];
     })
   ];
-
-  deployment = {
-    targetIp = mydefs.networking.utils.ip;
-    vmid = "115";
-    proxmox = {
-      host = mydefs.hosts.pve1.ip;
-      bios = "ovmf";
-      diskBus = "scsi";
-    };
-  };
 
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
-  networking = my.mkStaticNetworking mydefs.networking.utils;
+  networking = my.mkStaticNetworking (
+    mydefs.networkingDefaults
+    // {
+      ip = config.deployment.targetIp;
+      interface = "ens18";
+    }
+  );
 
   modules.os.base.services.sops.enable = true;
-  sops.secrets.tailscale_preauth_key = {};
+  sops.secrets.tailscale_preauth_key = { };
 
   modules.os.base.services.tailscale = {
     enable = true;
@@ -44,7 +41,7 @@
   services.qemuGuest.enable = true;
 
   environment.systemPackages = [
-    (pkgs.ovftool.override {acceptBroadcomEula = true;})
+    (pkgs.ovftool.override { acceptBroadcomEula = true; })
   ];
 
   users.users.deploy.openssh.authorizedKeys.keys = [

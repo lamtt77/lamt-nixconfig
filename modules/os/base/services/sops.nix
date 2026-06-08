@@ -6,9 +6,11 @@
   myargs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.base.services.sops;
-in {
+in
+{
   options = with types; {
     modules.os.base.services.sops = {
       enable = mkEnableOption "SOPS Module";
@@ -33,23 +35,23 @@ in {
           secretsFile = "${inputs.self}/secrets/sops/${myargs.hostname}.yaml";
           fallbackFile = ./dummy-secrets.yaml;
         in
-          if builtins.pathExists secretsFile then secretsFile else fallbackFile;
+        if builtins.pathExists secretsFile then secretsFile else fallbackFile;
       validateSopsFiles = builtins.pathExists "${inputs.self}/secrets/sops/${myargs.hostname}.yaml";
-      age.sshKeyPaths = lib.mkForce [cfg.ageKeyFile];
+      age.sshKeyPaths = lib.mkForce [ cfg.ageKeyFile ];
     };
 
     system.activationScripts.setupSecrets =
       let
         secretsFile = "${inputs.self}/secrets/sops/${myargs.hostname}.yaml";
       in
-        mkIf (!builtins.pathExists secretsFile) (mkForce ''
-          echo "========================================================================="
-          echo "WARNING: SOPS secrets file was missing during build:"
-          echo "  ${secretsFile}"
-          echo "Bypassing secrets installation. Active secrets in /run/secrets remain for now,"
-          echo "but they WILL NOT persist across reboots!"
-          echo "Please redeploy from a management host containing the secrets repository."
-          echo "========================================================================="
-        '');
+      mkIf (!builtins.pathExists secretsFile) (mkForce ''
+        echo "========================================================================="
+        echo "WARNING: SOPS secrets file was missing during build:"
+        echo "  ${secretsFile}"
+        echo "Bypassing secrets installation. Active secrets in /run/secrets remain for now,"
+        echo "but they WILL NOT persist across reboots!"
+        echo "Please redeploy from a management host containing the secrets repository."
+        echo "========================================================================="
+      '');
   };
 }

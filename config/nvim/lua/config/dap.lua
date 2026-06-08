@@ -338,27 +338,20 @@ return {
 			{
 				"<leader>dl",
 				function()
-					require("dap").run(
-						require("dap").configurations[vim.bo.filetype]
-								and require("dap").configurations[vim.bo.filetype][1]
-							or {}
-					)
+					local dap = require("dap")
+					local configs = dap.configurations[vim.bo.filetype]
+					if not configs or not configs[1] then
+						vim.notify("No debug configuration available for " .. vim.bo.filetype, vim.log.levels.WARN)
+						return
+					end
+					dap.run(configs[1])
 				end,
 				desc = "Launch default configuration",
 			},
 			{
 				"<leader>dL",
 				function()
-					local dap = require("dap")
-					local telescope = require("telescope")
-
-					-- Check if configurations exist for current filetype
-					local configs = dap.configurations[vim.bo.filetype]
-					if configs and #configs > 0 then
-						telescope.extensions.dap.configurations({})
-					else
-						vim.notify("No debug configurations available for " .. vim.bo.filetype, vim.log.levels.WARN)
-					end
+					require("telescope").extensions.dap.configurations({})
 				end,
 				desc = "Select debug configuration",
 			},
@@ -591,17 +584,9 @@ return {
 		"nvim-telescope/telescope-dap.nvim",
 		event = "VeryLazy",
 		dependencies = { "mfussenegger/nvim-dap", "nvim-telescope/telescope.nvim" },
-		keys = {
-			{
-				"<leader>dL",
-				function()
-					require("telescope").extensions.dap.configurations({})
-				end,
-				desc = "Select debug configuration",
-			},
-		},
 		config = function()
 			require("telescope").load_extension("dap")
 		end,
 	},
+
 }

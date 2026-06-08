@@ -1,23 +1,26 @@
 use super::IdentityService;
 use crate::context::RuntimeContext;
 use crate::process::CommandExecutor;
-use crate::process::LogTarget;
+use crate::process::Logger;
 use std::env;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 pub struct GpgService {
-    log_target: Arc<Mutex<LogTarget>>,
+    logger: Logger,
 }
 
 impl GpgService {
-    pub fn new(log_target: Arc<Mutex<LogTarget>>) -> Self {
-        Self { log_target }
+    pub fn new(logger: Logger) -> Self {
+        Self { logger }
     }
 
     /// Syncs user's personal GnuPG credentials to target.
     /// This is restricted to manual execution ONLY.
-    pub fn sync_gpg_credentials(&self, ctx: &RuntimeContext, mount_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn sync_gpg_credentials(
+        &self,
+        ctx: &RuntimeContext,
+        mount_path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Locate local GPG home directory
         let local_gpg_home = if let Ok(gpg_home) = env::var("GNUPGHOME") {
             Path::new(&gpg_home).to_path_buf()
@@ -32,42 +35,60 @@ impl GpgService {
         };
 
         if !local_gpg_home.exists() {
-            println!("Local GnuPG directory not found at {}. Skipping GPG sync.", local_gpg_home.display());
+            crate::info!(
+                &self.logger,
+                "Local GnuPG directory not found at {}. Skipping GPG sync.",
+                local_gpg_home.display()
+            );
             return Ok(());
         }
 
-        println!("Syncing GnuPG credentials from {} to target...", local_gpg_home.display());
+        crate::info!(
+            &self.logger,
+            "Syncing GnuPG credentials from {} to target...",
+            local_gpg_home.display()
+        );
 
         // Determine target path in the mounted root filesystem
         let target_gpg_dir = if ctx.username == "root" {
             mount_path.join("root/.config/gnupg")
         } else {
-            mount_path.join("home").join(&ctx.username).join(".config/gnupg")
+            mount_path
+                .join("home")
+                .join(&ctx.username)
+                .join(".config/gnupg")
         };
 
         let persist_check_path = mount_path.join("persist");
         let target_persist_gpg_dir = if ctx.username == "root" {
             mount_path.join("persist/root/.config/gnupg")
         } else {
-            mount_path.join("persist/home").join(&ctx.username).join(".config/gnupg")
+            mount_path
+                .join("persist/home")
+                .join(&ctx.username)
+                .join(".config/gnupg")
         };
 
-        let is_deploy = env::var("DEPLOY_ACTIVE").unwrap_or_default() == "yes";
+        let is_deploy = crate::config::get_runtime_options().deploy_active;
         let target_user = if is_deploy { "root" } else { &ctx.username };
         let target_ssh = format!("{}@{}", target_user, ctx.target_ip);
-        
+
         let local_dir_str = local_gpg_home.to_string_lossy().to_string();
         let target_dir_str = target_gpg_dir.to_string_lossy().to_string();
         let persist_check_str = persist_check_path.to_string_lossy().to_string();
         let target_persist_dir_str = target_persist_gpg_dir.to_string_lossy().to_string();
-        
+
         let tar_cmd = format!(
             "tar --exclude=\"S.*\" --exclude=\".#*\" --exclude=\"*.conf\" -czf - -C {} .",
             local_dir_str
         );
-        
+
         let owner_cmd = if is_deploy {
-            let owner = if ctx.username == "root" { "0:0" } else { "1000:100" };
+            let owner = if ctx.username == "root" {
+                "0:0"
+            } else {
+                "1000:100"
+            };
             format!(
                 " && chown -R {owner} {dir} && if [ -d {persist} ]; then chown -R {owner} {persist}; fi && \
                  if [ \"{username}\" != \"root\" ]; then \
@@ -96,22 +117,31 @@ impl GpgService {
              if [ -d {} ]; then \
                  chmod 700 {} && find {} -type f -exec chmod 600 {{}} +; \
              fi{}",
-            target_dir_str, target_dir_str,
+            target_dir_str,
+            target_dir_str,
             persist_check_str,
-            target_persist_dir_str, target_dir_str, target_persist_dir_str,
-            target_dir_str, target_dir_str,
+            target_persist_dir_str,
+            target_dir_str,
+            target_persist_dir_str,
+            target_dir_str,
+            target_dir_str,
             persist_check_str,
-            target_persist_dir_str, target_persist_dir_str,
+            target_persist_dir_str,
+            target_persist_dir_str,
             owner_cmd
         );
 
-        let pipe_cmd = format!("{} | ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -A {} \"{}\"", 
-            tar_cmd, target_ssh, untar_cmd
+        let pipe_cmd = format!(
+            "{} | {} {} \"{}\"",
+            tar_cmd,
+            crate::remote::ssh::SshOptions::identity_sync().ssh_command_for_shell_pipeline(),
+            target_ssh,
+            untar_cmd
         );
 
         // Run the pipeline locally using bash
-        CommandExecutor::execute("bash", &["-c", &pipe_cmd], Arc::clone(&self.log_target))?;
-        println!("GnuPG credentials synced successfully.");
+        CommandExecutor::execute("bash", &["-c", &pipe_cmd], self.logger.clone())?;
+        crate::info!(&self.logger, "GnuPG credentials synced successfully.");
 
         Ok(())
     }
@@ -126,7 +156,11 @@ impl IdentityService for GpgService {
         Ok(())
     }
 
-    fn post_install(&self, _ctx: &RuntimeContext, _mount_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    fn post_install(
+        &self,
+        _ctx: &RuntimeContext,
+        _mount_path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // No-op by default to ensure security. GPG sync is only run manually via sync_gpg_credentials.
         Ok(())
     }

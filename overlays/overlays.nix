@@ -1,4 +1,4 @@
-{inputs}:
+{ inputs }:
 let
   otherOverlays = {
     disko = final: prev: {
@@ -9,19 +9,44 @@ let
 
     # packages at pkgs/_manual are for manually load on-demand
     packages = final: prev: {
-      create-dmg = final.callPackage ../pkgs/_manual/create-dmg.nix {};
-      codelldb = final.callPackage ../pkgs/_manual/codelldb.nix {};
+      create-dmg = final.callPackage ../pkgs/_manual/create-dmg.nix { };
+      codelldb = final.callPackage ../pkgs/_manual/codelldb.nix { };
     };
+
+    self-packages =
+      final: prev:
+      let
+        mydefs = import ../defines.nix;
+      in
+      {
+        pve-pxe-assets = final.callPackage ../pkgs/pve-pxe-assets { inherit inputs mydefs; };
+        pve-answer-server = final.callPackage ../pkgs/pve-answer-server { };
+      };
+
+    # Targeted unstable package mapping to prevent importing the entire nixpkgs-unstable channel multiple times
+    unstable-packages =
+      final: prev:
+      let
+        unstable-pkgs = inputs.nixpkgs-unstable.legacyPackages.${prev.stdenv.hostPlatform.system};
+      in
+      {
+        neovim = unstable-pkgs.neovim;
+        ghostty = unstable-pkgs.ghostty;
+        unstable-nix = unstable-pkgs.nixVersions.latest;
+        hyprland = unstable-pkgs.hyprland;
+        xdg-desktop-portal-hyprland = unstable-pkgs.xdg-desktop-portal-hyprland;
+        cloudflared = unstable-pkgs.cloudflared;
+        ripdrag = unstable-pkgs.ripdrag;
+        wev = unstable-pkgs.wev;
+        wl-clipboard = unstable-pkgs.wl-clipboard;
+        wtype = unstable-pkgs.wtype;
+        swappy = unstable-pkgs.swappy;
+        slurp = unstable-pkgs.slurp;
+        swayimg = unstable-pkgs.swayimg;
+        imv = unstable-pkgs.imv;
+        opencode = unstable-pkgs.opencode;
+        gemini-cli = unstable-pkgs.gemini-cli;
+      };
   };
 in
-  otherOverlays // {
-    default = final: prev: {
-      # provide 'pkgs.unstable'
-      unstable = import inputs.nixpkgs-unstable {
-        inherit (prev.stdenv.hostPlatform) system;
-        config.allowUnfree = true;
-        config.allowUnsupportedSystem = true;
-        overlays = builtins.attrValues otherOverlays;
-      };
-    };
-  }
+otherOverlays

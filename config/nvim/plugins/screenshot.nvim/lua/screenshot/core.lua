@@ -272,7 +272,7 @@ function M.open_screenshot_directory()
   local buffer_dir = vim.fn.expand('%:p:h')
   local screenshot_dir = buffer_dir .. '/' .. config.get().local_screenshot_dir:gsub('^%./', '')
   vim.fn.mkdir(screenshot_dir, 'p')  -- Ensure directory exists
-  vim.cmd('edit ' .. screenshot_dir)
+  vim.cmd.edit(vim.fn.fnameescape(screenshot_dir))
 end
 
 return M

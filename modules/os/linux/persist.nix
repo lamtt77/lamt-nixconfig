@@ -3,9 +3,11 @@
   lib,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.persist;
-in {
+in
+{
   options.persist = {
     enable = mkOption {
       type = types.bool;
@@ -22,13 +24,13 @@ in {
     state = {
       directories = mkOption {
         type = types.listOf (types.either types.str types.attrs);
-        default = [];
+        default = [ ];
         description = "List of directories to persist.";
       };
 
       files = mkOption {
         type = types.listOf types.str;
-        default = [];
+        default = [ ];
         description = "List of files to persist.";
       };
     };

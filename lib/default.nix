@@ -3,20 +3,29 @@
   lib,
   mydefs,
   ...
-}: let
+}:
+let
   inherit (lib) makeExtensible attrValues foldr;
   inherit (modules) mapModules;
 
   modules = import ./modules.nix {
     inherit lib;
-    self.attrs = import ./attrs.nix {inherit lib;};
+    self.attrs = import ./attrs.nix { inherit lib; };
   };
 
   mylib = makeExtensible (
     self:
-      mapModules ./. (file: import file {inherit self inputs lib mydefs;})
+    mapModules ./. (
+      file:
+      import file {
+        inherit
+          self
+          inputs
+          lib
+          mydefs
+          ;
+      }
+    )
   );
 in
-  mylib.extend
-  (final: prev:
-    foldr (a: b: a // b) {} (attrValues prev))
+mylib.extend (final: prev: foldr (a: b: a // b) { } (attrValues prev))

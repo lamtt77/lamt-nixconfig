@@ -2,7 +2,8 @@
   mydefs,
   myargs,
   ...
-}: {
+}:
+{
   # Add ~/.local/bin to PATH
   environment.localBinInPath = true;
 
@@ -25,7 +26,7 @@
     isSystemUser = true;
     group = "systemd-timesync";
   };
-  users.groups.systemd-timesync = {};
+  users.groups.systemd-timesync = { };
 
   # Create dirs for home-manager
   systemd.tmpfiles.rules = [

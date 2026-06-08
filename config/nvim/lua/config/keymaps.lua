@@ -13,11 +13,8 @@ vim.keymap.set('t', '<A-->', '<C-\\><C-N><C-W>10<<C-\\><C-N>i', { noremap = true
 
 -- Reload Neovim config
 vim.keymap.set('n', '<leader>R', function()
-  -- Source the deployed config files
-  vim.cmd('source ~/.config/nvim/init.lua')
-  vim.cmd('source ~/.config/nvim/lua/plugins.lua')
-  vim.notify('Neovim configuration reloaded!', vim.log.levels.INFO, { title = 'Config Reload' })
-end, { noremap = true, silent = true, desc = 'Reload Neovim config' })
+  vim.cmd.restart()
+end, { noremap = true, silent = true, desc = 'Restart Neovim' })
 
 -- Undo/Redo keybindings
 vim.keymap.set('n', '<leader>z', 'u', { noremap = true, desc = 'Undo' })

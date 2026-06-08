@@ -1,4 +1,5 @@
-{pkgs, ...}: {
+{ pkgs, ... }:
+{
   type = "app";
 
   program = "${pkgs.writeShellScript "readme" ''

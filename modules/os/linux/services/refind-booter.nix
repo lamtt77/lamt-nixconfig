@@ -14,7 +14,8 @@
   pkgs,
   ...
 }:
-with lib; let
+with lib;
+let
   cfg = config.modules.os.linux.services.refind-booter;
 
   cloverIso7z = pkgs.fetchurl {
@@ -22,7 +23,7 @@ with lib; let
     sha256 = "0309s2r61b4xmz42vjqc0jykwqkgh81nsb5crjxfzfqf8lva7q6d";
   };
 
-  nvmeDriver = pkgs.runCommand "nvme-driver" {nativeBuildInputs = [pkgs.p7zip];} ''
+  nvmeDriver = pkgs.runCommand "nvme-driver" { nativeBuildInputs = [ pkgs.p7zip ]; } ''
     # Extract the 7z to get the iso
     7z e ${cloverIso7z} -o. > /dev/null
     # Assume the iso is Clover-5164-X64.iso
@@ -47,7 +48,8 @@ with lib; let
     # Add any user-defined custom options
     ${cfg.extraConfig}
   '';
-in {
+in
+{
   options.modules.os.linux.services.refind-booter = {
     enable = mkEnableOption "Build rEFInd bootable directory/image";
 
@@ -59,7 +61,7 @@ in {
 
     drivers = mkOption {
       type = types.listOf types.str;
-      default = ["NvmExpressDxe.efi"];
+      default = [ "NvmExpressDxe.efi" ];
       description = ''
         List of driver .efi files to include.
         NvmExpressDxe.efi is included by default for NVMe support on older servers like Dell R720.
@@ -82,47 +84,56 @@ in {
   };
 
   config = mkIf cfg.enable {
-    system.build.refindBootImg = let
-      # Derivation 1: The Boot Directory
-      bootDir = let
-        refindEfiDir = "${cfg.package}/share/refind";
+    system.build.refindBootImg =
+      let
+        # Derivation 1: The Boot Directory
+        bootDir =
+          let
+            refindEfiDir = "${cfg.package}/share/refind";
+          in
+          pkgs.runCommand "refind-booter-dir"
+            {
+              driversList = concatStringsSep " " cfg.drivers;
+            }
+            ''
+                mkdir -p $out/EFI/BOOT
+                mkdir -p $out/EFI/BOOT/drivers_x64
+                cp ${refindEfiDir}/refind_x64.efi $out/EFI/BOOT/bootx64.efi
+                cp ${refindConf} $out/EFI/BOOT/refind.conf
+              for driver in $driversList; do
+                if [ "$driver" = "NvmExpressDxe.efi" ]; then
+                  cp ${nvmeDriver} "$out/EFI/BOOT/drivers_x64/$driver"
+                else
+                  cp "${refindEfiDir}/drivers_x64/$driver" "$out/EFI/BOOT/drivers_x64/"
+                fi
+              done
+            '';
+
+        # Derivation 2: The Boot Image
+        bootImg =
+          pkgs.runCommand "refind-booter.img"
+            {
+              # We need these tools to build the image
+              nativeBuildInputs = [
+                pkgs.dosfstools
+                pkgs.mtools
+              ];
+            }
+            ''
+              echo "Creating ${toString cfg.imageSize}MB bootable FAT32 image..."
+              dd if=/dev/zero of=$out bs=1M count=${toString cfg.imageSize}
+
+              # Format the image file as FAT32 with the required label
+              mkfs.vfat -F32 -n "REFIND_BOOT" $out
+
+              echo "Copying EFI files to image..."
+              # Use mcopy to copy the EFI directory from our first derivation
+              # into the root of the new .img file.
+              mcopy -s -i $out -v ${bootDir}/EFI ::/EFI
+
+              echo "Image created: $out"
+            '';
       in
-        pkgs.runCommand "refind-booter-dir" {
-          driversList = concatStringsSep " " cfg.drivers;
-        } ''
-            mkdir -p $out/EFI/BOOT
-            mkdir -p $out/EFI/BOOT/drivers_x64
-            cp ${refindEfiDir}/refind_x64.efi $out/EFI/BOOT/bootx64.efi
-            cp ${refindConf} $out/EFI/BOOT/refind.conf
-          for driver in $driversList; do
-            if [ "$driver" = "NvmExpressDxe.efi" ]; then
-              cp ${nvmeDriver} "$out/EFI/BOOT/drivers_x64/$driver"
-            else
-              cp "${refindEfiDir}/drivers_x64/$driver" "$out/EFI/BOOT/drivers_x64/"
-            fi
-          done
-        '';
-
-      # Derivation 2: The Boot Image
-      bootImg =
-        pkgs.runCommand "refind-booter.img" {
-          # We need these tools to build the image
-          nativeBuildInputs = [pkgs.dosfstools pkgs.mtools];
-        } ''
-          echo "Creating ${toString cfg.imageSize}MB bootable FAT32 image..."
-          dd if=/dev/zero of=$out bs=1M count=${toString cfg.imageSize}
-
-          # Format the image file as FAT32 with the required label
-          mkfs.vfat -F32 -n "REFIND_BOOT" $out
-
-          echo "Copying EFI files to image..."
-          # Use mcopy to copy the EFI directory from our first derivation
-          # into the root of the new .img file.
-          mcopy -s -i $out -v ${bootDir}/EFI ::/EFI
-
-          echo "Image created: $out"
-        '';
-    in
       bootImg;
   };
 }

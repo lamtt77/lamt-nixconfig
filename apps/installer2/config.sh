@@ -22,7 +22,7 @@ readonly DEFAULT_DO_SIZE="s-1vcpu-1gb"
 readonly DEFAULT_DO_IMAGE="ubuntu-24-04-x64"
 
 # Nix / Rsync flags
-readonly DEFAULT_SUBS_ON_DEST="yes"
+readonly DEFAULT_SUBS_ON_DEST="no"
 readonly RSYNC_COMMON_FLAGS="--exclude=.git --exclude=result --exclude=.DS_Store --exclude=blog/themes --exclude=*.bak --exclude=.antigravitycli --delete"
 
 # Standard SSH parameters
@@ -57,5 +57,4 @@ readonly DEFAULT_TAILSCALE_NAMESPACE="lamt"
 
 # VMware Defaults
 readonly DEFAULT_VMW_ISO_DIR="/Users/lamt/Virtual Machines.localized/VMWIsoImages"
-
 

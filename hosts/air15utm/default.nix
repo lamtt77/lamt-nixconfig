@@ -2,12 +2,13 @@
   inputs,
   pkgs,
   ...
-}: {
+}:
+{
   imports = [
     ./hardware-air15utm.nix
     (import ../_disko/generic.nix {
       inherit inputs;
-      disks = ["/dev/vda"];
+      disks = [ "/dev/vda" ];
     })
   ];
 

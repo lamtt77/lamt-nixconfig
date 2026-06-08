@@ -1,4 +1,8 @@
-{ pkgs, inputs, ... }:
+{
+  pkgs,
+  inputs,
+  ...
+}:
 let
   installerPkg = pkgs.stdenv.mkDerivation {
     name = "lamt-installer";
@@ -24,17 +28,19 @@ let
 
       # Create the executable wrapper
       makeWrapper $out/src/apps/installer2/bin/installer $out/bin/installer \
-        --prefix PATH : ${pkgs.lib.makeBinPath [
-          pkgs.git
-          pkgs.openssh
-          pkgs.nix
-          pkgs.jq
-          pkgs.rsync
-          pkgs.gnumake
-          pkgs.coreutils
-          pkgs.nmap
-          pkgs.hostname # Needed for defaults in Makefile/Orchestrator
-        ]}
+        --prefix PATH : ${
+          pkgs.lib.makeBinPath [
+            pkgs.git
+            pkgs.openssh
+            pkgs.nix
+            pkgs.jq
+            pkgs.rsync
+            pkgs.gnumake
+            pkgs.coreutils
+            pkgs.nmap
+            pkgs.hostname # Needed for defaults in Makefile/Orchestrator
+          ]
+        }
     '';
   };
 in
@@ -42,4 +48,3 @@ in
   type = "app";
   program = "${installerPkg}/bin/installer";
 }
-
