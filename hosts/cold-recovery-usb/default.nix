@@ -7,7 +7,7 @@
 }:
 let
   bootstrapIp = "192.168.0.5";
-  installer = pkgs.callPackage ../../pkgs/installer-rs { };
+  installer = pkgs.callPackage ../../pkgs/nxd { };
   pve1Assets = pkgs.pve-pxe-assets.mkPvePxeAssets {
     target = "pve1";
     inherit bootstrapIp;

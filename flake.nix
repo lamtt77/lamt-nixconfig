@@ -53,6 +53,11 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    installer-secret = {
+      url = "path:./modules/os/base/services/sops";
+      flake = false;
+    };
   };
 
   outputs =

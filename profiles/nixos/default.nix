@@ -1,11 +1,24 @@
-# Goal: use as less modules and packages as possible
-{ pkgs, ... }:
+# Goal: use as few modules and packages as possible
 {
-  modules.hm.base.bash.enable = true;
-  modules.hm.base.term.tmux.enable = true;
-
-  modules.hm.base.pass.enable = true;
-  modules.hm.base.gnupg.enable = true;
+  pkgs,
+  my,
+  ...
+}:
+let
+  profileFeatures = [
+    ../../modules/hm/feat/bash.nix
+    ../../modules/hm/feat/term/tmux.nix
+    ../../modules/hm/feat/pass.nix
+    {
+      module = ../../modules/hm/feat/gnupg.nix;
+      args = {
+        enableSSHSupport = true;
+      };
+    }
+  ];
+in
+{
+  imports = my.resolveFeatures profileFeatures;
 
   programs.fzf.enable = true;
 

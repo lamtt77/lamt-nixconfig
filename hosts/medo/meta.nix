@@ -5,9 +5,22 @@
   server = true;
   hasDisko = true;
 
+  role = "server";
+  osFeatures = [
+    {
+      module = ../../modules/os/feat/services/tailscale.nix;
+      args = {
+        exitNode = true;
+        authKey = "tailscale_preauth_key";
+      };
+    }
+    ../../modules/os/feat/linux/services/openssh.nix
+    ../../modules/os/feat/linux/services/fail2ban.nix
+  ];
+
   deployment = {
     lowMem = "yes";
-    substituteOnDestination = true;
+    enableLocalCache = false;
     tailscaleNamespace = "cloud";
     digitalocean = {
       region = "sgp1";

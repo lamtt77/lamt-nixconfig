@@ -88,27 +88,6 @@
     };
   };
 
-  modules = {
-    os = {
-      base = {
-        services = {
-          sops.enable = true;
-          tailscale = {
-            enable = true;
-            exitNode = true;
-            authKeyFile = config.sops.secrets.tailscale_preauth_key.path;
-          };
-        };
-      };
-      linux = {
-        services = {
-          openssh.enable = true;
-          fail2ban.enable = true;
-        };
-      };
-    };
-  };
-  sops.secrets.tailscale_preauth_key = { };
   sops.secrets.wg0do_private_key = {
     # The key file will be owned by root and readable by the 'systemd-network' group.
     owner = config.users.users.root.name;
@@ -144,7 +123,7 @@
         skip_install_trust
       '';
       virtualHosts."blog.lamhub.com".extraConfig = ''
-        root * ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.blog}
+        root * ${pkgs.callPackage ../../pkgs/blog { inherit inputs; }}
         header Cache-Control max-age=3600
         header ETag {file.etag}
         file_server
@@ -152,7 +131,7 @@
       '';
       virtualHosts."blog.lamhub.me".extraConfig = ''
         tls internal
-        root * ${inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.blog}
+        root * ${pkgs.callPackage ../../pkgs/blog { inherit inputs; }}
         file_server
       '';
       virtualHosts."lamhub.com".extraConfig = ''

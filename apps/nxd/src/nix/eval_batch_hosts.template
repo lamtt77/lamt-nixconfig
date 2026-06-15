@@ -1,0 +1,47 @@
+let
+  flake = builtins.getFlake "@flake_ref@";
+  hostnames = [ @hostnames_expr@ ];
+  getConfig = hostname:
+    if flake ? deploymentHosts && flake.deploymentHosts ? "${hostname}" then
+      flake.deploymentHosts."${hostname}"
+    else
+      let
+        cfg =
+          if flake.nixosConfigurations ? "${hostname}" then
+            flake.nixosConfigurations."${hostname}"
+          else if flake.darwinConfigurations ? "${hostname}" then
+            flake.darwinConfigurations."${hostname}"
+          else
+            null;
+      in
+        if cfg == null then
+          null
+        else {
+          deployment = cfg.config.deployment;
+          user = cfg.config.user;
+          system =
+            let
+              sys = builtins.tryEval cfg.config.nixpkgs.hostPlatform.system;
+            in
+              if sys.success then sys.value else "";
+          hasDisko =
+            if cfg ? config && cfg.config ? system && cfg.config.system ? build && cfg.config.system.build ? diskoScript then
+              true
+            else
+              false;
+          cross =
+            if cfg ? config && cfg.config ? nixpkgs && cfg.config.nixpkgs ? crossSystem && cfg.config.nixpkgs.crossSystem != null then
+              {
+                localSystem = cfg.config.nixpkgs.localSystem or null;
+                crossSystem = cfg.config.nixpkgs.crossSystem;
+              }
+            else
+              null;
+        };
+in
+  builtins.listToAttrs (
+    map (name: {
+      name = name;
+      value = getConfig name;
+    }) hostnames
+  )

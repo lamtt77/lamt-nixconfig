@@ -6,8 +6,68 @@
 with lib.my;
 let
   mydefs = import ../defines.nix;
+
+  resolveFeatures =
+    features:
+    map (
+      feature:
+      if builtins.typeOf feature == "path" then
+        let
+          f = import feature;
+        in
+        if builtins.isFunction f then
+          let
+            stdArgs = [
+              "config"
+              "lib"
+              "pkgs"
+              "my"
+              "myargs"
+              "inputs"
+              "mydefs"
+              "options"
+              "modulesPath"
+            ];
+            fArgs = builtins.attrNames (builtins.functionArgs f);
+          in
+          if lib.intersectLists stdArgs fArgs == [ ] then f { } else feature
+        else
+          feature
+      else if builtins.isAttrs feature && feature ? module then
+        import feature.module (feature.args or { })
+      else
+        throw "Invalid feature entry: expected a path or { module, args ? {} }"
+    ) features;
+
+  coreOSModules =
+    darwin: wsl:
+    [
+      ../modules/os/base
+    ]
+    ++ lib.optionals darwin [
+      ../modules/os/base/darwin
+    ]
+    ++ lib.optionals (!darwin) (
+      [
+        ../modules/os/base/linux
+      ]
+      ++ lib.optionals wsl [
+        ../modules/os/base/wsl
+      ]
+    );
+
+  coreHMModules =
+    darwin: wsl:
+    [
+      ../modules/hm/base
+    ]
+    ++ lib.optionals darwin [
+      ../modules/hm/base/darwin
+    ];
 in
-{
+rec {
+  inherit resolveFeatures;
+
   # OS modules get full lib (for nixpkgs utils), HM modules only get lib.my to avoid conflicts
   mkSpecialArgs =
     {
@@ -16,6 +76,7 @@ in
       username,
       wsl ? false,
       darwin ? false,
+      role ? null,
       libArg ? null,
     }:
     {
@@ -27,22 +88,12 @@ in
           username
           wsl
           darwin
+          role
           ;
       };
       inherit inputs mydefs;
     }
     // (if libArg != null then { lib = libArg; } else { });
-
-  getPlatformModules =
-    {
-      darwin,
-      wsl,
-    }:
-    if darwin then
-      (mapModulesRec' ../modules/os/darwin import)
-    else
-      (mapModulesRec' ../modules/os/linux import)
-      ++ lib.optionals wsl (mapModulesRec' ../modules/os/wsl import);
 
   getSystemFunc =
     darwin: if darwin then inputs.darwin.lib.darwinSystem else inputs.nixpkgs.lib.nixosSystem;
@@ -56,6 +107,7 @@ in
       hostname,
       wsl,
       darwin,
+      role ? null,
       hmModules,
     }:
     {
@@ -69,6 +121,7 @@ in
           username
           wsl
           darwin
+          role
           ;
       };
       users.${username} = {
@@ -82,20 +135,17 @@ in
       username,
       darwin,
       wsl,
+      hmFeatures ? [ ],
       ...
     }:
     {
       imports =
         baseModules
         ++ [
-          # not needed anymore after the introduction of pkgsall!
-          # { nixpkgs.overlays = builtins.attrValues inputs.self.overlays; }
           ../profiles/${username}
         ]
-        ++ (mapModulesRec' ../modules/hm/base import)
-        ++ lib.optionals darwin (mapModulesRec' ../modules/hm/darwin import)
-        ++ lib.optionals (!darwin) (mapModulesRec' ../modules/hm/linux import)
-        ++ lib.optionals wsl (mapModulesRec' ../modules/hm/wsl import);
+        ++ coreHMModules darwin wsl
+        ++ resolveFeatures hmFeatures;
     };
 
   nixos-modules =
@@ -105,13 +155,12 @@ in
       username,
       darwin,
       wsl,
-      server,
       pkgs,
+      osFeatures ? [ ],
     }:
     let
       conditionalModules = lib.flatten [
         (lib.optional wsl inputs.nixos-wsl.nixosModules.wsl)
-        (if server then [ ../modules/os/base/_server.nix ] else [ ../modules/os/base/_workstation.nix ])
         (if darwin then [ inputs.sops-nix.darwinModules.sops ] else [ inputs.sops-nix.nixosModules.sops ])
         (lib.optional (!darwin) inputs.impermanence.nixosModules.impermanence)
       ];
@@ -125,8 +174,8 @@ in
       ../hosts/${hostname}
     ]
     ++ conditionalModules
-    ++ (mapModulesRec' ../modules/os/base import)
-    ++ getPlatformModules { inherit darwin wsl; };
+    ++ coreOSModules darwin wsl
+    ++ resolveFeatures osFeatures;
 
   mkPkgs =
     {
@@ -227,11 +276,12 @@ in
       username,
       darwin ? false,
       wsl ? false,
-      server ? false,
+      role ? null,
       nixpkgs,
       mydefs,
       localSystem ? system,
       crossSystem ? null,
+      osFeatures ? [ ],
     }:
     let
       systemFunc = getSystemFunc darwin;
@@ -246,8 +296,8 @@ in
           username
           darwin
           wsl
-          server
           pkgs
+          osFeatures
           ;
       };
     in
@@ -261,6 +311,7 @@ in
           username
           wsl
           darwin
+          role
           ;
         libArg = lib;
       };
@@ -286,10 +337,12 @@ in
       mydefs,
       darwin ? false,
       wsl ? false,
-      server ? false,
+      role ? null,
       extraUsers ? [ ],
       localSystem ? system,
       crossSystem ? null,
+      osFeatures ? [ ],
+      hmFeatures ? [ ],
     }:
     let
       systemFunc = getSystemFunc darwin;
@@ -304,11 +357,18 @@ in
           username
           darwin
           wsl
-          server
           pkgs
+          osFeatures
           ;
       };
-      hmModules = home-modules { inherit username darwin wsl; };
+      hmModules = home-modules {
+        inherit
+          username
+          darwin
+          wsl
+          hmFeatures
+          ;
+      };
     in
     systemFunc rec {
       inherit system;
@@ -320,6 +380,7 @@ in
           username
           wsl
           darwin
+          role
           ;
         libArg = lib;
       };
@@ -344,6 +405,7 @@ in
                 hostname
                 wsl
                 darwin
+                role
                 hmModules
                 ;
             };
@@ -363,10 +425,19 @@ in
       mydefs,
       darwin ? false,
       wsl ? false,
+      role ? null,
+      hmFeatures ? [ ],
     }:
     let
       overlays = lib.attrValues inputs.self.overlays;
-      hmModules = home-modules { inherit username darwin wsl; };
+      hmModules = home-modules {
+        inherit
+          username
+          darwin
+          wsl
+          hmFeatures
+          ;
+      };
     in
     inputs.home-manager.lib.homeManagerConfiguration {
       pkgs = mkPkgs { inherit system; } nixpkgs overlays;
@@ -377,6 +448,7 @@ in
           username
           wsl
           darwin
+          role
           ;
       };
       modules = hmModules.imports;

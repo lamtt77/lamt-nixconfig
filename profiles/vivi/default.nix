@@ -1,17 +1,21 @@
 {
   lib,
   pkgs,
+  my,
   myargs,
   ...
 }:
 let
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
+  profileFeatures = [
+    ../../modules/hm/feat/bash.nix
+    ../../modules/hm/feat/zsh.nix
+    ../../modules/hm/feat/term/kitty.nix
+  ];
 in
 {
-  modules.hm.base.bash.enable = true;
-  modules.hm.base.zsh.enable = true;
-  modules.hm.base.term.kitty.enable = true;
+  imports = my.resolveFeatures profileFeatures;
 
   programs.fzf.enable = true;
 

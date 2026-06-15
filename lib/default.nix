@@ -5,27 +5,10 @@
   ...
 }:
 let
-  inherit (lib) makeExtensible attrValues foldr;
-  inherit (modules) mapModules;
-
-  modules = import ./modules.nix {
-    inherit lib;
-    self.attrs = import ./attrs.nix { inherit lib; };
-  };
-
-  mylib = makeExtensible (
-    self:
-    mapModules ./. (
-      file:
-      import file {
-        inherit
-          self
-          inputs
-          lib
-          mydefs
-          ;
-      }
-    )
-  );
+  # Statically import library components (zero filesystem IO, LSP-friendly)
+  loader = import ./loader.nix { inherit lib; };
+  my = import ./my.nix { inherit lib mydefs; };
+  systems = import ./systems.nix { inherit inputs lib; };
 in
-mylib.extend (final: prev: foldr (a: b: a // b) { } (attrValues prev))
+# Flatten the library namespace directly (fully compatible with existing usage)
+loader // my // systems

@@ -5,11 +5,23 @@
   server = true;
   hasDisko = true;
 
+  role = "server";
+  osFeatures = [
+    {
+      module = ../../modules/os/feat/services/tailscale.nix;
+      args = {
+        exitNode = true;
+        authKey = "tailscale_preauth_key";
+      };
+    }
+    ../../modules/os/feat/linux/services/openssh.nix
+    ../../modules/os/feat/linux/services/fail2ban.nix
+  ];
+
   deployment = {
     vmid = "203";
     targetIp = "";
     lowMem = "yes";
-    substituteOnDestination = true;
     diskSize = "20";
     proxmox = {
       host = "192.168.1.15";

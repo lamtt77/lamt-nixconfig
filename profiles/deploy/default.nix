@@ -1,7 +1,18 @@
-{ pkgs, ... }:
 {
-  modules.hm.base.bash.enable = true;
-  modules.hm.base.term.tmux.enable = true;
+  pkgs,
+  my,
+  ...
+}:
+let
+  profileFeatures = [
+    ../../modules/hm/feat/bash.nix
+    ../../modules/hm/feat/term/tmux.nix
+    # LamT: nxd is not needed on remote builder
+    # ../../modules/hm/feat/nxd.nix
+  ];
+in
+{
+  imports = my.resolveFeatures profileFeatures;
 
   programs.fzf.enable = true;
 

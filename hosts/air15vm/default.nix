@@ -27,16 +27,6 @@ in
   # Virtualization settings
   virtualisation.docker.enable = true;
 
-  modules.os.base.services.sops.enable = true;
-  sops.secrets.tailscale_preauth_key = { };
-
-  modules.os.linux.services.openssh.enable = true;
-  modules.os.base.services.tailscale = {
-    enable = true;
-    authKeyFile = config.sops.secrets.tailscale_preauth_key.path;
-  };
-  modules.os.base.services.builders.enable = true;
-
   # Tell the DHCP client to ignore the VMware DNS proxy (172.16.138.2)
   # and use your local router directly.
   networking.dhcpcd.extraConfig = ''
@@ -45,7 +35,7 @@ in
 
   # modules.os.linux.services.kdeconnect.enable = true;
 
-  modules.os.linux.desktop.i3.enable = true;
+  # modules.os.linux.desktop.i3.enable = true;
   # modules.os.linux.desktop.hyprland.enable = true;
   # modules.os.linux.desktop.sway.enable = true;
   # modules.os.linux.desktop.plasma.enable = true;

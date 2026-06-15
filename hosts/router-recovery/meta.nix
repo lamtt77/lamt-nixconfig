@@ -1,6 +1,13 @@
+let
+  mydefs = import ../../defines.nix;
+in
 {
   class = "nixos";
   role = "router";
+  osFeatures = [
+    ../../modules/os/feat/linux/services/router.nix
+    ../../modules/os/feat/linux/services/pve-pxe.nix
+  ];
   system = "x86_64-linux";
   username = "nixos";
 
@@ -17,8 +24,10 @@
         "virtio,bridge=vmbr1"
         "virtio,bridge=vmbrPxe"
       ];
-      iso = {
-        type = "vlan";
+      bootstrap = {
+        interface = "net1";
+        subnet = builtins.elemAt mydefs.defaultNetworks 0;
+        vlan = 10;
       };
     };
   };

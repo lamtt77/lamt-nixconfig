@@ -30,6 +30,7 @@ lamd deploy -t router-recovery
 lamd deploy -t pve-test --plan
 lamd deploy -t pve-test
 lamd deploy -t pve-test --redeploy
+lamd deploy -t pve-test --redeploy --build-iso
 lamd destroy -t pve-test
 ```
 

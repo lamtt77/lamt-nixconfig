@@ -33,8 +33,14 @@
 
       substituteOnDestination = lib.mkOption {
         type = lib.types.bool;
-        default = false;
+        default = true;
         description = "Allow target-side substitution during nix copy to the destination host";
+      };
+
+      enableLocalCache = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Enable cache.lamhub.com as a binary cache substituter on the host";
       };
 
       vmid = lib.mkOption {
@@ -96,6 +102,50 @@
           type = lib.types.listOf lib.types.str;
           default = [ ];
           description = "Additional Proxmox network configuration strings (net1, net2, etc.).";
+        };
+
+        net0 = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Proxmox net0 bridge and configuration string. Overrides network when set.";
+        };
+
+        net1 = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Proxmox net1 bridge and configuration string.";
+        };
+
+        bootstrap = {
+          interface = lib.mkOption {
+            type = lib.types.str;
+            default = "net0";
+            description = "VM interface name used for bootstrap (e.g. net0, net1).";
+          };
+
+          staticIp = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "Temporary static IP assigned to the live installer environment.";
+          };
+
+          subnet = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "Target subnet CIDR range or format (e.g. 192.168.1.0/24).";
+          };
+
+          gateway = lib.mkOption {
+            type = lib.types.str;
+            default = "";
+            description = "Default route gateway for installer bootstrap networking.";
+          };
+
+          vlan = lib.mkOption {
+            type = lib.types.nullOr lib.types.ints.unsigned;
+            default = null;
+            description = "Optional VLAN tag for guest interface tagging during bootstrap.";
+          };
         };
 
         pxe = lib.mkOption {
@@ -189,6 +239,57 @@
           default = "";
           description = "Absolute path to the VMware Fusion VM .vmx file";
         };
+      };
+
+      wsl = {
+        enable = lib.mkEnableOption "WSL provider deployment";
+
+        windowsHost = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Windows OpenSSH host that owns the WSL distribution";
+        };
+
+        windowsUser = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Windows account used for OpenSSH and WSL lifecycle commands";
+        };
+
+        distribution = lib.mkOption {
+          type = lib.types.str;
+          default = "NixOS";
+          description = "Managed WSL distribution name";
+        };
+
+        installRoot = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Absolute Windows path used by wsl.exe --import";
+        };
+
+        bootstrapUser = lib.mkOption {
+          type = lib.types.str;
+          default = "nixos";
+          description = "Bootstrap Linux account configured in the minimal WSL image";
+        };
+
+        guestHost = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Optional stable SSH hostname or address for the WSL guest";
+        };
+
+        transport = lib.mkOption {
+          type = lib.types.enum [
+            "auto"
+            "direct"
+            "windows"
+          ];
+          default = "auto";
+          description = "WSL guest management transport selection";
+        };
+
       };
     };
   };

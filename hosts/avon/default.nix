@@ -41,32 +41,6 @@
     fsType = "nfs";
   };
 
-  modules.os = {
-    base.services.sops.enable = true;
-    base.services.tailscale.enable = true;
-    linux.services = {
-      openssh.enable = true;
-      fail2ban.enable = true;
-      nginx.enable = true;
-      postfix.enable = true;
-      gitea.enable = true;
-      gitea-runner.enable = true;
-      headscale = {
-        enable = true;
-        users = [
-          "lamt"
-          "cloud"
-        ];
-      };
-      acme.enable = true;
-      # cloudflared.enable = true;
-    };
-    base.services.builders.enable = true;
-  };
-
-  services.arthur-backup.enable = true;
-
-  persist.enable = true;
   persist.state.directories = [
     "/var/lib/nixos"
     "/var/lib/tailscale"

@@ -4,13 +4,8 @@
   ...
 }:
 {
-  modules.os.base.services.sops.enable = true;
-  modules.os.base.services.wireguard.enable = true;
 
-  modules.os.base.services.tailscale.enable = false; # Use App Store client, do not run daemon
   environment.systemPackages = [ pkgs.tailscale ];
-  modules.os.darwin.services.nfsd.enable = true;
-  modules.os.base.services.builders.enable = true;
 
   networking.hostName = myargs.hostname;
 

@@ -20,6 +20,6 @@ Our `installer-rs` is more of a lifecycle orchestrator: it can provision, bootst
 | Host selection | `--on host,@tag,glob` | `--hosts host1,host2` / `-t host` |
 | Secrets | `deployment.keys`, uploaded out-of-band and not in Nix store | SOPS host secrets, SSH host key/age alignment, Tailscale preauth staging |
 | Build modes | Local or target build via `deployment.buildOnTarget` / CLI override | Local, remote builder, target native, target realization, substitute-on-destination |
-| Safety around unknown/existing profiles | `deployment.replaceUnknownProfiles` / force flag | rollback switch, existing provider skip by default, `--overwrite`, `--redeploy`, `--convert-to` |
+| Safety around unknown/existing profiles | `deployment.replaceUnknownProfiles` / force flag | rollback switch, existing provider skip by default, `--overwrite`, `--redeploy`, `nxd convert` |
 | Cloud/provider lifecycle | Not its focus | First-class provider lifecycle |
 | Local deployment | `apply-local` with explicit option | local switch path plus Darwin/NixOS support |

@@ -247,7 +247,7 @@ return {
 							files = {
 								excludeDirs = {
 									"target",
-									"apps/installer-rs/target",
+									"apps/nxd/target",
 									".git",
 									".direnv",
 									".devenv",
@@ -257,7 +257,7 @@ return {
 							},
 							checkOnSave = true,
 							check = {
-								command = "check",
+								command = "clippy",
 							},
 						},
 					},
