@@ -1,7 +1,5 @@
 {
-  config,
   lib,
-  mydefs,
   ...
 }:
 {
@@ -10,4 +8,8 @@
   ];
 
   networking.hostName = lib.mkForce "medo-test";
+  networking.nameservers = lib.mkForce [ ];
+
+  services.qemuGuest.enable = true;
+
 }

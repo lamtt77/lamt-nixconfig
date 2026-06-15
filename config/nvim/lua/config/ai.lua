@@ -23,7 +23,9 @@ local function get_secret(secret_ref)
 		local obj = vim.system({ "pass", "show", path }, { text = true, timeout = 5000 }):wait()
 		if obj.code == 0 then
 			secret = obj.stdout:gsub("\n+$", "")
-			if secret == "" then secret = nil end
+			if secret == "" then
+				secret = nil
+			end
 		end
 	else
 		-- Fallback to environment variable
@@ -44,8 +46,8 @@ local function initialize_secrets()
 	local secrets = {
 		GEMINI_API_KEY = "pass://ai/GEMINI_API_KEY",
 		ANTHROPIC_API_KEY = "pass://ai/ANTHROPIC_API_KEY",
-		XAI_API_KEY = "pass://ai/XAI_API_KEY",
 		-- Add other secrets here as needed
+		-- XAI_API_KEY = "pass://ai/XAI_API_KEY",
 		-- OPENAI_API_KEY = "pass://ai/OPENAI_API_KEY",
 	}
 
@@ -218,29 +220,20 @@ return {
 			providers = {
 				gemini = {
 					-- API key is set via AVANTE_GEMINI_API_KEY environment variable
-					timeout = 30000,
+					timeout = 10000,
 				},
 				copilot = {
-					timeout = 30000,
+					timeout = 10000,
 				},
-				claude = {
-					endpoint = "https://api.anthropic.com",
-					model = "claude-sonnet-4-20250514",
-					timeout = 30000, -- Timeout in milliseconds
-					extra_request_body = {
-						temperature = 0.75,
-						max_tokens = 20480,
-					},
-				},
-				moonshot = {
-					endpoint = "https://api.moonshot.ai/v1",
-					model = "kimi-k2-0711-preview",
-					timeout = 30000, -- Timeout in milliseconds
-					extra_request_body = {
-						temperature = 0.75,
-						max_tokens = 32768,
-					},
-				},
+				-- claude = {
+				-- 	endpoint = "https://api.anthropic.com",
+				-- 	model = "claude-sonnet-4-20250514",
+				-- 	timeout = 30000, -- Timeout in milliseconds
+				-- 	extra_request_body = {
+				-- 		temperature = 0.75,
+				-- 		max_tokens = 20480,
+				-- 	},
+				-- },
 			},
 		},
 		dependencies = {

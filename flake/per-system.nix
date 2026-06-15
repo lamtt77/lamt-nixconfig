@@ -32,8 +32,10 @@
       };
     in
     {
-      # Expose owned packages under packages
-      packages = lib.my.mapModules ../pkgs (p: pkgs.callPackage p { inherit inputs mydefs; });
+      # Expose owned packages under packages. Keep installer-rs as a temporary migration alias.
+      packages = lib.my.mapPackages ../pkgs (p: pkgs.callPackage p { inherit inputs mydefs; }) // {
+        installer-rs = self'.packages.nxd;
+      };
 
       # apps
       apps = import ../apps { inherit inputs pkgs mydefs; };

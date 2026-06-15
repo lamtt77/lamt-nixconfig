@@ -14,10 +14,8 @@
 
   boot.growPartition = true;
   services.openssh.enable = true;
-  modules.os.base.services.sops.enable = true;
 
   modules.os.linux.services.router = {
-    enable = true;
     isMaster = false;
     wanIp = "192.168.0.20";
     lanIp = "192.168.1.20";
@@ -56,7 +54,6 @@
 
   # PXE service running on isolated bridge
   modules.os.linux.services.pve-pxe = {
-    enable = true;
     assets = pkgs.pve-pxe-assets.mkPvePxeAssets {
       target = "pve-test";
       bootstrapIp = "192.168.250.1";

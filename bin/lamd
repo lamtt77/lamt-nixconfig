@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# NixOS deployment orchestrator shortcut alias
-exec nix run .#installer-rs -- "$@"

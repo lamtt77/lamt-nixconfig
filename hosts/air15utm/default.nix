@@ -20,11 +20,8 @@
 
   virtualisation.docker.enable = true;
 
-  modules.os.base.services.sops.enable = true;
-  modules.os.linux.services.openssh.enable = true;
-
   # modules.os.linux.desktop.i3.enable = true;
-  modules.os.linux.desktop.hyprland.enable = true;
+  # modules.os.linux.desktop.hyprland.enable = true;
   # modules.os.linux.desktop.sway.enable = true;
   # modules.os.linux.desktop.plasma.enable = true;
   # modules.os.linux.desktop.gnome.enable = true;

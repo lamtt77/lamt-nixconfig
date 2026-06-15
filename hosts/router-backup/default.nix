@@ -15,7 +15,6 @@
 
   boot.growPartition = true;
   services.openssh.enable = true;
-  modules.os.base.services.sops.enable = true;
 
   sops.secrets."idrac/ip" = {
     owner = "root";
@@ -25,13 +24,11 @@
   };
 
   modules.os.linux.services.dell-ipmi-fan = {
-    enable = true;
     idracIpFile = config.sops.secrets."idrac/ip".path;
     passwordFile = config.sops.secrets."idrac/password".path;
   };
 
   modules.os.linux.services.router = {
-    enable = true;
     isMaster = false;
     wanIp = "192.168.0.3";
     lanIp = "192.168.1.3";

@@ -2,14 +2,15 @@
 
 ## Build/Lint/Test Commands
 
-- **Build system**: `lamd switch -t <host> --action build`, `nix run .#installer-rs -- switch -t <host> --action build`, or `make switch ARGS="-t <host> --action build"`
-- **Test system**: `lamd switch -t <host> --action test`, `nix run .#installer-rs -- switch -t <host> --action test`, or `make switch ARGS="-t <host> --action test"`
-- **Switch/apply**: `lamd switch -t <host>`, `nix run .#installer-rs -- switch -t <host>`, or `make switch ARGS="-t <host>"`; `make switch` defaults to the current host
-- **Deploy plan**: `lamd deploy --hosts <host> --plan`, `nix run .#installer-rs -- deploy --hosts <host> --plan`, or `make deploy ARGS="--hosts <host> --plan"`
-- **Direct NixOS rebuilds**: Do not use `nixos-rebuild` or bare `nix build .#nixosConfigurations...` for deployment validation when secrets are involved; they bypass installer workspace preparation and host secret staging
+- **Build system**: `nxd build -t <host>`, `nix run '.#nxd' -- build -t <host>`, or `make build ARGS="-t <host>"`
+- **Test system**: `nxd test -t <host>`, `nix run '.#nxd' -- test -t <host>`, or `make test ARGS="-t <host>"`
+- **Switch/apply**: `nxd switch -t <host>`, `nix run '.#nxd' -- switch -t <host>`, or `make switch ARGS="-t <host>"`; `make switch` defaults to the current host
+- **Bypass skip-activation**: `nxd` skips activation if target is already running the built configuration. To force reactivation (e.g. to test service restarts), pass `-F` or `--force` (e.g., `nxd switch -t <host> -F`).
+- **Deploy plan**: `nxd deploy --hosts <host> --plan`, `nix run '.#nxd' -- deploy --hosts <host> --plan`, or `make deploy ARGS="--hosts <host> --plan"`
+- **Direct NixOS rebuilds**: Do not use `nixos-rebuild` or bare `nix build '.#nixosConfigurations...'` for deployment validation when secrets are involved; they bypass installer workspace preparation and host secret staging
 - **Format**: `make fmt` or `nix fmt`
-- **Lint shell**: `nix develop .#lint` provides actionlint, luacheck, stylua, statix, alejandra, yamllint, cargo, clippy, rustc, and rustfmt; run the relevant tool for the touched area
-- **Rust installer tests**: `cd apps/installer-rs && cargo fmt && cargo test`; use `cargo test <name>` for a focused Rust test
+- **Lint shell**: `nix develop '.#lint'` provides actionlint, luacheck, stylua, statix, alejandra, yamllint, cargo, clippy, rustc, and rustfmt; run the relevant tool for the touched area
+- **Rust installer tests**: `cd apps/nxd && cargo fmt && cargo test`; use `cargo test <name>` for a focused Rust test
 
 ## Code Style Guidelines
 
@@ -30,7 +31,7 @@
 You are an expert NixOS, Rust and Neovim/Emacs configuration specialist with deep knowledge of:
 
 - Nix package manager and NixOS system configuration
-- Rust DevOps installer-rs
+- Rust DevOps nxd
 - Neovim plugin ecosystem and Lua configuration
 - Emacs elisp and its plugins ecosystem
 - Home Manager for user environment management
@@ -58,7 +59,7 @@ Help maintain and improve this NixOS configuration system by:
 - Prefer declarative over imperative configurations; test changes on minimal hosts first
 - Host inventory and deployment metadata live in `hosts/<name>/meta.nix`; keep metadata cheap to evaluate and use `buildSystem = false` for metadata-only targets
 - `meta.nix` may import constants such as `../../defines.nix`, but must not import host modules, nixpkgs, overlays, or evaluated system configs
-- `deploymentHosts` is the fast path for installer planning; keep its schema aligned with `apps/installer-rs/src/context.rs` and `modules/shared/options.nix`
+- `deploymentHosts` is the fast path for installer planning; keep its schema aligned with `apps/nxd/src/context.rs` and `modules/shared/options.nix`
 - The targeted unstable overlay intentionally overrides selected stable package names from `nixpkgs-unstable`; do not reintroduce a broad dynamic `pkgs.unstable` overlay
 
 ## Working Practice
@@ -70,7 +71,7 @@ Help maintain and improve this NixOS configuration system by:
 - Run focused verification for the touched area when practical, and report any command that could not be run
 - When adding documentation or plans, keep claims tied to verified behavior or clearly mark them as assumptions
 - For flake host changes, verify both `deploymentHosts.<host>` metadata and the relevant full system output when `buildSystem` is true
-- For installer changes, run `cargo fmt` and `cargo test` in `apps/installer-rs`; use `-d/--debug` to inspect exact `nix copy` commands when checking copy/substitution behavior
+- For installer changes, run `cargo fmt` and `cargo test` in `apps/nxd`; use `-d/--debug` to inspect exact `nix copy` commands when checking copy/substitution behavior
 - Local and remote installer workspaces are persistent cache directories refreshed between runs; do not assume they are deleted on drop
 
 ## Security Considerations

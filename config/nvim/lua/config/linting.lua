@@ -15,7 +15,6 @@ return {
 				nix = { "statix" },
 				c = { "cppcheck" },
 				cpp = { "cppcheck" },
-				rust = { "clippy" },
 				go = { "golangci_lint" },
 			}
 

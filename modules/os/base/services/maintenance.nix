@@ -6,6 +6,30 @@
   ...
 }:
 with lib;
+let
+  cleanUserProfiles = pkgs.writeShellScript "clean-user-profiles" ''
+    for user_dir in /home/* /Users/*; do
+      if [ -d "$user_dir/.local/state/nix/profiles" ]; then
+        for profile in "$user_dir"/.local/state/nix/profiles/*; do
+          if [ -L "$profile" ] && [[ "$profile" != *"-link" ]]; then
+            user=$(basename "$user_dir")
+            if id "$user" >/dev/null 2>&1; then
+              echo "Cleaning generations older than 14 days for user $user profile $profile"
+              sudo -u "$user" ${pkgs.nix}/bin/nix-env --profile "$profile" --delete-generations 14d 2>/dev/null || true
+            fi
+          fi
+        done
+      fi
+    done
+  '';
+
+  darwinGcScript = pkgs.writeShellScript "darwin-gc" ''
+    echo "=== Starting System Garbage Collection ==="
+    ${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d
+    echo "=== Starting User Profile Garbage Collection ==="
+    ${cleanUserProfiles}
+  '';
+in
 {
   config = mkMerge [
     # --- Linux/NixOS Maintenance ---
@@ -30,6 +54,9 @@ with lib;
         boot.loader.grub.configurationLimit = mkDefault 10;
         boot.loader.systemd-boot.configurationLimit = mkForce 10;
       }
+      // optionalAttrs (options ? systemd) {
+        systemd.services.nix-gc.postStart = "${cleanUserProfiles}";
+      }
     ))
 
     # --- Darwin/macOS Maintenance ---
@@ -43,7 +70,7 @@ with lib;
         # We define these manually because nix-darwin's built-in nix.gc.automatic
         # and nix.optimise.automatic assertions require nix.enable = true.
         launchd.daemons.custom-nix-gc = {
-          command = "${pkgs.nix}/bin/nix-collect-garbage --delete-older-than 14d";
+          command = "${darwinGcScript}";
           serviceConfig = {
             RunAtLoad = false;
             StartCalendarInterval = [

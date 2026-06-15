@@ -55,6 +55,7 @@ let
           rDefaults.${key}
         else
           default;
+      buildSystem = getVal "buildSystem" true;
       roleDeployment = rDefaults.deployment or { };
       mergedDeployment = recursiveMerge (recursiveMerge defaultDeployment roleDeployment) (
         meta.deployment or { }
@@ -63,7 +64,18 @@ let
       metaTags = meta.tags or [ ];
       implicitTag = if role != null then [ role ] else [ ];
       finalTags = lib.unique (implicitTag ++ roleTags ++ metaTags);
+
+      roleOSFeatures = rDefaults.osFeatures or [ ];
+      roleHMFeatures = rDefaults.hmFeatures or [ ];
+      osFeatures = lib.unique (roleOSFeatures ++ (meta.osFeatures or [ ]));
+      hmFeatures = lib.unique (roleHMFeatures ++ (meta.hmFeatures or [ ]));
+      allFeatures = osFeatures ++ hmFeatures;
     in
+    assert lib.assertMsg (
+      !(meta ? features)
+    ) "Host '${name}' uses legacy 'features'; use osFeatures/hmFeatures";
+    assert lib.assertMsg (role == null || hasRole) "Host '${name}' has unknown role '${toString role}'";
+    assert lib.assertMsg (!buildSystem || role != null) "Buildable host '${name}' must declare a role";
     {
       class = meta.class;
       system = meta.system;
@@ -74,9 +86,11 @@ let
       wsl = getVal "wsl" false;
       hasDisko = getVal "hasDisko" false;
       home = getVal "home" false;
-      buildSystem = getVal "buildSystem" true;
+      inherit buildSystem;
       cross = meta.cross or null;
       deployment = mergedDeployment;
+      inherit osFeatures hmFeatures;
+      features = allFeatures;
     };
 
   # Discovers all hosts containing meta.nix
@@ -94,7 +108,7 @@ let
   );
 in
 {
-  # 1. Export lightweight deployment metadata for installer-rs fast-path
+  # 1. Export lightweight deployment metadata for nxd fast-path
   flake.deploymentHosts = hostMeta;
 
   # 2. Build full NixOS Configurations
@@ -107,8 +121,10 @@ in
         username = meta.user;
         inherit (inputs) nixpkgs;
         inherit mydefs;
-        server = meta.server or false;
+        role = meta.role;
         wsl = meta.wsl or false;
+        osFeatures = meta.osFeatures or [ ];
+        hmFeatures = meta.hmFeatures or [ ];
 
         extraUsers = [
           (
@@ -149,17 +165,14 @@ in
         ];
       };
 
-      minimal-iso-vlan = inputs.nixpkgs.lib.nixosSystem {
+      minimal-wsl-x86 = inputs.nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
-          ../hosts/minimal-iso/default.nix
-          (
-            { ... }:
-            {
-              nixpkgs.hostPlatform = "x86_64-linux";
-              iso.vlan.enable = true;
-            }
-          )
+          inputs.nixos-wsl.nixosModules.wsl
+          ../hosts/minimal-wsl/default.nix
+          {
+            nixpkgs.hostPlatform = "x86_64-linux";
+          }
         ];
       };
 
@@ -184,7 +197,10 @@ in
       username = meta.user;
       inherit (inputs) nixpkgs;
       inherit mydefs;
+      role = meta.role;
       darwin = true;
+      osFeatures = meta.osFeatures or [ ];
+      hmFeatures = meta.hmFeatures or [ ];
 
       extraUsers = [
         (
@@ -208,7 +224,10 @@ in
         username = hostMeta.${name}.user;
         inherit (inputs) nixpkgs;
         inherit mydefs;
+        role = hostMeta.${name}.role;
         darwin = hostMeta.${name}.class == "darwin";
+        wsl = hostMeta.${name}.wsl or false;
+        hmFeatures = hostMeta.${name}.hmFeatures or [ ];
       };
     }) (builtins.attrNames (lib.filterAttrs (name: meta: meta.home or false) hostMeta))
   );
@@ -222,10 +241,12 @@ in
       username = meta.user;
       inherit (inputs) nixpkgs;
       inherit mydefs;
-      server = meta.server or false;
+      role = meta.role;
       wsl = meta.wsl or false;
       localSystem = meta.cross.localSystem;
       crossSystem = meta.cross.crossSystem;
+      osFeatures = meta.osFeatures or [ ];
+      hmFeatures = meta.hmFeatures or [ ];
 
       extraUsers = [
         (

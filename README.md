@@ -12,36 +12,38 @@ Declarative system management for NixOS, nix-darwin, Home Manager, and WSL, with
 - [Infrastructure & Cloud](#infrastructure--cloud)
 - [Secrets & Keys](#secrets--keys)
 - [Platform Specifics](#platform-specifics)
+- [Maintenance](#maintenance)
 - [Design Documents](#design-documents)
 
 ## Features
 
-- **One command surface**: `lamd` drives local switches, remote switches, destructive bootstraps, fleet plans, syncs, and VM/cloud lifecycle actions.
-- **Secret-aware deployments**: The installer prepares per-host workspaces, stages SOPS material, aligns SSH host keys with age recipients, and avoids direct `nixos-rebuild` paths that cannot stage secrets correctly.
+- **One command surface**: `nxd` drives local switches, remote switches, destructive bootstraps, fleet plans, syncs, and provider lifecycle actions.
+- **Secret-aware deployments**: The installer stages exactly one host SOPS file as a separate Nix store input and aligns SSH host keys with age recipients.
 - **Safe remote switching**: Remote system switches schedule an automatic rollback before activation and cancel it only after the new profile succeeds.
-- **Smart build routing**: Builds can run locally, on a compatible remote builder such as `deploy@utils`, through target-instantiated realization for low-memory hosts, or natively on the target.
-- **Parallel fleet operations**: Multi-host deploys and switches run concurrently while keeping per-host workspaces, logs, secret staging, and builder synchronization isolated to avoid cross-host races.
+- **Smart build routing**: Builds can run locally, on a compatible remote builder such as `deploy@utils`, through target-instantiated realization for low-memory hosts, natively on the target, or via explicit cross-compilation.
+- **Parallel fleet operations**: Multi-host deploys and switches run concurrently with isolated logs, immutable source inputs, and per-host secret store paths.
 - **Fast fleet planning**: Lightweight `hosts/<name>/meta.nix` data feeds `deploymentHosts`, so planning does not need to evaluate every full NixOS system.
-- **Persistent workspaces**: Local, target, and builder workspaces are refreshed between runs, preserving Nix and Git evaluation cache behavior while keeping per-host secret material isolated.
-- **Headless infrastructure**: Proxmox VM provisioning, DigitalOcean droplet conversion, kexec takeovers, Disko installs, and Tailscale enrollment are handled from the same CLI.
+- **Store-backed source transport**: Source snapshots and host-scoped secret inputs move through normal Nix store copy and substitution paths without remote workspace caches.
+- **Headless infrastructure**: Proxmox VM provisioning with dynamic bootstrap networking, DigitalOcean droplet conversion, kexec takeovers, Disko installs, and Tailscale enrollment are handled from the same CLI.
 
 ## Quick Start
 
-This is the shortest path from a fresh machine to a managed host. The headline workflow is a single installer command: point it at a declared host, let it prepare the workspace, stage host secrets when available, build through the best strategy, install NixOS, and reboot into the managed system.
+This is the shortest path from a fresh machine to a managed host. The headline workflow is a single installer command: point it at a declared host, let it snapshot the source, stage the host secret when available, build through the best strategy, install NixOS, and reboot into the managed system.
 
 For a host that is already declared in this flake:
 
 ```bash
-nix run github:lamtt77/lamt-nixconfig#installer-rs -- deploy -t <host>
+nix run github:lamtt77/lamt-nixconfig#nxd -- deploy -t <host>
 ```
 
 For secret-backed hosts, run from a local checkout with `../lamt-secrets` beside it:
 
 ```bash
-nix run .#installer-rs -- deploy -t <host>
+nix run '.#nxd' -- deploy -t <host>
 ```
 
-Use `nix run` for the first run; after a successful switch, managed systems provide the shorter `lamd` alias.
+Use `nix run` for the first run; after a successful switch, managed systems provide `nxd`.
+The old `lamd` command and `.#installer-rs` flake entry remain temporary compatibility aliases.
 
 1. Install Nix on the machine that will run the deployment. On macOS, the Determinate installer is recommended:
 
@@ -69,52 +71,54 @@ Use `nix run` for the first run; after a successful switch, managed systems prov
 3. Check what would happen before touching a machine.
 
    ```bash
-   nix run .#installer-rs -- deploy --hosts <host> --plan
+   nix run '.#nxd' -- deploy --hosts <host> --plan
    ```
 
 4. Bootstrap a new NixOS host. The target must be reachable over SSH and this command can wipe the target disk.
 
    ```bash
-   nix run .#installer-rs -- deploy -t <host>
+   nix run '.#nxd' -- deploy -t <host>
    ```
 
 5. Update an existing managed host.
 
    ```bash
-   nix run .#installer-rs -- switch -t <host>
+   nix run '.#nxd' -- switch -t <host>
    # After the host has this config installed:
-   lamd switch -t <host>
+   nxd switch -t <host>
    ```
 
 Common safe checks:
 
 ```bash
 # Build without switching
-lamd switch -t <host> --action build
+nxd build -t <host>
 
-# Test activation path
-lamd switch -t <host> --action test
+# Test activation path (reverts on reboot)
+nxd test -t <host>
 
 # Show the exact Nix copy command and timing details
-lamd switch -t <host> -d
+nxd switch -t <host> -d
 ```
 
-Fleet operations use the same command shape with `--hosts`. The installer plans all targets first, prepares isolated host workspaces, and runs hosts in parallel while coordinating shared builder syncs so one host cannot corrupt another host's staged secrets, logs, or workspace state. `--plan` is side-effect free: it may query metadata and provider state, but it does not stage ISOs, create/destroy instances, mutate secrets, or prepare install workspaces.
+To optimize performance, `nxd switch`, `nxd boot`, and `nxd test` compare the newly built configuration path with the active generation on the target system. If they match, the orchestrator skips the profile generation registration, service activation, and rollback scheduling phases. You can bypass this optimization and force reactivation by passing the `-F` or `--force` flag.
+
+Fleet operations use the same command shape with `--hosts`. The installer plans all targets first, prepares one immutable source store path plus isolated per-host secret paths, and runs hosts in parallel. `--plan` is side-effect free: it may query metadata and provider state, but it does not stage ISOs, create/destroy instances, mutate secrets, or prepare store inputs.
 
 By default, batch deploy creates and deploys missing provider-backed hosts, but skips provider instances that already exist. Existing hosts are reported in the plan and run output so you can decide whether to reinstall them in place with `--overwrite` or destroy/recreate them with `--redeploy`.
 
 ```bash
 # Preview multiple hosts without changing them
-lamd deploy --hosts avon,utils,router-main --plan
+nxd deploy --hosts avon,utils,router-main --plan
 
 # Create/deploy missing hosts concurrently; skip existing provider instances
-lamd deploy --hosts avon,utils
+nxd deploy --hosts avon,utils
 
 # Reinstall existing provider instances in place
-lamd deploy --hosts avon,utils --overwrite
+nxd deploy --hosts avon,utils --overwrite
 
 # Switch multiple existing hosts concurrently
-lamd switch --hosts avon,utils,router-main
+nxd switch --hosts avon,utils,router-main
 ```
 
 ## Prerequisites
@@ -122,51 +126,61 @@ lamd switch --hosts avon,utils,router-main
 - **Orchestrator**: Any machine with Nix installed and SSH access to the target.
 - **Target for deploy**: A machine booted with the [NixOS Minimal ISO](https://nixos.org/download/) or a running Linux system that can be converted through kexec, such as an Ubuntu cloud image.
 - **Target for switch**: An already managed NixOS, nix-darwin, Home Manager, or WSL host.
-- **Secrets**: Hosts that use SOPS secrets expect the private secrets repository beside this checkout at `../lamt-secrets`.
+- **Secrets**: Hosts that use SOPS secrets resolve the private secrets repository path in the following priority:
+  1. The `--secrets-repo <path>` CLI option.
+  2. The `DEFAULT_SECRETS_REPO` environment variable.
+  3. Automatic home directory detection (`$HOME/lamt-secrets`, `/Users/lamt/lamt-secrets`, or `/home/lamt/lamt-secrets`).
+  4. Sibling directory relative lookup (`../lamt-secrets`).
 
-## Repository Sources
+## Flake Sources
 
-Run operations from different sources using `--repo-src local|github|tea`:
+Run operations from different source flakes using `--flake <flake-ref>`. When omitted, `nxd` resolves the flake path in the following priority:
 
-1.  **Local (Default)**: Uses the current directory (requires `git clone`).
-2.  **GitHub**: Fetches latest config from GitHub.
-3.  **Tea**: Fetches from private Gitea instance.
+1. The `--flake <flake-ref>` CLI option.
+2. The `DEFAULT_FLAKE_REPO` environment variable.
+3. Discovering the nearest parent `flake.nix` in the current working directory tree.
+4. Automatic home directory detection (`$HOME/lamt-nixconfig`, `/Users/lamt/lamt-nixconfig`, or `/home/lamt/lamt-nixconfig`).
+
+5. **Local (Default)**: Discovers local checkout or paths (e.g. `--flake .` or path).
+6. **GitHub Alias**: `--flake github` resolves to the configured GitHub repository.
+7. **Tea Alias**: `--flake tea` resolves to the Gitea instance repository.
+8. **Any Flake URL**: `--flake github:owner/repo` or other standard Nix flake references.
 
 **Run without cloning:**
 
-_Note: Managed systems expose `lamd` as a shell alias that runs `nix run <switched-flake>#installer-rs --`. Use direct `nix run` mainly for first bootstrap or remote execution before your shell environment is loaded._
+_Note: Managed systems install `nxd` from the switched flake. Use direct `nix run` mainly for first bootstrap or remote execution before your shell environment is loaded._
 
 ```bash
 # Run from GitHub for bootstrap or remote execution
-nix run github:lamtt77/lamt-nixconfig#installer-rs -- deploy --target utils
+nix run github:lamtt77/lamt-nixconfig#nxd -- deploy --target utils
 
 # Run from Tea (Gitea)
-nix run 'git+ssh://git@tea.lamhub.com/lamtt77/lamt-nixconfig#installer-rs' -- switch --target host
+nix run 'git+ssh://git@tea.lamhub.com/lamtt77/lamt-nixconfig#nxd' -- switch --target host
 
 # Run configured shell alias after a switch
-lamd --help
+nxd --help
 
 # Fallback before the alias is available
-nix run .#installer-rs -- --help
+nix run '.#nxd' -- --help
 ```
 
-| Command       | Description                   | Example                                |
-| :------------ | :---------------------------- | :------------------------------------- |
-| `lamd switch` | Update current machine        | `lamd switch`                          |
-| `lamd switch` | Update remote host            | `lamd switch -t router-main`           |
-| `lamd deploy` | Create/deploy missing host    | `lamd deploy -t nas`                   |
-| `lamd deploy` | Reinstall existing host       | `lamd deploy -t nas --overwrite`       |
-| `lamd deploy` | Plan a deploy without running | `lamd deploy --hosts nas --plan`       |
-| `lamd switch` | Verify activation path        | `lamd switch -t gaming --action test`  |
-| `lamd switch` | Build only                    | `lamd switch -t gaming --action build` |
-| `lamd switch` | Home Manager only             | `lamd switch -t user@host --hm`        |
-| `lamd exec`   | Run a command on hosts        | `lamd exec --hosts @router -- uptime`  |
+| Command      | Description                   | Example                              |
+| :----------- | :---------------------------- | :----------------------------------- |
+| `nxd switch` | Update current machine        | `nxd switch`                         |
+| `nxd switch` | Update remote host            | `nxd switch -t router-main`          |
+| `nxd deploy` | Create/deploy missing host    | `nxd deploy -t nas`                  |
+| `nxd deploy` | Reinstall existing host       | `nxd deploy -t nas --overwrite`      |
+| `nxd deploy` | Plan a deploy without running | `nxd deploy --hosts nas --plan`      |
+| `nxd test`   | Verify activation path        | `nxd test -t gaming`                 |
+| `nxd build`  | Build only (dry run)          | `nxd build -t gaming`                |
+| `nxd switch` | Home Manager only             | `nxd switch -t user@host --hm`       |
+| `nxd exec`   | Run a command on hosts        | `nxd exec --hosts @router -- uptime` |
 
-The root `Makefile` forwards to `nix run .#installer-rs --` by default. You can still override `LAMD` explicitly if you want a different entrypoint. `make switch` therefore defaults to the current host just like `lamd switch`.
+The root `Makefile` forwards to `nix run '.#nxd' --` by default. You can override `NXD` explicitly when using another entrypoint. `make switch` defaults to the current host just like `nxd switch`.
 
 ### Target Host Format
 
-Commands that accept target systems (via `--target` / `-t` or `--hosts`) support a flexible specification format. For `lamd switch`, omitting both `--target` and `--hosts` defaults to the current short hostname.
+Commands that accept target systems (via `--target` / `-t` or `--hosts`) support a flexible specification format. For `nxd switch`, omitting both `--target` and `--hosts` defaults to the current short hostname.
 
 ```
 [username@]hostname[=ip]
@@ -180,11 +194,11 @@ Commands that accept target systems (via `--target` / `-t` or `--hosts`) support
 ## Deployment & Bootstrap
 
 > [!WARNING]
-> `lamd deploy` and `make deploy` can wipe the target's primary disk. Run `lamd deploy --hosts <host> --plan` first when checking a target.
+> `nxd deploy` and `make deploy` can wipe the target's primary disk. Run `nxd deploy --hosts <host> --plan` first when checking a target.
 
 ### Bootstrap Workflow
 
-The `lamd` orchestrator follows a streamlined, single-stage deployment pipeline to bootstrap target machines:
+The `nxd` orchestrator follows a streamlined, single-stage deployment pipeline to bootstrap target machines:
 
 1. **Partitions Disk**: Automatically runs `disko` on the target to format and partition physical storage under `/mnt`.
 2. **Builds Configuration**: Compiles the NixOS system closure. Depending on the resolved `--build-on` strategy, this is done either:
@@ -197,45 +211,47 @@ The `lamd` orchestrator follows a streamlined, single-stage deployment pipeline 
 5. **Installs and Restages Identity**: Runs `nixos-install` and restages the target SSH host key after installation in case activation rewrites `/mnt/etc`.
 6. **Reboots and Reports Final IP**: Reboots the target machine directly into the final system, then polls provider IP discovery for the post-reboot final IP when available.
 
-The `lamd` tool automatically detects if the target is a running non-NixOS system (e.g., stock Ubuntu) and uses `kexec` to take over the kernel without a manual reboot. Use `KEXEC_BOOT=yes` to force this behavior.
+The `nxd` tool automatically detects if the target is a running non-NixOS system (e.g., stock Ubuntu) and uses `kexec` to take over the kernel without a manual reboot. Use `KEXEC_BOOT=yes` to force this behavior.
 
 **Options:**
 
 - `--force` / `-F`: Skip safety warning and destructive confirmation prompts.
-- `--repo-src`: Source repository type (`local`, `github`, `tea`). Defaults to `local`.
-- `--build-on`: Choose builder strategy (`local`, `builder`, `realise`/`instantiated`, `target`/`native`). Defaults to automatic resolution.
+- `--flake <flake-ref>`: Flake source reference (e.g. `.`, `github`, `tea`, or a standard URL). Defaults to discovering the nearest local parent `flake.nix`.
+- `--github-token <token>`: Set the GitHub access token used for evaluating/building flakes with private inputs (overrides `GITHUB_TOKEN` environment variable).
+- `--build-on`: Choose builder strategy (`local`, `builder`, `realise`/`instantiated`, `target`/`native`, `cross`). Defaults to automatic resolution.
   - `local`: Builds configuration locally.
   - `builder`: Delegated to a remote builder (defaults to host metadata or `deploy@utils`; override with `--builder <ssh-target>`).
   - `realise` (or `instantiated`): Performs instantiation locally, copies inputs/derivations, and realizes them on target.
   - `target`: Syncs the full configuration repository and compiles natively directly on the target.
+  - `cross`: Builds NixOS configuration locally on orchestrator using cross-compilation (targets `crossNixosConfigurations`).
 - `--plan`: Show dry-run configuration sizing (cores, RAM, disk size) and resolved strategy.
 - `--overwrite`: Reinstall an existing provider-backed host in place. This can repartition disks and erase data, but does not destroy/recreate the VM or droplet.
 - `--redeploy`: Destroy and recreate provider-backed VM/droplet instances from scratch before deployment.
-- `--convert-to <host>`: Use a cloud-init/bootstrap source host as the install environment and install the separate declared NixOS host configuration.
 
 ### Deployment Examples
 
 ```bash
 # Deploy to generic Cloud Image (e.g. Ubuntu) with kexec takeover
-lamd deploy -t gaming
+nxd deploy -t gaming
 
 # Reinstall an existing VM in place. This can wipe the VM disk.
-lamd deploy -t medo --overwrite
+nxd deploy -t medo --overwrite
 
 # Re-provision an existing VM from scratch. This destroys and recreates the VM.
-lamd deploy -t medo --redeploy
+nxd deploy -t medo --redeploy
 
 # Deploy with target realization for low-memory environments
-lamd deploy -t my-droplet --build-on realise
+nxd deploy -t my-droplet --build-on realise
 
-# Convert a cloud-init/bootstrap source into a declared NixOS host
-lamd deploy -t ubuntu-cloudinit-test --convert-to medo
+# Convert a cloud-init/bootstrap source or raw target into a NixOS host
+nxd convert -t abc@192.168.1.187 --to medo
+
 
 # Perform a batch deploy for multiple hosts concurrently
-lamd deploy --hosts avon,utils
+nxd deploy --hosts avon,utils
 
-# Choose repository source (local, github, tea)
-lamd switch -t router --repo-src github
+# Choose flake source reference
+nxd switch -t router --flake github
 ```
 
 ## Infrastructure & Cloud
@@ -246,22 +262,22 @@ The orchestrator handles the entire VM lifecycle including specialized network c
 
 **Advanced Networking:**
 
-- **Router Provisioning**: Hosts named `router-*` automatically receive two interfaces: WAN (`vmbr0`) and LAN (`vmbr1`).
-- **Static IP & VLAN Injection**: Bootstrapping in environments without DHCP via `STATIC_IP` and `BOOTSTRAP_VLAN`.
+- **Declarative VM NIC Layout**: Maps multi-NIC topologies (e.g., WAN/LAN interfaces via `net0` and `net1`) directly from metadata.
+- **Static IP & VLAN Injection**: Dynamic live ISO bootstrap network configuration (assigned interface, subnet, VLAN ID, and gateway) configured via QEMU guest-agent (`qm guest exec`) in environments without DHCP.
 - **ARP Cache Warming**: Automatically ensures builder-to-target connectivity for newly created VMs.
 
 ```bash
 # Deploy 'avon' configuration (automatically provisions Proxmox VM based on declarative flake metadata)
-lamd deploy -t avon
+nxd deploy -t avon
 
 # Redeploy from scratch. This stops, destroys, recreates, and bootstraps the VM.
-lamd deploy -t avon --redeploy
+nxd deploy -t avon --redeploy
 
 # Destroy a VM
-lamd destroy -t avon
+nxd destroy -t avon
 
 # Get IP of a running VM
-lamd info -t avon --ip
+nxd info -t avon --ip
 ```
 
 **Requirements:**
@@ -271,7 +287,7 @@ lamd info -t avon --ip
 - A NixOS ISO image available on the Proxmox storage. For NixOS ISO deploys, missing ISO staging is handled only after the deploy plan is confirmed.
   - **ISO Override**: You can override the default ISO volume path using the `NIXOS_ISO` environment variable, e.g.:
     ```bash
-    NIXOS_ISO="local:iso/nixos-minimal-24.11.iso" lamd deploy -t avon
+    NIXOS_ISO="local:iso/nixos-minimal-24.11.iso" nxd deploy -t avon
     ```
   - If the expected ISO is missing, the installer can prompt to build and upload the custom ISO, download the official minimal ISO to Proxmox, or abort. Official ISOs do not embed your SSH key, so you must add your public key through the VM console before first SSH.
 
@@ -283,10 +299,10 @@ Convert stock Linux droplets to NixOS via kexec.
 
 ```bash
 # Provision and Bootstrap
-lamd deploy -t medo
+nxd deploy -t medo
 
 # Destroy a Droplet
-lamd destroy -t medo
+nxd destroy -t medo
 ```
 
 ### Bare Metal
@@ -300,7 +316,7 @@ lamd destroy -t medo
   - **Usage**:
     1.  **Build the image**:
         ```bash
-        nix build .#nixosConfigurations.<host>.config.system.build.refindBootImg
+        nix build '.#nixosConfigurations.<host>.config.system.build.refindBootImg'
         ```
     2.  **Flash to USB**:
         ```bash
@@ -325,13 +341,13 @@ For new or updated hosts, the orchestrator automatically handles host key and se
 To force-update an existing host key on the target from the secrets repository, run:
 
 ```bash
-UPDATE_HOST_KEY=yes lamd switch -t <host> -F
+UPDATE_HOST_KEY=yes nxd switch -t <host> -F
 ```
 
 To import the active target host key into the secrets repository in non-interactive mode, run:
 
 ```bash
-UPDATE_SECRETS_KEY=yes lamd switch -t <host> -F
+UPDATE_SECRETS_KEY=yes nxd switch -t <host> -F
 ```
 
 **Tailscale Pre-auth Key Auto-Registration:**
@@ -356,39 +372,54 @@ For hosts utilizing declarative Tailscale enrollment, the orchestrator manages p
     curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
     ```
 2.  **Apply Configuration**:
-    - **Full System**: `lamd switch` or `make switch`
-    - **Remote/explicit target**: `lamd switch -t user@macair15-m2` or `make switch ARGS="-t user@macair15-m2"`
-    - **User Only (Home Manager)**: `lamd switch -t user@macair15-m2 --hm` (No sudo required)
+    - **Full System**: `nxd switch` or `make switch`
+    - **Remote/explicit target**: `nxd switch -t user@macair15-m2` or `make switch ARGS="-t user@macair15-m2"`
+    - **User Only (Home Manager)**: `nxd switch -t user@macair15-m2 --hm` (No sudo required)
 
 > [!TIP]
 > Alternatively, use the official installer: `sh <(curl -L https://nixos.org/nix/install)`.
 
-### WSL
+### WSL (Windows Subsystem for Linux)
 
-#### Method 1: Pre-built (NixOS-WSL)
+1. **Prerequisites**: Enable WSL 2 and Windows OpenSSH Server on the Windows host.
+2. **Authorize SSH Key**: Run `nxd wsl bootstrap-ssh -t wsl` to authorize your workstation public key on the Windows host.
+3. **Apply Configuration**:
+   - **Full Deployment (first time)**: `nxd deploy -t wsl`
+   - **Apply Updates**: `nxd switch -t wsl`
+   - **Offline Artifact Build**: `nxd build --artifact minimal-wsl`
 
-1. Download the latest `nixos-wsl.tar.gz` from [NixOS-WSL releases](https://github.com/nix-community/NixOS-WSL/releases).
-2. Import and switch:
+For detailed setup, metadata options, keepalive service, and recovery details, see the [WSL Deployment Guide](file:///Users/lamt/lamt-nixconfig/docs/Installer%20Rust%20Architecture%20and%20Implementation%20Plan.md#wsl-deployment-guide).
+
+## Maintenance
+
+The system automatically handles background maintenance (garbage collection and store optimization) for both system-wide and user/Home Manager profiles.
+
+### Automated Maintenance
+
+Scheduled weekly tasks are defined in [modules/os/base/services/maintenance.nix](file:///Users/lamt/lamt-nixconfig/modules/os/base/services/maintenance.nix):
+
+- **System & User Garbage Collection**: Automatically cleans up generations older than 14 days for the system profile, and iterates through `/home/*` and `/Users/*` to clean up user-specific and Home Manager profiles (executed safely as each corresponding user via `sudo -u`).
+  - **Linux (NixOS)**: Triggered weekly via `nix.gc.automatic` and extended via `systemd.services.nix-gc.postStart`.
+  - **macOS (nix-darwin)**: Triggered weekly via a custom root-level `launchd` daemon wrapper (`darwin-gc`).
+- **Store Optimization**: Deduplicates and hard-links Nix store files to optimize disk usage.
+  - **Linux (NixOS)**: Real-time store optimization (`nix.settings.auto-optimise-store = true`).
+  - **macOS (nix-darwin)**: Weekly optimization via custom root-level `launchd` service.
+
+### Manual Cleanup (GC & Optimise)
+
+If you need to reclaim disk space immediately without waiting for the weekly schedule:
+
+1. **User / Home Manager generations** (run as your normal user):
    ```bash
-   wsl --import NixOS %USERPROFILE%\NixOS\ nixos-wsl.tar.gz
-   wsl -d NixOS
-   # Inside WSL:
-   nix run github:lamtt77/lamt-nixconfig#installer-rs -- switch -t wsl
+   nix-collect-garbage --delete-older-than 14d
    ```
-
-#### Method 2: Custom Tarball
-
-1. Build the tarball (handles remote builds automatically if on ARM Mac):
+2. **System generations** (run with root privileges):
    ```bash
-   make wsl
+   sudo nix-collect-garbage --delete-older-than 14d
    ```
-2. Import the generated image in Windows:
+3. **Store Optimization** (deduplicate and hard-link Nix store files):
    ```bash
-   wsl --import NixOS %USERPROFILE%\NixOS\ nixos-wsl-custom.tar.gz
-   ```
-3. Initialize user:
-   ```bash
-   su lamt # First-start is probably root
+   nix-store --optimise
    ```
 
 ## Design Documents
@@ -397,6 +428,5 @@ Installer behavior and implementation details are tracked in:
 
 - [Installer Requirements Specification](docs/Installer%20Requirements%20Specification.md)
 - [Installer Rust Architecture and Implementation Plan](docs/Installer%20Rust%20Architecture%20and%20Implementation%20Plan.md)
-- [New Features Coding Plan](docs/New%20Features%20Coding%20Plan.md)
 
-For deployment validation involving secrets, use `lamd switch`, `lamd deploy`, or `nix run .#installer-rs -- ...`. Avoid direct `nixos-rebuild` or bare `nix build .#nixosConfigurations...` validation paths for secret-backed hosts because they bypass installer workspace preparation and host-secret staging.
+For deployment validation involving secrets, use `nxd switch`, `nxd deploy`, or `nix run '.#nxd' -- ...`. Avoid direct `nixos-rebuild` or bare `nix build '.#nixosConfigurations...'` validation paths for secret-backed hosts because they bypass installer workspace preparation and host-secret staging.

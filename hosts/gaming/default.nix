@@ -17,10 +17,19 @@
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
-  modules.os.base.services.tailscale.enable = true;
-  modules.os.linux.services.openssh.enable = true;
-
   services.minecraft-server.enable = true; # Setup Minecraft server
+  services.minecraft-server.eula = true;
+
+  assertions = [
+    {
+      assertion = config.services.minecraft-server.declarative;
+      message = "gaming requires the custom declarative Minecraft feature";
+    }
+    {
+      assertion = builtins.elem 49732 config.networking.firewall.allowedTCPPorts;
+      message = "gaming requires the Minecraft socket activation firewall port";
+    }
+  ];
 
   virtualisation.docker.enable = true;
 

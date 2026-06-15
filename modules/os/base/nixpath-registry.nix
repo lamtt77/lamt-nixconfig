@@ -2,26 +2,27 @@
   inputs,
   config,
   lib,
+  mydefs,
   ...
 }:
-with lib;
-let
-  cfg = config.modules.os.base.nixpath-registry;
-in
 {
-  options = with types; {
-    modules.os.base.nixpath-registry = {
-      enable = mkEnableOption "Enable NixPath and Flake Registry";
-    };
-  };
+  # when turn on everything (i.e nix-env) will be locked in flake.lock
+  environment.etc.nixpkgs.source = inputs.nixpkgs;
+  nix = {
+    nixPath = [ "nixpkgs=/etc/${config.environment.etc.nixpkgs.target}" ];
+    registry = {
+      nixpkgs.flake = inputs.nixpkgs;
 
-  config = mkIf cfg.enable {
-    # when turn on everything (i.e nix-env) will be locked in flake.lock
-    environment.etc.nixpkgs.source = inputs.nixpkgs;
-    nix = {
-      nixPath = [ "nixpkgs=/etc/${config.environment.etc.nixpkgs.target}" ];
-      registry.nixpkgs.flake = inputs.nixpkgs;
-      registry.self.flake = inputs.self;
+      github.to = {
+        type = "github";
+        owner = mydefs.githubUser;
+        repo = mydefs.myRepoName;
+      };
+
+      tea.to = {
+        type = "git";
+        url = "ssh://git@${mydefs.teaURL}/${mydefs.githubUser}/${mydefs.myRepoName}";
+      };
     };
   };
 }

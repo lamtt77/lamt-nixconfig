@@ -5,9 +5,9 @@
 set -eo pipefail
 
 # --- Configuration & Defaults ---
-PROXMOX_HOST=$(nix eval --raw .#deploymentHosts.pve-test.deployment.proxmox.host 2>/dev/null || echo "192.168.1.15")
-TARGET_IP=$(nix eval --raw .#deploymentHosts.pve-test.deployment.targetIp 2>/dev/null || echo "192.168.250.10")
-VMID=$(nix eval --raw .#deploymentHosts.pve-test.deployment.vmid 2>/dev/null || echo "911")
+PROXMOX_HOST=$(nix eval --raw '.#deploymentHosts.pve-test.deployment.proxmox.host' 2>/dev/null || echo "192.168.1.15")
+TARGET_IP=$(nix eval --raw '.#deploymentHosts.pve-test.deployment.targetIp' 2>/dev/null || echo "192.168.250.10")
+VMID=$(nix eval --raw '.#deploymentHosts.pve-test.deployment.vmid' 2>/dev/null || echo "911")
 KEEP_VM=false
 HEADLESS=false
 
@@ -59,13 +59,13 @@ fi
 echo "Bridges 'vmbrPxe' and 'vmbrTestWan' found and active."
 
 # Check if router-recovery VM exists on its configured Proxmox host
-ROUTER_VMID=$(nix eval --raw .#deploymentHosts.router-recovery.deployment.vmid 2>/dev/null || echo "910")
-ROUTER_HOST=$(nix eval --raw .#deploymentHosts.router-recovery.deployment.proxmox.host 2>/dev/null || echo "192.168.1.15")
+ROUTER_VMID=$(nix eval --raw '.#deploymentHosts.router-recovery.deployment.vmid' 2>/dev/null || echo "910")
+ROUTER_HOST=$(nix eval --raw '.#deploymentHosts.router-recovery.deployment.proxmox.host' 2>/dev/null || echo "192.168.1.15")
 ROUTER_STATUS=$(ssh $SSH_OPTS "root@$ROUTER_HOST" "qm status $ROUTER_VMID" 2>/dev/null || echo "not_found")
 
 if [[ "$ROUTER_STATUS" == *"not_found"* ]]; then
     log "router-recovery VM (VMID $ROUTER_VMID) does not exist. Deploying it now..."
-    nix run .#installer-rs -- deploy -t router-recovery --force
+    nix run '.#nxd' -- deploy -t router-recovery --force
 else
     echo "router-recovery VM (VMID $ROUTER_VMID) already exists. Status: $(echo "$ROUTER_STATUS" | tr -d '\n')"
     
@@ -76,12 +76,12 @@ else
             case "$choice" in
                 s|switch)
                     log "Switching configuration on router-recovery..."
-                    nix run .#installer-rs -- switch -t router-recovery
+                    nix run '.#nxd' -- switch -t router-recovery
                     break
                     ;;
                 r|redeploy)
                     log "Redeploying router-recovery VM from scratch..."
-                    nix run .#installer-rs -- deploy -t router-recovery --redeploy --force
+                    nix run '.#nxd' -- deploy -t router-recovery --redeploy --force
                     break
                     ;;
                 c|continue)
@@ -129,17 +129,17 @@ else
 fi
 
 # Apply the requested display mode when reusing an existing VM. VM_VGA applies
-# the same mode when installer-rs creates a fresh VM.
+# the same mode when nxd creates a fresh VM.
 if ssh $SSH_OPTS "root@$PROXMOX_HOST" "qm status $VMID" >/dev/null 2>&1; then
     ssh $SSH_OPTS "root@$PROXMOX_HOST" "qm set $VMID --vga $VGA_MODE"
 fi
 
-# Using the installer-rs orchestrator directly
-VM_VGA="$VGA_MODE" nix run .#installer-rs -- deploy -t pve-test --force
+# Using the nxd orchestrator directly
+VM_VGA="$VGA_MODE" nix run '.#nxd' -- deploy -t pve-test --force
 
 # --- Step 4: Verification ---
 log "Verifying final target environment SSH access (via recovery router jump host)..."
-ROUTER_IP=$(nix eval --raw .#deploymentHosts.router-recovery.deployment.targetIp 2>/dev/null || echo "192.168.1.20")
+ROUTER_IP=$(nix eval --raw '.#deploymentHosts.router-recovery.deployment.targetIp' 2>/dev/null || echo "192.168.1.20")
 if ssh $SSH_OPTS -o "ProxyCommand=ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o LogLevel=ERROR -W %h:%p nixos@$ROUTER_IP" -o BatchMode=yes -o ConnectTimeout=3 "root@$TARGET_IP" "pveversion" >/dev/null 2>&1; then
     echo "SUCCESS: Successfully connected to root@$TARGET_IP via jump host. Proxmox is installed!"
 else
@@ -152,10 +152,10 @@ if [ "$KEEP_VM" = true ]; then
     log "Test complete. Keeping VM $VMID alive as requested."
     echo "Target is reachable at root@$TARGET_IP."
     echo "Run the following command later to clean up and delete the VM:"
-    echo "  nix run .#installer-rs -- destroy -t pve-test"
+    echo "  nix run '.#nxd' -- destroy -t pve-test"
 else
     log "Cleaning up and destroying VM $VMID..."
-    nix run .#installer-rs -- destroy -t pve-test
+    nix run '.#nxd' -- destroy -t pve-test
     echo "VM $VMID has been successfully destroyed."
 fi
 

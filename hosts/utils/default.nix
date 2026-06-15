@@ -27,15 +27,6 @@
     }
   );
 
-  modules.os.base.services.sops.enable = true;
-  sops.secrets.tailscale_preauth_key = { };
-
-  modules.os.base.services.tailscale = {
-    enable = true;
-    authKeyFile = config.sops.secrets.tailscale_preauth_key.path;
-  };
-  modules.os.linux.services.openssh.enable = true;
-
   virtualisation.docker.enable = true;
 
   services.qemuGuest.enable = true;

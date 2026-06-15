@@ -6,6 +6,8 @@ vim.opt.tabstop = 2
 vim.opt.shiftwidth = 2
 vim.opt.smartindent = true
 vim.opt.termguicolors = true
+vim.opt.autoread = true
+vim.opt.updatetime = 300
 
 -- Keep legacy syntax available for filetypes without a Treesitter parser.
 -- The Treesitter setup disables it per buffer after its highlighter attaches.

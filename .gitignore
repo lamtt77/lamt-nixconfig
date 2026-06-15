@@ -17,5 +17,5 @@ blog/themes/
 
 # Rust build artifacts
 target/
-apps/installer-rs/target/
+apps/nxd/target/
 

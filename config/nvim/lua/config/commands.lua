@@ -22,3 +22,13 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 		end
 	end,
 })
+
+-- Automatically reload file if it changes on disk
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHoldI" }, {
+	group = vim.api.nvim_create_augroup("AutoReload", { clear = true }),
+	callback = function()
+		if vim.fn.getcmdwintype() == "" then
+			vim.cmd("checktime")
+		end
+	end,
+})

@@ -19,6 +19,8 @@ let
         mydefs = import ../defines.nix;
       in
       {
+        nxd = final.callPackage ../pkgs/nxd { inherit mydefs; };
+        installer-rs = final.nxd;
         pve-pxe-assets = final.callPackage ../pkgs/pve-pxe-assets { inherit inputs mydefs; };
         pve-answer-server = final.callPackage ../pkgs/pve-answer-server { };
       };

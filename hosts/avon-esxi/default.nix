@@ -44,16 +44,6 @@
     (pkgs.ovftool.override { acceptBroadcomEula = true; })
   ];
 
-  modules.os.base.services.sops.enable = true;
-  modules.os.linux.services.openssh.enable = true;
-  modules.os.linux.services.fail2ban.enable = true;
-  modules.os.linux.services.nginx.enable = true;
-  modules.os.linux.services.acme.enable = true;
-  modules.os.linux.services.postfix.enable = true;
-  modules.os.linux.services.gitea.enable = true;
-  modules.os.base.services.tailscale.enable = true;
-  modules.os.linux.services.gitea-runner.enable = true;
-
   virtualisation.docker.enable = true;
   virtualisation.vmware.guest.enable = true;
 

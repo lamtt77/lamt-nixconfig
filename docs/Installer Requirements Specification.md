@@ -1,10 +1,10 @@
 # Installer Requirements Specification
 
-This document defines the high-level behavior of the `lamd` deployment orchestrator. It describes what the tool must do from a user and system-flow perspective. Programming language choices, module structure, command execution details, and Nix internals belong in [Installer Rust Architecture and Implementation Plan.md](./Installer%20Rust%20Architecture%20and%20Implementation%20Plan.md).
+This document defines the high-level behavior of the `nxd` deployment orchestrator. It describes what the tool must do from a user and system-flow perspective. Programming language choices, module structure, command execution details, and Nix internals belong in [Installer Rust Architecture and Implementation Plan.md](./Installer%20Rust%20Architecture%20and%20Implementation%20Plan.md).
 
 ## Goals
 
-`lamd` provides one command surface for managing local and remote Nix systems:
+`nxd` provides one command surface for managing local and remote Nix systems:
 
 - Provision provider-backed machines.
 - Convert stock Linux cloud-init systems into NixOS.
@@ -17,31 +17,32 @@ This document defines the high-level behavior of the `lamd` deployment orchestra
 The expected operator experience is one-step convergence:
 
 ```bash
-lamd switch
-lamd switch -t avon
-lamd deploy --hosts avon,utils
-lamd deploy --hosts avon,utils --overwrite
-lamd deploy -t medo-test --redeploy
-lamd deploy --hosts avon,utils --plan
-lamd exec --hosts @router -- uptime
+nxd switch
+nxd switch -t avon
+nxd deploy --hosts avon,utils
+nxd deploy --hosts avon,utils --overwrite
+nxd deploy -t medo-test --redeploy
+nxd deploy -t medo-test --redeploy --build-iso
+nxd deploy --hosts avon,utils --plan
+nxd exec --hosts @router -- uptime
 ```
 
-`lamd switch` defaults to the current short hostname when neither `--target` nor `--hosts` is provided.
+`nxd switch` defaults to the current short hostname when neither `--target` nor `--hosts` is provided.
 
 ## Entrypoints
 
-The primary command is `lamd`, exposed by shell alias to `nix run <switched-flake>#installer-rs --`. The root `Makefile` is a convenience wrapper only:
+The primary command and flake app/package are `nxd`. The root `Makefile` is a convenience wrapper only. `lamd` and `.#installer-rs` remain temporary compatibility aliases:
 
 | Make target    | Forwarded command | Example                         |
 | :------------- | :---------------- | :------------------------------ |
-| `make switch`  | `lamd switch`     | `make switch ARGS="-t avon"`    |
-| `make deploy`  | `lamd deploy`     | `make deploy ARGS="-t avon"`    |
-| `make sync`    | `lamd sync`       | `make sync ARGS="-t avon --repo"` |
-| `make destroy` | `lamd destroy`    | `make destroy ARGS="-t avon"`   |
-| `make info`    | `lamd info`       | `make info ARGS="-t avon --ip"` |
-| `make wsl`     | `lamd deploy`     | `make wsl ARGS="--plan"`        |
+| `make switch`  | `nxd switch`     | `make switch ARGS="-t avon"`    |
+| `make deploy`  | `nxd deploy`     | `make deploy ARGS="-t avon"`    |
+| `make sync`    | `nxd sync`       | `make sync ARGS="-t avon --repo"` |
+| `make destroy` | `nxd destroy`    | `make destroy ARGS="-t avon"`   |
+| `make info`    | `nxd info`       | `make info ARGS="-t avon --ip"` |
+| `make wsl`     | `nxd deploy`     | `make wsl ARGS="--plan"`        |
 
-The Makefile uses `nix run .#installer-rs --` by default from a repo checkout.
+The Makefile uses `nix run '.#nxd' --` by default from a repo checkout.
 
 Targets use this format:
 
@@ -51,8 +52,8 @@ Targets use this format:
 
 Examples:
 
-- `lamd switch -t nixos@avon=192.168.1.18`
-- `lamd deploy --hosts avon=192.168.1.18,utils=192.168.1.19`
+- `nxd switch -t nixos@avon=192.168.1.18`
+- `nxd deploy --hosts avon=192.168.1.18,utils=192.168.1.19`
 
 ## Host Metadata, Roles, And Selectors
 
@@ -97,17 +98,17 @@ Requirements:
 - Local repo checkouts are snapshotted before build/switch/deploy work starts.
 - Remote flake sources such as `github:` and `tea:` may be used for bootstrap operations; if no local secrets are available, the operation must still complete with the existing no-secrets warning behavior.
 - Host secrets are never staged into Git and are never committed by the installer.
-- For a pure local single-host operation, the installer may create only one host workspace and skip the common base workspace.
-- For remote or multi-host operations, the installer creates a common source base and derives isolated per-host workspaces from it.
-- Local and remote workspaces are persistent directory checkouts refreshed between runs. They must be logged with full paths for traceability, and host-specific secret material must be removed by the refresh process rather than left to accumulate.
-- `sync --repo` is a direct repository sync utility. It does not use deployment temp workspaces and must not be treated as a build/deploy operation.
+- Each operation creates one immutable source store path and, when available, one separate secret store path per host.
+- A host secret store directory contains only `host.yaml`; it must never contain another host's SOPS file.
+- Source and secret paths are copied only to the builder or target that evaluates them and are protected by per-run GC roots.
+- `sync --repo` is a direct repository sync utility. It does not use deployment store inputs and must not be treated as a build/deploy operation.
 
 ## Performance And Resource Optimization
 
-To ensure responsiveness, `lamd` enforces key optimization constraints:
+To ensure responsiveness, `nxd` enforces key optimization constraints:
 
-- **Config Batch Queries**: When targeting multiple hosts (via `--hosts`), `lamd` must perform a single-shot batch query to evaluate flake configurations instead of sequential single-host queries.
-- **Metadata Fast Path**: `lamd` must prefer the lightweight `deploymentHosts` flake output for planning and provider detection, falling back to full system evaluation only for compatibility.
+- **Config Batch Queries**: When targeting multiple hosts (via `--hosts`), `nxd` must perform a single-shot batch query to evaluate flake configurations instead of sequential single-host queries.
+- **Metadata Fast Path**: `nxd` must prefer the lightweight `deploymentHosts` flake output for planning and provider detection, falling back to full system evaluation only for compatibility.
 - **Evaluation Caching**: Target host configurations must be cached in memory to completely prevent redundant `nix eval` executions across the planning, resolution, and execution phases.
 - **Inline Feature Probing**: Target features (such as `diskoScript` presence) must be probed inline during the main metadata evaluation, avoiding standalone process executions.
 - **Local Target Bypass**: Network IP resolution and SSH checks must be completely bypassed when switching the orchestrator host itself (`localhost` / short hostname).
@@ -125,7 +126,8 @@ Requirements:
 
 - Supports local NixOS and local nix-darwin switches.
 - Supports remote NixOS switches over SSH.
-- Supports `--action switch|bootentry|test|build`.
+- Supports switch, boot, test, and build as subcommands.
+- Optimizes NixOS switch/boot/test runs by skipping activation if the target system is already running the built generation (bypassable with `-F`/`--force`).
 - Supports `--hm` for Home Manager activation.
 - Supports selector-based `--hosts` and batch switching.
 - Supports `--parallel <N>` for batch fan-out.
@@ -142,12 +144,13 @@ Requirements:
 - `--overwrite` reuses existing provider-backed instances and permits in-place install/partitioning. It must not destroy/recreate the provider instance.
 - `--redeploy` destroys and recreates provider-backed instances before verification or installation.
 - `--redeploy` is stronger than `--overwrite`: it discards the provider instance first, then proceeds with verification or installation.
-- Existing destructive targets require `--overwrite`, `--redeploy`, or `--convert-to` before destructive install work may run.
-- Cloud-init template verification stops after confirming SSH access unless `--convert-to` is provided.
-- `--convert-to <host>` is distinct from `--overwrite`: it uses the source cloud-init target as the installation environment and installs the target host configuration.
-- Batch deploy plans must show each host's provider action clearly, such as create/deploy, skip existing, overwrite existing, redeploy, or convert-to target.
+- Existing destructive targets require `--overwrite` or `--redeploy` before destructive install work may run.
+- Cloud-init template verification stops after confirming SSH access.
+- In-place software takeover is handled via the separate `convert` command: `nxd convert --target <source> --to <destination-host>`.
+- Batch deploy plans must show each host's provider action clearly, such as create/deploy, skip existing, overwrite existing, or redeploy.
 - `--plan` must be side-effect free: it may query metadata and provider state, but it must not stage Proxmox ISOs, create instances, destroy instances, mutate secrets, or prepare install workspaces.
 - For Proxmox NixOS ISO deploys, missing ISO staging prompts, builds, downloads, and uploads must happen only after the operator confirms the deploy plan.
+- The `--build-iso` flag forces rebuilding and uploading of the custom NixOS ISO. If a remote builder is configured for the target host, the ISO is compiled directly on the remote builder and SCPed directly to the Proxmox host using SSH agent forwarding, bypassing the local developer workstation entirely.
 - Supports selector-based `--hosts` and `--parallel <N>` for batch deployment.
 - Host SSH keys and SOPS secrets must be staged before `nixos-install` and remain valid after reboot.
 - After reboot, provider-backed deploys should resolve and report the final provider IP using a polling lookup so DHCP and hypervisor state can settle.
@@ -230,6 +233,27 @@ Main deployment flow:
 
 The installer uses a single final installation stage. It does not intentionally reboot into a temporary minimal NixOS generation before applying the final host configuration.
 
+### WSL Target Flow
+
+For WSL provider targets (`deployment.wsl.enable = true`):
+
+- The Windows control plane requires OpenSSH public-key access and explicit non-interactive
+  PowerShell invocation.
+- A missing distribution is created from the reusable
+  `result-wsl/nixos-wsl-custom.tar.gz` bootstrap artifact.
+- Artifact construction uses the pinned NixOS-WSL module and
+  `nixosConfigurations.minimal-wsl-x86.config.system.build.tarballBuilder`.
+- `nxd build --artifact minimal-wsl` is an offline artifact-only path and does not contact
+  Windows.
+- Provider deployment imports/starts the distribution, resolves the guest endpoint, then reuses
+  normal source, secret, build, copy, profile registration, activation, and lockfile paths.
+- WSL skips Disko, kexec, `nixos-install`, swap preparation, and reboot.
+- Mirrored networking uses direct guest SSH. NAT-mode guests use the Windows OpenSSH control host
+  as a jump host.
+- Existing distributions are skipped by default, converged with `--overwrite`, and
+  unregistered/re-imported with `--redeploy`.
+
+
 ## Low-Memory Behavior
 
 Low-memory hosts are first-class deployment targets. A host may opt in through `deployment.lowMem = "yes"` or by CLI override.
@@ -256,7 +280,7 @@ Requirements:
 - If the secrets repository is missing local host-key material but the target has an active host key, interactive runs must ask whether to import the target key into secrets, generate a fresh local key, or abort.
 - Non-interactive forced runs may import a missing target key only when the secrets-key update policy is explicitly enabled.
 - If local secrets key material and the active target key mismatch, the operator must be able to choose between overwriting the target from secrets, updating secrets from the target, proceeding anyway, or aborting.
-- Host-specific SOPS files are resolved in priority order from the external `lamt-secrets` repository, then repo-local `./secrets`.
+- Host-specific SOPS files are resolved in priority order from the external secrets repository (specified via the `--secrets-repo` CLI option, `DEFAULT_SECRETS_REPO` environment variable, home directory auto-detection, or sibling `../lamt-secrets`), then repo-local `./secrets` (resolved relative to the active flake directory).
 - Only `secrets/sops/<host>.yaml` for the current target host is injected into that host's temporary workspace.
 - Host-specific SOPS files are staged only for the duration needed by evaluation/deployment and cleaned up on success or failure.
 - The target private SSH host key is installed into `/mnt/etc/ssh`.
@@ -271,12 +295,14 @@ The orchestrator chooses a build path from declarative host metadata and CLI ove
 
 | Strategy | Expected use |
 | :------- | :----------- |
-| Local | Build on the machine running `lamd` when platform-compatible. |
+| Local | Build on the machine running `nxd` when platform-compatible. |
 | Remote builder | Delegate build to a configured builder such as `deploy@utils`. |
 | Target realization | Evaluate elsewhere, then realize on the target. |
 | Target native | Build directly on the target only when necessary. |
 
-Remote builder runs use a stable builder-side source base, then derive a per-host temporary builder workspace. Batch operations must sync that stable builder base at most once per builder per run, then isolate host-specific secrets in the per-host workspace.
+Remote builder runs copy one immutable source store path per operation and one immutable
+secret store path per host. Nix deduplicates repeated source copies, while host secrets
+remain independently addressable and GC-rooted.
 
 For cloud or WAN hosts, substituting on the destination may be enabled declaratively to let the target fetch from configured substituters instead of copying every path from the builder over SSH. The default remains off unless a host opts in. Debug mode should print the exact `nix copy` command so operators can confirm whether `--substitute-on-destination` is active.
 
@@ -313,8 +339,8 @@ Requirements:
 - Batch operations run concurrently and summarize per-host status.
 - `--parallel <N>` limits host operation fan-out.
 - `--parallel 0` means unlimited.
-- Batch operations must isolate host-specific SOPS files by using per-host workspaces.
-- Multiple hosts using the same remote builder should share one synced builder base per run, then derive per-host builder temp workspaces from it.
+- Batch operations must isolate host-specific SOPS files in distinct immutable store paths.
+- Multiple hosts using the same remote builder share the immutable source store path while retaining separate host secret paths.
 - Elapsed time formatting is consistent between single-target and batch paths.
 - Failure output includes enough recent log context to diagnose the failing host.
 
@@ -338,4 +364,4 @@ Requirements:
 - Hostname/user mismatches must be surfaced before proceeding.
 - Local known-host entries may be cleaned for rebuilt targets when host keys are intentionally replaced.
 - Remote switch operations must preserve rollback safety where possible.
-- Staged secrets must be scoped to host workspaces and removed by workspace refresh on subsequent runs; private keys and secret material must never be printed or committed.
+- Staged secrets must be scoped to one host, GC-rooted only for the operation lifetime, and never printed or committed.

@@ -14,8 +14,6 @@ in
     "${modulesPath}/installer/cd-dvd/installation-cd-minimal.nix"
   ];
 
-  options.iso.vlan.enable = lib.mkEnableOption "VLAN support in ISO";
-
   config = {
     # for promox: qm terminal <vmid> serial0
     # console=ttyS0 is for x86 serial, can cause kernel panic on aarch64
@@ -29,14 +27,23 @@ in
 
     nix.settings = {
       experimental-features = "nix-command flakes";
+      substituters = [
+        "https://cache.lamhub.com?priority=10"
+        "https://cache.nixos.org/"
+      ];
+      trusted-public-keys = [
+        "cache.lamhub.com-1:D/ywCfChYM7EGJ3UbQsH2YX8Svq2okabE+qdalC4fdw="
+        "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+      ];
+      connect-timeout = 3;
+      stalled-download-timeout = 10;
     };
 
     environment.systemPackages = with pkgs; [
       nixVersions.latest
-      git
+      gitMinimal
       jq
       rsync
-      vim
       zsh
     ];
 
@@ -53,17 +60,6 @@ in
 
     users.users.root = {
       openssh.authorizedKeys.keys = [ mydefs.mySshAuthKey ];
-    };
-
-    # VLAN config for routers (matches legacy pfSense vmbr0/vmbr1 with VLAN 10 and 40)
-    networking.vlans = lib.mkIf config.iso.vlan.enable {
-      "eth1.10" = {
-        id = 10;
-        interface = "eth1";
-      };
-    };
-    networking.interfaces = lib.mkIf config.iso.vlan.enable {
-      "eth1.10".useDHCP = true;
     };
   };
 }

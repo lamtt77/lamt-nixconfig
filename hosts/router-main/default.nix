@@ -15,10 +15,8 @@
 
   boot.growPartition = true;
   services.openssh.enable = true;
-  modules.os.base.services.sops.enable = true;
 
   modules.os.linux.services.router = {
-    enable = true;
     isMaster = true;
     wanIp = "192.168.0.2";
     lanIp = "192.168.1.2";
