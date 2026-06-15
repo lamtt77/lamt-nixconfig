@@ -11,8 +11,13 @@ logging.basicConfig(
 logger = logging.getLogger("pve-answer-server")
 
 def resolve_static_path(static_dir, filename):
-    static_root = os.path.abspath(static_dir)
-    filepath = os.path.abspath(os.path.join(static_root, filename))
+    static_root = os.path.realpath(static_dir)
+
+    # Reject absolute user input so joins cannot discard static_root.
+    if os.path.isabs(filename):
+        return None
+
+    filepath = os.path.realpath(os.path.join(static_root, filename))
 
     try:
         if os.path.commonpath((static_root, filepath)) != static_root:
