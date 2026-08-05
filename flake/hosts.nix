@@ -15,101 +15,55 @@ let
       }
     )
     // inputs.home-manager.lib;
-  hostsDir = ../hosts;
   mydefs = import ../defines.nix;
-
-  # Dynamically extract option schema and defaults from options.nix
-  evalOptions = lib.evalModules {
-    modules = [ ../modules/shared/options.nix ];
-  };
-  defaultDeployment = evalOptions.config.deployment;
-
-  # Recursive merge helper to overlay host-defined values onto defaults
-  recursiveMerge =
-    lhs: rhs:
-    if builtins.isAttrs lhs && builtins.isAttrs rhs then
-      builtins.listToAttrs (
-        map (name: {
-          name = name;
-          value = if builtins.hasAttr name rhs then recursiveMerge lhs.${name} rhs.${name} else lhs.${name};
-        }) (builtins.attrNames lhs)
-      )
-    else
-      rhs;
-
-  roleDefaults = import ./host-roles.nix;
-
-  # Loader transforming raw meta.nix into complete FlakeMetadata shape
-  loadHostMeta =
-    name:
-    let
-      meta = import (hostsDir + "/${name}/meta.nix");
-      role = meta.role or null;
-      hasRole = role != null && builtins.hasAttr role roleDefaults;
-      rDefaults = if hasRole then roleDefaults.${role} else { };
-      getVal =
-        key: default:
-        if builtins.hasAttr key meta then
-          meta.${key}
-        else if builtins.hasAttr key rDefaults then
-          rDefaults.${key}
-        else
-          default;
-      buildSystem = getVal "buildSystem" true;
-      roleDeployment = rDefaults.deployment or { };
-      mergedDeployment = recursiveMerge (recursiveMerge defaultDeployment roleDeployment) (
-        meta.deployment or { }
-      );
-      roleTags = rDefaults.tags or [ ];
-      metaTags = meta.tags or [ ];
-      implicitTag = if role != null then [ role ] else [ ];
-      finalTags = lib.unique (implicitTag ++ roleTags ++ metaTags);
-
-      roleOSFeatures = rDefaults.osFeatures or [ ];
-      roleHMFeatures = rDefaults.hmFeatures or [ ];
-      osFeatures = lib.unique (roleOSFeatures ++ (meta.osFeatures or [ ]));
-      hmFeatures = lib.unique (roleHMFeatures ++ (meta.hmFeatures or [ ]));
-      allFeatures = osFeatures ++ hmFeatures;
-    in
-    assert lib.assertMsg (
-      !(meta ? features)
-    ) "Host '${name}' uses legacy 'features'; use osFeatures/hmFeatures";
-    assert lib.assertMsg (role == null || hasRole) "Host '${name}' has unknown role '${toString role}'";
-    assert lib.assertMsg (!buildSystem || role != null) "Buildable host '${name}' must declare a role";
+  # Single normalized hosts + infra graph for systems, indexes, and NXD projection.
+  infra = import ../infra { inherit lib; };
+  inherit (infra) hostMeta;
+  # OS/HM shared surface only: never inject deployment.* into system modules.
+  hostExtras =
+    meta:
+    { ... }:
     {
-      class = meta.class;
-      system = meta.system;
-      user = meta.username or "nixos";
-      role = role;
-      tags = finalTags;
-      server = getVal "server" false;
-      wsl = getVal "wsl" false;
-      hasDisko = getVal "hasDisko" false;
-      home = getVal "home" false;
-      inherit buildSystem;
-      cross = meta.cross or null;
-      deployment = mergedDeployment;
-      inherit osFeatures hmFeatures;
-      features = allFeatures;
+      user = meta.user;
+      nxd.binaryCache = meta.nxd.binaryCache;
     };
-
-  # Discovers all hosts containing meta.nix
-  hostDirs = builtins.attrNames (
-    lib.filterAttrs (name: type: type == "directory" && !(builtins.substring 0 1 name == "_")) (
-      builtins.readDir hostsDir
-    )
-  );
-
-  hostMeta = builtins.listToAttrs (
-    map (name: {
-      name = name;
-      value = loadHostMeta name;
-    }) (builtins.filter (name: builtins.pathExists (hostsDir + "/${name}/meta.nix")) hostDirs)
-  );
+  nxdModules = selectedInfra: [
+    (import ../nxd/default.nix {
+      infra = selectedInfra;
+      inherit inputs;
+    })
+  ];
+  targetInventory =
+    evaluator: name: _meta:
+    inputs.nxd.lib.selectTargetInventory (evaluator { modules = nxdModules infra; }) name;
 in
 {
-  # 1. Export lightweight deployment metadata for nxd fast-path
-  flake.deploymentHosts = hostMeta;
+  # 1. Export the canonical NXD deployment and infrastructure model.
+  flake.nxdConfigurations = rec {
+    lamt = inputs.nxd.lib.evalConfiguration {
+      modules = nxdModules infra;
+    };
+    lamtUnstable = inputs.nxd.lib.evalConfigurationUnstable {
+      modules = nxdModules infra;
+    };
+    default = lamt;
+  };
+
+  flake.nxdTargetInventories = rec {
+    lamt = builtins.mapAttrs (targetInventory inputs.nxd.lib.evalConfiguration) hostMeta;
+    lamtUnstable = builtins.mapAttrs (targetInventory inputs.nxd.lib.evalConfigurationUnstable) hostMeta;
+    default = lamt;
+  };
+
+  flake.nxdTargetOutputs = rec {
+    lamt = inputs.nxd.lib.evalTargetOutputs {
+      targetConfigurations = self.nixosConfigurations // self.darwinConfigurations;
+    };
+    lamtUnstable = inputs.nxd.lib.evalTargetOutputsUnstable {
+      targetConfigurations = self.nixosConfigurations // self.darwinConfigurations;
+    };
+    default = lamt;
+  };
 
   # 2. Build full NixOS Configurations
   flake.nixosConfigurations =
@@ -125,16 +79,7 @@ in
         wsl = meta.wsl or false;
         osFeatures = meta.osFeatures or [ ];
         hmFeatures = meta.hmFeatures or [ ];
-
-        extraUsers = [
-          (
-            { ... }:
-            {
-              deployment = meta.deployment;
-              user = meta.user;
-            }
-          )
-        ];
+        extraUsers = [ (hostExtras meta) ];
       }
     ) (lib.filterAttrs (name: meta: meta.class == "nixos" && meta.buildSystem) hostMeta))
     // {
@@ -201,16 +146,7 @@ in
       darwin = true;
       osFeatures = meta.osFeatures or [ ];
       hmFeatures = meta.hmFeatures or [ ];
-
-      extraUsers = [
-        (
-          { ... }:
-          {
-            deployment = meta.deployment;
-            user = meta.user;
-          }
-        )
-      ];
+      extraUsers = [ (hostExtras meta) ];
     }
   ) (lib.filterAttrs (name: meta: meta.class == "darwin") hostMeta);
 
@@ -247,16 +183,7 @@ in
       crossSystem = meta.cross.crossSystem;
       osFeatures = meta.osFeatures or [ ];
       hmFeatures = meta.hmFeatures or [ ];
-
-      extraUsers = [
-        (
-          { ... }:
-          {
-            deployment = meta.deployment;
-            user = meta.user;
-          }
-        )
-      ];
+      extraUsers = [ (hostExtras meta) ];
     }
   ) (lib.filterAttrs (name: meta: meta.cross != null) hostMeta);
 }

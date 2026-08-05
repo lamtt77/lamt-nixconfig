@@ -32,9 +32,17 @@
       };
     in
     {
-      # Expose owned packages under packages. Keep installer-rs as a temporary migration alias.
+      # Expose owned packages under packages.
       packages = lib.my.mapPackages ../pkgs (p: pkgs.callPackage p { inherit inputs mydefs; }) // {
-        installer-rs = self'.packages.nxd;
+        nxd = pkgs.writeShellApplication {
+          name = "nxd";
+          runtimeInputs = [ inputs.nxd.packages.${system}.nxd ];
+          text = ''
+            : "''${DEFAULT_SECRETS_REPO:=''${HOME}/lamt-secrets}"
+            export DEFAULT_SECRETS_REPO
+            exec ${inputs.nxd.packages.${system}.nxd}/bin/nxd "$@"
+          '';
+        };
       };
 
       # apps
@@ -45,10 +53,6 @@
         projectRootFile = "flake.nix";
         programs.nixfmt.enable = true;
         programs.rustfmt.enable = true;
-        # TODO cleanup when drop installer2
-        settings.global.excludes = [
-          "apps/installer2/templates/**"
-        ];
       };
 
       # devShells

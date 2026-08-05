@@ -2,6 +2,10 @@
 
 -- Performance monitoring: Track startup time
 local startup_start = vim.uv.hrtime()
+vim.g._startup_t0_ns = startup_start
+
+-- :StartupProfile — timeline incl. work after UIEnter (session restore, LSP attach)
+require("config.startup-profile")
 
 -- Load basic settings
 require("config.settings")

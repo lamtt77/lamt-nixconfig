@@ -1,20 +1,53 @@
 {
   pkgs,
-  lib,
   mydefs,
   ...
 }:
 let
-  targets = import ./targets.nix mydefs;
+  substituteTemplate =
+    {
+      name,
+      template,
+      replacements,
+    }:
+    let
+      replacementsJson = pkgs.writeText "replacements-${name}.json" (builtins.toJSON replacements);
+    in
+    pkgs.runCommand name { nativeBuildInputs = [ pkgs.python3 ]; } ''
+      python3 - ${template} ${replacementsJson} $out <<'PY'
+      import json
+      import sys
 
-  substituteTemplate = import ./lib/substitute-template.nix { inherit pkgs lib; };
-  configTarball = import ./lib/config-tarball.nix { inherit pkgs lib; };
-  manifestGen = import ./manifest.nix { inherit pkgs lib; };
+      template_path, replacements_path, output_path = sys.argv[1:]
+      with open(template_path) as source:
+          content = source.read()
+      with open(replacements_path) as source:
+          replacements = json.load(source)
+      for placeholder, value in replacements.items():
+          content = content.replace(placeholder, str(value))
+      with open(output_path, "w") as output:
+          output.write(content)
+      PY
+    '';
+  configTarball =
+    { name, src }:
+    pkgs.runCommand "${name}.tar.gz"
+      {
+        nativeBuildInputs = [
+          pkgs.gnutar
+          pkgs.gzip
+        ];
+      }
+      ''
+        tar --owner=0 --group=0 --numeric-owner --sort=name --mtime="@0" \
+          -czvf $out -C ${src} .
+      '';
+  pveStateRoot = ../../infra/proxmox/state/pve;
 
-  # Cached base files from downloaded Proxmox ISO
+  # Cached base files from downloaded Proxmox ISO (public enterprise CDN pin).
   proxmoxIso = pkgs.fetchurl {
-    url = "https://enterprise.proxmox.com/iso/proxmox-ve_9.0-1.iso";
-    sha256 = "228f948ae696f2448460443f4b619157cab78ee69802acc0d06761ebd4f51c3e";
+    url = "https://enterprise.proxmox.com/iso/proxmox-ve_9.2-1.iso";
+    sha256 = "0v1cxxrrb1zkvgiixyra6g9i9iq7mb4j8pqp99i2gdgrdm0zx22f";
   };
 
   # Extract base kernel/initrd and decompress base initrd (expensive, target-independent)
@@ -55,74 +88,52 @@ let
   ipxeEfi = "${pkgs.ipxe}/ipxe.efi";
 
   mkPvePxeAssets =
-    { target, bootstrapIp }:
+    {
+      target,
+      bootstrapIp,
+      autoBoot ? false,
+      serialConsole ? false,
+    }:
     let
-      targetCfg = targets.${target} or (throw "Unknown PXE target: ${target}");
+      stateDir = pveStateRoot + "/${target}";
+      targetDir = ../../infra/proxmox/pxe/targets + "/${target}";
+      answerTemplate = targetDir + "/answer.toml";
 
-      renderedCorosync = substituteTemplate {
-        name = "corosync-${targetCfg.hostname}.conf";
-        template = ./templates/corosync.conf;
-        replacements = {
-          "@NODE1_NAME@" = targets.pve1.proxmoxNode;
-          "@NODE1_IP@" = mydefs.hosts.pve1.ip;
-          "@NODE2_NAME@" = targets.pve2.proxmoxNode;
-          "@NODE2_IP@" = mydefs.hosts.pve2.ip;
-          "@CLUSTER_NAME@" = "barcluster";
-          "@CONFIG_VERSION@" = "2";
-        };
-      };
-
-      renderedStorage = substituteTemplate {
-        name = "storage-${targetCfg.hostname}.cfg";
-        template = ./templates/storage.cfg;
-        replacements = {
-          "@NFS_VM_EXPORT@" = "/mnt/arthur_z2/VM";
-          "@NFS_ISO_EXPORT@" = "/mnt/arthur_z2/Boot/ISO";
-          "@NAS_IP@" = mydefs.nasIp;
-        };
-      };
-
-      # 1. Config Directory (combining static and dynamically rendered files)
-      configDir = pkgs.runCommand "${targetCfg.hostname}-configs-dir" { } ''
+      # 1. Package only the reviewed, per-node host-local state. Cluster-wide
+      # pmxcfs state is deliberately excluded from normal installation.
+      configDir = pkgs.runCommand "${target}-configs-dir" { } ''
+        test -d ${stateDir}
+        test -f ${answerTemplate}
         mkdir -p $out
-        if [ -d ${./configs + "/${target}"} ]; then
-          cp -rT ${./configs + "/${target}"}/ $out/
-          chmod -R u+w $out
+        cp -rT ${stateDir}/ $out/
+        chmod -R u+w $out
+        test -f $out/etc/network/interfaces
+        if [ "${target}" != pve-test ]; then
+          test -f $out/etc/default/grub
+          test -f $out/etc/kernel/cmdline
+          test -f $out/etc/modprobe.d/zfs.conf
         fi
-        ${lib.optionalString targetCfg.includeClusterStorage ''
-          mkdir -p $out/etc/pve
-          cp ${renderedCorosync} $out/etc/pve/corosync.conf
-          cp ${renderedStorage} $out/etc/pve/storage.cfg
-        ''}
+        if [ -e $out/etc/pve ]; then
+          echo "normal PVE install state must not contain /etc/pve" >&2
+          exit 1
+        fi
       '';
 
       # 2. Config Tarball (cheap, target-specific)
       restoreTarball = configTarball {
-        name = "${targetCfg.hostname}-configs";
+        name = "${target}-configs";
         src = configDir;
-      };
-
-      # 2. Render templates (cheap, target-specific)
-      networkInterfaces = substituteTemplate {
-        name = "network-interfaces-${targetCfg.hostname}";
-        template = ./templates + "/${targetCfg.networkTemplate}";
-        replacements = {
-          "@FINAL_IP@" = targetCfg.finalIp;
-          "@NETMASK@" = targetCfg.netmask;
-          "@GATEWAY@" = targetCfg.gateway;
-        };
       };
 
       # Write first-boot script template and inject sha256 checksum at build time
       firstBootScriptWithHash =
-        pkgs.runCommand "first-boot-${targetCfg.hostname}.sh"
+        pkgs.runCommand "first-boot-${target}.sh"
           {
             nativeBuildInputs = [ pkgs.python3 ];
-            template = ./templates/first-boot.sh;
+            template = ../../infra/proxmox/pxe/templates/first-boot.sh;
             restoreTarballPath = "${restoreTarball}";
-            networkInterfacesPath = "${networkInterfaces}";
             bootstrapUrl = "http://${bootstrapIp}";
-            tarballName = "${targetCfg.hostname}-configs.tar.gz";
+            tarballName = "${target}-configs.tar.gz";
             dontPatchShebangs = true;
           }
           ''
@@ -131,12 +142,9 @@ let
             python3 -c "
             with open('$template', 'r') as f:
                 content = f.read()
-            with open('$networkInterfacesPath', 'r') as f:
-                net_content = f.read()
             content = content.replace('@RESTORE_TARBALL_NAME@', '$tarballName')
             content = content.replace('@RESTORE_TARBALL_HASH@', '$hash_tarball')
             content = content.replace('@BOOTSTRAP_URL@', '$bootstrapUrl')
-            content = content.replace('@NETWORK_INTERFACES@', net_content)
             with open('$out', 'w') as f:
                 f.write(content)
             "
@@ -144,56 +152,34 @@ let
 
       # Render iPXE menu
       autoexecIpxe = substituteTemplate {
-        name = "autoexec-${targetCfg.hostname}.ipxe";
-        template = ./templates/autoexec.ipxe;
+        name = "autoexec-${target}.ipxe";
+        template = ../../infra/proxmox/pxe/templates/autoexec.ipxe;
         replacements = {
-          "@HOSTNAME@" = targetCfg.hostname;
+          "@HOSTNAME@" = target;
           "@BOOTSTRAP_IP@" = bootstrapIp;
-          "@BOOT_SELECTION@" =
-            if targetCfg.autoBoot or false then "set target proxmox-auto" else "choose target";
-          "@CONSOLE_ARGS@" =
-            if targetCfg.serialConsole or false then "console=tty0 console=ttyS0,115200n8" else "";
+          "@BOOT_SELECTION@" = if autoBoot then "set target proxmox-auto" else "choose target";
+          "@CONSOLE_ARGS@" = if serialConsole then "console=tty0 console=ttyS0,115200n8" else "";
         };
       };
 
       # Render non-secret answer file template
       answerTomlNonsecret = substituteTemplate {
-        name = "answer-nonsecret-${targetCfg.hostname}.toml";
-        template = ./templates/answer.toml;
+        name = "answer-nonsecret-${target}.toml";
+        template = answerTemplate;
         replacements = {
-          "@HOSTNAME@" = targetCfg.hostname;
           "@TIMEZONE@" = mydefs.timeZone;
           "@SSH_PUBKEY@" = mydefs.mySshAuthKey;
-          "@DISK_LIST@" = lib.concatMapStringsSep ", " (d: "\"${d}\"") targetCfg.disks;
-          "@ZFS_RAID@" = if lib.length targetCfg.disks > 1 then "raid1" else "raid0";
-          "@DISK_FILTERS@" =
-            if targetCfg.diskFilters != [ ] then
-              lib.concatMapStringsSep "\n" (
-                filter: "filter.${filter.key} = \"${filter.value}\""
-              ) targetCfg.diskFilters
-            else
-              "";
-          "@NETWORK_CONFIG@" =
-            if (targetCfg.installerNetworkSource or "from-answer") == "from-dhcp" then
-              ''source = "from-dhcp"''
-            else
-              ''
-                source = "from-answer"
-                cidr = "${targetCfg.finalIp}/${targetCfg.netmask}"
-                dns = "${targetCfg.gateway}"
-                gateway = "${targetCfg.gateway}"
-                filter.ID_NET_NAME = "*"
-              '';
-          "@FIRST_BOOT_URL@" = "http://${bootstrapIp}/first-boot-${targetCfg.hostname}.sh";
+          "@FIRST_BOOT_URL@" = "http://${bootstrapIp}/first-boot-${target}.sh";
         };
       };
 
       # 3. Custom target-specific initrd
       pxeProxmoxFilesTarget = pkgs.stdenv.mkDerivation {
-        name = "pxe-proxmox-files-${targetCfg.hostname}";
+        name = "pxe-proxmox-files-${target}";
         buildInputs = [
           pkgs.xorriso
           pkgs.cpio
+          pkgs.zstd
         ];
         src = null;
         unpackPhase = "true";
@@ -214,6 +200,12 @@ let
           chmod +w initrd
           ln -sf proxmox-auto.iso proxmox.iso
           echo "proxmox.iso" | cpio -L -H newc -o >> initrd
+
+          # Serve one compressed initramfs, as the upstream ISO does. Keeping
+          # the expanded base archive plus the embedded ISO uncompressed makes
+          # the PVE 9.2 payload exceed the reliable iPXE contiguous-load margin.
+          zstd -T0 -3 initrd -o initrd.zst
+          mv initrd.zst initrd
         '';
         installPhase = ''
           mkdir -p $out
@@ -223,18 +215,31 @@ let
       };
 
       # 4. Manifest generation
-      manifestJson = manifestGen {
-        targetName = target;
-        hostname = targetCfg.hostname;
-        bootFiles = pxeProxmoxFilesTarget;
-        templates = null;
-        restoreTarball = restoreTarball;
-        firstBootScript = firstBootScriptWithHash;
-      };
+      manifestJson = pkgs.runCommand "manifest.json" { } ''
+        hash() { sha256sum "$1" | awk '{print $1}'; }
+        cat > $out <<EOF
+        {
+          "schemaVersion": "1.0.0",
+          "targetName": "${target}",
+          "expectedHostname": "${target}",
+          "firstBootProtocolVersion": "1.0.0",
+          "artifacts": {
+            "linux26": { "path": "proxmox/linux26", "sha256": "$(hash ${pxeProxmoxFilesTarget}/linux26)" },
+            "initrd": { "path": "proxmox/initrd", "sha256": "$(hash ${pxeProxmoxFilesTarget}/initrd)" },
+            "ipxeUndionly": { "path": "ipxe/undionly.kpxe", "sha256": "$(hash ${ipxeUndi})" },
+            "ipxeEfi": { "path": "ipxe/ipxe.efi", "sha256": "$(hash ${ipxeEfi})" },
+            "autoexec": { "path": "autoexec.ipxe", "sha256": "$(hash ${autoexecIpxe})" },
+            "answerTemplate": { "path": "pve-answer-nonsecret.toml", "sha256": "$(hash ${answerTomlNonsecret})" },
+            "firstBootScript": { "path": "first-boot-${target}.sh", "sha256": "$(hash ${firstBootScriptWithHash})" },
+            "restoreTarball": { "path": "${target}-configs.tar.gz", "sha256": "$(hash ${restoreTarball})" }
+          }
+        }
+        EOF
+      '';
 
     in
     pkgs.stdenv.mkDerivation {
-      name = "pve-pxe-assets-${targetCfg.hostname}";
+      name = "pve-pxe-assets-${target}";
       src = null;
       unpackPhase = "true";
       installPhase = ''
@@ -247,8 +252,8 @@ let
         ln -sf ${pxeProxmoxFilesTarget}/linux26 $out/proxmox/linux26
         ln -sf ${pxeProxmoxFilesTarget}/initrd $out/proxmox/initrd
 
-        cp ${firstBootScriptWithHash} $out/first-boot-${targetCfg.hostname}.sh
-        cp ${restoreTarball} $out/${targetCfg.hostname}-configs.tar.gz
+        cp ${firstBootScriptWithHash} $out/first-boot-${target}.sh
+        cp ${restoreTarball} $out/${target}-configs.tar.gz
         cp ${answerTomlNonsecret} $out/pve-answer-nonsecret.toml
         cp ${manifestJson} $out/manifest.json
       '';
@@ -257,6 +262,7 @@ let
   defaultDrv = mkPvePxeAssets {
     target = "pve-test";
     bootstrapIp = "192.168.250.1";
+    autoBoot = true;
   };
 in
 defaultDrv.overrideAttrs (old: {

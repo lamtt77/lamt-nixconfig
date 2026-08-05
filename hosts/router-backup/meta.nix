@@ -13,14 +13,13 @@ in
   username = "nixos";
 
   deployment = {
-    targetIp = "192.168.1.3";
     vmid = "107";
     diskSize = "20";
     proxmox = {
-      host = "192.168.1.5";
+      provider = "pve2";
       bios = "ovmf";
       diskBus = "scsi";
-      network = "virtio,bridge=vmbr0";
+      net0 = "virtio,bridge=vmbr0";
       extraNetworks = [
         "virtio,bridge=vmbr1"
       ];

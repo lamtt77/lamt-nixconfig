@@ -1,0 +1,27 @@
+[global]
+keyboard = "en-us"
+country = "us"
+fqdn = "pve1.lamhub.com"
+mailto = "lam@lamhub.com"
+timezone = "@TIMEZONE@"
+root_password = "@ROOT_PASSWORD@"
+root-ssh-keys = [ "@SSH_PUBKEY@" ]
+
+[disk-setup]
+filesystem = "zfs"
+disk-list = [ "sda", "sdb" ]
+zfs.ashift = 12
+zfs.raid = "raid1"
+filter.ID_MODEL = "LOGICAL VOLUME"
+
+[network]
+source = "from-answer"
+cidr = "192.168.1.15/24"
+dns = "192.168.1.1"
+gateway = "192.168.1.1"
+filter.ID_NET_NAME = "*"
+
+[first-boot]
+source = "from-url"
+ordering = "network-online"
+url = "@FIRST_BOOT_URL@"

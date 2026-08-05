@@ -215,6 +215,18 @@
         "type": "github"
       }
     },
+    "installer-secret": {
+      "flake": false,
+      "locked": {
+        "path": "./modules/os/base/services/sops",
+        "type": "path"
+      },
+      "original": {
+        "path": "./modules/os/base/services/sops",
+        "type": "path"
+      },
+      "parent": []
+    },
     "nix-index-database": {
       "inputs": {
         "nixpkgs": [
@@ -315,6 +327,7 @@
         "home-manager": "home-manager",
         "hugo-papermod": "hugo-papermod",
         "impermanence": "impermanence",
+        "installer-secret": "installer-secret",
         "nix-index-database": "nix-index-database",
         "nixos-wsl": "nixos-wsl",
         "nixpkgs": "nixpkgs_2",

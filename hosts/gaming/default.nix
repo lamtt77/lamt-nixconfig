@@ -8,7 +8,7 @@
 {
   imports = [
     ./hardware-gaming.nix
-    (import ../_disko/generic.nix {
+    (import ../../modules/disko {
       inherit inputs;
       disks = [ "/dev/sda" ];
     })
@@ -16,6 +16,10 @@
 
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
+
+  # The active DHCP server does not currently advertise a resolver. Keep the
+  # LAN resolver explicit so the signed local Nix cache remains reachable.
+  networking.nameservers = mydefs.networkingDefaults.nameservers;
 
   services.minecraft-server.enable = true; # Setup Minecraft server
   services.minecraft-server.eula = true;

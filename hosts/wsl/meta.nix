@@ -17,6 +17,7 @@
 
   role = "wsl";
   osFeatures = [
+    ../../modules/os/feat/wsl/wsl-alived.nix
     ../../modules/os/feat/linux/services/openssh.nix
     {
       module = ../../modules/os/feat/services/tailscale.nix;
@@ -25,7 +26,7 @@
       };
     }
     ../../modules/os/feat/linux/desktop/sway.nix
-    ../../modules/os/feat/linux/desktop/i3.nix
+    ../../modules/os/feat/linux/desktop/bspwm-minimal.nix
   ];
 
   cross = {

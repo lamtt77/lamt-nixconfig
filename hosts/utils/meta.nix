@@ -5,7 +5,7 @@
   server = true;
   hasDisko = true;
 
-  role = "server";
+  role = "builder";
   osFeatures = [
     ../../modules/os/feat/linux/services/openssh.nix
     {
@@ -17,7 +17,7 @@
     ../../modules/os/feat/linux/services/nginx.nix
     ../../modules/os/feat/linux/services/acme.nix
     {
-      module = ../../modules/os/feat/linux/services/nix-cache.nix;
+      module = ../../modules/os/feat/linux/services/nix-cache-server.nix;
       args = {
         domain = "cache.lamhub.com";
         nginxProxy = true;
@@ -32,10 +32,9 @@
   ];
 
   deployment = {
-    targetIp = "192.168.1.19";
     vmid = "115";
     proxmox = {
-      host = "192.168.1.15";
+      provider = "pve1";
       bios = "ovmf";
       diskBus = "scsi";
     };

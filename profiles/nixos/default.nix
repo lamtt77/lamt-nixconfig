@@ -23,6 +23,7 @@ in
   programs.fzf.enable = true;
 
   home.packages = with pkgs; [
+    jq
     lsof
     iftop
     iperf

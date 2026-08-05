@@ -7,7 +7,7 @@
 {
   imports = [
     ./hardware-vm-wintel.nix
-    (import ../_disko/generic.nix {
+    (import ../../modules/disko {
       inherit inputs;
       disks = [ "/dev/sda" ];
     })

@@ -1,17 +1,6 @@
 {
+  "$comment": "Kept as lua_ls root marker for this directory. Settings live in lua/config/lsp.lua; workspace/runtime paths come from lazydev.nvim.",
   "runtime": {
-    "version": "LuaJIT",
-    "path": ["lua/?.lua", "lua/?/init.lua"]
-  },
-  "workspace": {
-    "library": ["$VIMRUNTIME/lua", "${3rd}/luv/library"],
-    "checkThirdParty": false
-  },
-  "diagnostics": {
-    "globals": ["vim"],
-    "disable": ["lowercase-global", "undefined-global"]
-  },
-  "completion": {
-    "callSnippet": "Replace"
+    "version": "LuaJIT"
   }
 }

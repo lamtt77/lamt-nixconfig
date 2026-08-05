@@ -7,7 +7,6 @@
     };
 
     brews = [
-      "gemini-cli"
       "llama.cpp"
     ];
 
@@ -32,7 +31,6 @@
       "the-unarchiver"
 
       # AI stuff
-      "codex"
       "claude"
       "cursor"
       "lm-studio"

@@ -124,6 +124,13 @@
         };
         # Prevent Photos from opening automatically when devices are plugged in
         "com.apple.ImageCapture".disableHotPlug = true;
+
+        "com.microsoft.rdc.macos" = {
+          NSUserKeyEquivalents = {
+            "Hide Windows App" = "@~^$h";
+            "Hide Microsoft Remote Desktop" = "@~^$h";
+          };
+        };
       };
 
       loginwindow = {

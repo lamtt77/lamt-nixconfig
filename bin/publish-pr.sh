@@ -1,133 +1,195 @@
-#!/bin/bash
-# publish-pr.sh - Create PR with single commit squash (dynamic commit message, nvim/editor default)
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e # Exit on any error
+# Open a pull request that syncs this repository to its public GitHub mirror.
+#
+# This is deliberately manual: run it when a snapshot is worth publishing,
+# review what it staged, then merge the PR on GitHub.
+#
+# The published tree excludes internal material, which carries private-site
+# topology and local scratch state. Each sync is squashed to one commit, so
+# excluded content is never recoverable from an earlier revision on the mirror.
 
-echo "🔄 Starting sync PR workflow..."
+usage() {
+  cat >&2 <<'USAGE'
+usage: bin/publish-pr.sh [--push] [--remote URL] [--base BRANCH]
 
-# Step 1: Setup
-echo "📡 Setting up GitHub remote..."
-git remote add github git@github.com:lamtt77/lamt-nixconfig.git 2>/dev/null || echo "Remote already exists"
-git fetch github
+  (default)      Stage the filtered snapshot, print a summary, exit. No push.
+  --push         Create the sync branch, push it, and open the pull request.
+  --remote URL   Override the mirror (default: git@github.com:lamtt77/lamt-nixconfig.git)
+  --base BRANCH  Base branch on the mirror (default: main)
 
-# Step 2: Prepare staging and capture commit logs
-echo "🌿 Preparing branch and history..."
-git checkout master
+The default run touches no branch and contacts no remote beyond a fetch.
+Inspect what it reports, then re-run with --push.
+USAGE
+}
 
-# Stage all changes (including uncommitted files) so they are part of the squash
-echo "📦 Staging current changes..."
-git add -A
+remote_url="git@github.com:lamtt77/lamt-nixconfig.git"
+base_branch="main"
+do_push=0
 
-# Get recent commits since GitHub main BEFORE we reset
-RECENT_COMMITS=$(git log --oneline github/main..HEAD 2>/dev/null | head -20 || echo "")
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --push) do_push=1; shift ;;
+    --remote) remote_url=${2:?--remote needs a URL}; shift 2 ;;
+    --base) base_branch=${2:?--base needs a branch}; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
+  esac
+done
 
-# Create a temporary PR branch based on current master
-BRANCH_NAME="sync-$(date +%Y%m%d-%H%M%S)"
-echo "🌿 Creating temporary PR branch: $BRANCH_NAME..."
-git checkout -b "$BRANCH_NAME"
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
 
-# Step 3: Squash commits
-echo "🔨 Squashing commits against github/main..."
-git reset --soft github/main
+# Paths that must never reach the public mirror. This is the explicit denial
+# that documents *why*; .gitignore already keeps most of them untracked.
+EXCLUDE_REASONS=(
+  "docs/fcmbuilder.md   private-site cache runbook: internal addressing and topology"
+  "_tmp                 local scratch"
+  ".nxd                 regenerated plans and local run state"
+  ".log                 local run logs"
+  "lamt-secrets         encrypted secret store, never mirrored"
+)
 
-# Check if there are any changes to commit
-if [ -z "$(git status --porcelain)" ]; then
-  echo "⚠️ No changes or new commits detected between master and github/main."
-  echo "🔄 Switching back to master..."
-  git checkout master
-  git branch -d "$BRANCH_NAME" 2>/dev/null || true
+source_branch=$(git rev-parse --abbrev-ref HEAD)
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "refusing to publish from a dirty tree; commit or stash first" >&2
+  git status --short >&2
+  exit 1
+fi
+
+echo "==> fetching mirror"
+git remote get-url github >/dev/null 2>&1 || git remote add github "$remote_url"
+git fetch --quiet github
+
+# Fail closed: nothing denied may be tracked, whatever .gitignore claims.
+echo "==> verifying exclusions"
+violations=0
+for entry in "${EXCLUDE_REASONS[@]}"; do
+  path=${entry%% *}
+  if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+    echo "    LEAK: $path is tracked and would be published" >&2
+    violations=$((violations + 1))
+  fi
+done
+if [[ $violations -gt 0 ]]; then
+  echo "refusing to publish: ${violations} excluded path(s) tracked" >&2
+  echo "fix with: git rm --cached <path> && echo <path> >> .gitignore" >&2
+  exit 1
+fi
+echo "    ok: no excluded path tracked"
+
+# Secret-shaped content. Match key *bodies*, not headers: the tree legitimately
+# contains header strings in comparisons and fixtures, and matching those would
+# report the guard as the leak. SOPS-encrypted values are expected and fine --
+# they are ciphertext -- so only unencrypted key material fails.
+echo "==> scanning for unencrypted key material"
+secret_hits=$(
+  git ls-files -z | xargs -0 grep -IlE 'AGE-SECRET-KEY-1[0-9A-Z]{20,}|^[A-Za-z0-9+/]{60,}={0,2}$' 2>/dev/null |
+    while IFS= read -r hit; do
+      # A base64 body inside a CERTIFICATE block is public by definition.
+      if grep -q 'BEGIN CERTIFICATE' "$hit" 2>/dev/null && ! grep -q 'PRIVATE KEY' "$hit" 2>/dev/null; then
+        continue
+      fi
+      # SOPS documents are ciphertext by construction.
+      if grep -q 'sops:' "$hit" 2>/dev/null; then
+        continue
+      fi
+      echo "$hit"
+    done || true
+)
+if [[ -n "$secret_hits" ]]; then
+  echo "refusing to publish: possible key material in:" >&2
+  echo "$secret_hits" | sed 's/^/  /' >&2
+  exit 1
+fi
+echo "    ok: no unencrypted key material"
+
+# Two-dot, not three: the mirror carries squashed snapshots with unrelated
+# history, so there is no merge base and `...` aborts the run.
+changed_files=$(git diff --name-only "github/${base_branch}" HEAD 2>/dev/null | wc -l | tr -d ' ')
+commits=$(git log --oneline "github/${base_branch}..HEAD" 2>/dev/null | wc -l | tr -d ' ' || echo 0)
+
+echo
+echo "==> sync summary"
+echo "    source branch : ${source_branch} ($(git rev-parse --short HEAD))"
+echo "    mirror        : ${remote_url} (${base_branch})"
+echo "    files changed : ${changed_files}"
+echo "    local commits : ${commits}"
+echo
+echo "    excluded:"
+for entry in "${EXCLUDE_REASONS[@]}"; do
+  echo "      ${entry}"
+done
+
+if [[ $do_push -eq 0 ]]; then
+  echo
+  echo "==> dry run: nothing pushed, no branch created"
+  echo "    re-run with --push to open the pull request"
   exit 0
 fi
 
-echo "📝 Staging status:"
-git status --porcelain
+branch="sync-$(date +%Y%m%d-%H%M%S)"
+echo
+echo "==> creating ${branch}"
+git checkout -q -b "$branch"
 
-# Generate dynamic commit message template
-echo "📊 Generating dynamic change summary..."
+# Always return to the original branch, even on failure.
+cleanup() {
+  git checkout -q "$source_branch" 2>/dev/null || true
+  git branch -D "$branch" 2>/dev/null || true
+}
+trap cleanup ERR INT TERM
 
-# Generate dynamic summary from commit messages
-COMMIT_SUMMARY=""
-if [ -n "$RECENT_COMMITS" ]; then
-  while IFS= read -r commit; do
-    [ -z "$commit" ] && continue
-    msg=$(echo "$commit" | cut -d' ' -f2-)
+# Squash to a single commit against the mirror. The mirror carries curated
+# snapshots, not this repository's full history.
+git reset --soft "github/${base_branch}"
 
-    # Categorize commits
-    if echo "$msg" | grep -qi "^feat\|^add\|^new"; then
-      COMMIT_SUMMARY+="- $msg"$'\n'
-    elif echo "$msg" | grep -qi "^fix\|^resolve\|^correct"; then
-      COMMIT_SUMMARY+="- $msg"$'\n'
-    elif echo "$msg" | grep -qi "^refactor\|^restructure"; then
-      COMMIT_SUMMARY+="- $msg"$'\n'
-    else
-      COMMIT_SUMMARY+="- $msg"$'\n'
-    fi
-  done <<<"$RECENT_COMMITS"
-else
-  COMMIT_SUMMARY="- Comprehensive system improvements and updates"
+if [[ -z "$(git status --porcelain)" ]]; then
+  echo "==> mirror is already up to date"
+  cleanup
+  exit 0
 fi
 
-# Build dynamic template
-COMMIT_TEMPLATE=$(
-  cat <<EOF
-feat: Complete NixOS configuration refactor
+template=$(mktemp)
+{
+  echo "sync: update public configuration snapshot"
+  echo
+  echo "# Edit the subject above and the body below, then save and quit."
+  echo "# Lines starting with # are removed."
+  echo
+  if [[ "$commits" != "0" ]]; then
+    echo "Local commits in this sync:"
+    # -n30 rather than `| head -30`: head closes the pipe early, git dies of
+    # SIGPIPE, and `set -o pipefail` turns that into a failed run -- which
+    # aborted the script before the editor ever opened.
+    git log -n30 --format='- %s' "github/${base_branch}..ORIG_HEAD" 2>/dev/null || true
+    echo
+  fi
+  echo "Files changed:"
+  git diff --cached --stat -- . | tail -20 || true
+} >"$template"
 
-Comprehensive system overhaul including:
-$COMMIT_SUMMARY
+"${EDITOR:-${VISUAL:-nvim}}" "$template" || { cleanup; exit 1; }
 
-CHANGES SUMMARY:
-$(git diff --cached --stat 2>/dev/null || echo "No staged changes")
+message=$(grep -v '^#' "$template" | sed -e :a -e '/^\n*$/{$d;N;};/\n$/ba')
+rm -f "$template"
 
-FILES CHANGED:
-$(git diff --cached --name-only 2>/dev/null | sed 's/^/- /' || echo "- System updates")
-
-This commit represents the culmination of extensive local development work,
-bringing all improvements into a clean, deployable state.
-EOF
-)
-
-# Write template to temp file and open in editor
-TEMP_FILE=$(mktemp)
-echo "$COMMIT_TEMPLATE" >"$TEMP_FILE"
-
-echo "📝 Opening commit message in editor..."
-if command -v nvim &>/dev/null; then
-  nvim "$TEMP_FILE"
-elif [ -n "$EDITOR" ]; then
-  $EDITOR "$TEMP_FILE"
-else
-  nano "$TEMP_FILE"
+if [[ -z "$message" ]]; then
+  echo "empty commit message; aborting" >&2
+  cleanup
+  exit 1
 fi
 
-# Use the edited content as commit message
-COMMIT_MSG=$(cat "$TEMP_FILE")
-rm "$TEMP_FILE"
+git commit -q -F - <<<"$message"
+git push -q github "$branch"
 
-# Commit with the prepared message
-git commit -F <(echo "$COMMIT_MSG")
+title=$(head -n1 <<<"$message")
+body=$(tail -n +3 <<<"$message")
+gh pr create --title "$title" --body "${body:-Configuration sync.}" \
+  --head "$branch" --base "$base_branch"
 
-# Step 4: Push and create PR
-echo "🚀 Pushing to GitHub..."
-git push github "$BRANCH_NAME"
-
-echo "📋 Creating PR..."
-# Extract commit message for PR title and body
-COMMIT_TITLE=$(echo "$COMMIT_MSG" | head -n 1)
-PR_BODY=$(echo "$COMMIT_MSG" | tail -n +3)
-
-# Fallback if no body was provided
-if [ -z "$PR_BODY" ]; then
-  PR_BODY="Major system modernization - see commit message for comprehensive details"
-fi
-
-gh pr create --title "$COMMIT_TITLE" \
-  --body "$PR_BODY" \
-  --head "$BRANCH_NAME" \
-  --base main
-
-echo "✅ PR created successfully!"
-echo "🔗 Check GitHub for the new PR"
-
-# Return to master branch so the user is left on their clean master
-echo "🔄 Returning to master branch..."
-git checkout master
+trap - ERR INT TERM
+git checkout -q "$source_branch"
+echo "==> pull request opened; branch ${branch} left on the mirror until merged"

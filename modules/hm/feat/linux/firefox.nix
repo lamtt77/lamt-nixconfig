@@ -22,7 +22,6 @@ in
       '';
 
       extensions.packages = with firefox-addons; [
-        # browserpass
         clearurls
         containerise
         darkreader

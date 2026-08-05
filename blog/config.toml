@@ -1,5 +1,5 @@
 baseURL = "https://blog.lamhub.com"
-languageCode = "en-us"
+locale = "en-us"
 title = "LamT's Blog"
 theme = "hugo-papermod"
 
@@ -10,6 +10,11 @@ theme = "hugo-papermod"
   # PaperMod specific params
   ShowReadingTime = true
   ShowShareButtons = true
+  # Share buttons under each post, limited to the three networks worth
+  # sharing to. PaperMod otherwise renders seven, including WhatsApp and
+  # Telegram, which are noise for this audience.
+  ShareButtons = ["x", "linkedin", "reddit"]
+
   ShowPostNavLinks = true
   ShowBreadCrumbs = true
   ShowCodeCopyButtons = true
@@ -28,7 +33,11 @@ theme = "hugo-papermod"
 
   [params.assets]
     disableHLJS = false
-    disableFingerprinting = true
+    # Fingerprint asset filenames. Without this the stylesheet is always
+    # /assets/css/stylesheet.css, so a CSS change keeps its old URL and the CDN
+    # keeps serving the cached copy (max-age 14400) against freshly deployed
+    # HTML. A content hash in the name makes every change a new URL.
+    disableFingerprinting = false
 
   [params.label]
     text = "Home"
@@ -39,5 +48,17 @@ theme = "hugo-papermod"
     name = "github"
     url = "https://github.com/lamtt77"
   [[params.socialIcons]]
+    name = "x"
+    url = "https://x.com/lamtt77"
+  [[params.socialIcons]]
     name = "linkedin"
-    url = "https://linkedin.com/in/lamt"
+    url = "https://linkedin.com/in/lamtt77"
+  [[params.socialIcons]]
+    name = "reddit"
+    url = "https://reddit.com/user/lamtt77"
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+

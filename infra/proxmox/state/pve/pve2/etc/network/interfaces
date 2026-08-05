@@ -1,0 +1,48 @@
+auto lo
+iface lo inet loopback
+
+auto eno1
+iface eno1 inet manual
+
+auto eno2
+iface eno2 inet manual
+
+auto eno3
+iface eno3 inet manual
+
+iface eno4 inet manual
+
+auto bond0
+iface bond0 inet manual
+        bond-slaves eno1 eno2 eno3
+        bond-miimon 100
+        bond-mode 802.3ad
+        bond-xmit-hash-policy layer3+4
+
+auto vmbr0
+iface vmbr0 inet manual
+        bridge-ports eno4
+        bridge-stp off
+        bridge-fd 0
+
+auto vmbr1
+iface vmbr1 inet manual
+        bridge-ports bond0
+        bridge-stp off
+        bridge-fd 0
+        bridge-vlan-aware yes
+        bridge-vids 10 20 40 50
+
+auto vmbr1.10
+iface vmbr1.10 inet static
+        address 192.168.1.5/24
+        gateway 192.168.1.1
+
+auto vmbrVyos
+iface vmbrVyos inet manual
+	bridge-ports none
+	bridge-stp off
+	bridge-fd 0
+
+source /etc/network/interfaces.d/*
+

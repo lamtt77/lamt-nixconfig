@@ -19,10 +19,10 @@ let
         mydefs = import ../defines.nix;
       in
       {
-        nxd = final.callPackage ../pkgs/nxd { inherit mydefs; };
-        installer-rs = final.nxd;
+        nxd = inputs.nxd.packages.${final.stdenv.hostPlatform.system}.nxd;
         pve-pxe-assets = final.callPackage ../pkgs/pve-pxe-assets { inherit inputs mydefs; };
-        pve-answer-server = final.callPackage ../pkgs/pve-answer-server { };
+        # st with scrollback (100k), scrollback-mouse, scrollback-mouse-altscreen, clipboard patches
+        st-custom = final.callPackage ../pkgs/st { };
       };
 
     # Targeted unstable package mapping to prevent importing the entire nixpkgs-unstable channel multiple times

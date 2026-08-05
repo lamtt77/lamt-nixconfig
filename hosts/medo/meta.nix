@@ -10,7 +10,7 @@
     {
       module = ../../modules/os/feat/services/tailscale.nix;
       args = {
-        exitNode = true;
+        router = "medo";
         authKey = "tailscale_preauth_key";
       };
     }
@@ -18,9 +18,10 @@
     ../../modules/os/feat/linux/services/fail2ban.nix
   ];
 
+  nxd.binaryCache = null;
+
   deployment = {
     lowMem = "yes";
-    enableLocalCache = false;
     tailscaleNamespace = "cloud";
     digitalocean = {
       region = "sgp1";

@@ -1,0 +1,325 @@
+/* Blog theme extensions.
+   PaperMod compiles everything under assets/css/extended/ after its own core,
+   so plain overrides win without !important.
+
+   Two goals: a light mode with actual colour (PaperMod's default is pure white
+   on near-black, which reads as flat), and styling for the inline diagrams
+   used in the posts. Contrast targets AA at every step — the tint is in the
+   surfaces and accents, never in the body text. */
+
+:root {
+  --nxd-indigo: #4f46e5;
+  --nxd-indigo-soft: rgba(79, 70, 229, 0.09);
+  --nxd-violet: #7c3aed;
+  --nxd-emerald: #047857;
+  --nxd-amber: #b45309;
+  --nxd-rose: #be123c;
+
+  /* Warm the page instead of pure white, and lift the accents. */
+  --theme: #fbfaf9;
+  --entry: #ffffff;
+  --primary: #14181f;
+  --secondary: #55606f;
+  --tertiary: #dfe3ea;
+  --content: #26303c;
+  --code-bg: #f2f1fb;
+  --border: #e4e2ef;
+
+  --nxd-surface: #ffffff;
+  --nxd-surface-tint: #f5f4fd;
+  --nxd-shadow: 0 1px 2px rgba(20, 24, 31, 0.05), 0 8px 24px rgba(20, 24, 31, 0.05);
+}
+
+:root[data-theme="dark"] {
+  --nxd-indigo: #a5b4fc;
+  --nxd-indigo-soft: rgba(129, 140, 248, 0.14);
+  --nxd-violet: #c4b5fd;
+  --nxd-emerald: #34d399;
+  --nxd-amber: #fbbf24;
+  --nxd-rose: #fda4af;
+
+  --theme: #0b0e14;
+  --entry: #141922;
+  --primary: #eef2f7;
+  --secondary: #9aa6b6;
+  --tertiary: #2a3140;
+  --content: #c3cdd9;
+  --code-bg: #1b2130;
+  --border: #262d3b;
+
+  --nxd-surface: #141922;
+  --nxd-surface-tint: #171d28;
+  --nxd-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Reading ------------------------------------------------------------- */
+
+.post-content {
+  font-size: 1.03rem;
+  line-height: 1.75;
+}
+
+.post-content p { margin: 0 0 1.15rem; }
+
+.post-title {
+  letter-spacing: -0.028em;
+  text-wrap: balance;
+  line-height: 1.15;
+}
+
+.post-content h2 {
+  margin: 2.6rem 0 0.85rem;
+  padding-bottom: 0.35rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--border);
+  text-wrap: balance;
+}
+
+.post-content h3 {
+  margin: 2rem 0 0.6rem;
+  font-size: 1.18rem;
+  letter-spacing: -0.015em;
+  color: var(--primary);
+}
+
+.post-content a {
+  color: var(--nxd-indigo);
+  text-decoration-color: color-mix(in srgb, var(--nxd-indigo) 35%, transparent);
+  text-underline-offset: 0.18em;
+  box-shadow: none;
+}
+
+.post-content a:hover {
+  text-decoration-color: currentColor;
+}
+
+.post-content strong { color: var(--primary); font-weight: 640; }
+
+/* Inline code: tinted, so it reads as code without the boxed-in look. */
+.post-content code {
+  background: var(--nxd-indigo-soft);
+  color: var(--nxd-indigo);
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+  font-size: 0.87em;
+}
+
+/* PaperMod renders code blocks on a dark surface in both themes. `inherit`
+   pulls the light body colour onto that dark background, which is what broke
+   unlabelled fences: a highlighted block takes its colours from the syntax
+   theme, but a plain one had nothing to override the inherited value and
+   rendered dark-grey-on-dark. Pin the foreground to the code surface. */
+.post-content pre {
+  background: var(--code-block-bg);
+  color: #e6edf3;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  box-shadow: var(--nxd-shadow);
+}
+
+.post-content pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.post-content blockquote {
+  border-inline-start: 3px solid var(--nxd-indigo);
+  background: var(--nxd-indigo-soft);
+  border-radius: 0 8px 8px 0;
+  padding: 0.85rem 1.15rem;
+  margin: 1.6rem 0;
+  font-style: normal;
+}
+
+.post-content blockquote p:last-child { margin-bottom: 0; }
+
+.post-content table {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--nxd-shadow);
+}
+
+.post-content table th {
+  background: var(--nxd-surface-tint);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+}
+
+/* --- Pipeline ------------------------------------------------------------
+   Built on a real <ol>, so with no CSS at all it still reads as a numbered
+   list of steps. The badges are CSS counters, not text nodes: an earlier
+   version put the numbers and the command names in markup, which rendered as
+   "01 EvaluateevalConfiguration" anywhere the stylesheet did not load — RSS,
+   cross-posts, text extraction. Styling here is enhancement, never load-bearing. */
+
+.post-content ol.nxd-pipeline {
+  list-style: none;
+  counter-reset: nxd-step;
+  margin: 2rem 0 2.4rem;
+  padding: 0;
+}
+
+.post-content .nxd-stage {
+  position: relative;
+  counter-increment: nxd-step;
+  margin: 0 0 0.85rem;
+  padding: 0.95rem 1.15rem 1rem 3.6rem;
+  background: var(--nxd-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--nxd-shadow);
+}
+
+.post-content .nxd-stage:last-child { margin-bottom: 0; }
+
+.post-content .nxd-stage::before {
+  content: counter(nxd-step, decimal-leading-zero);
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--nxd-stage-color, var(--nxd-indigo));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--nxd-stage-color, var(--nxd-indigo)) 14%, transparent);
+}
+
+:root[data-theme="dark"] .post-content .nxd-stage::before { color: #0b0e14; }
+
+.post-content h3.nxd-stage-title {
+  margin: 0 0 0.3rem;
+  font-size: 1rem;
+  font-weight: 660;
+  line-height: 1.4;
+  color: var(--primary);
+}
+
+/* The command name is a real <code> element with a space before it, so it
+   still reads correctly unstyled. */
+.post-content h3.nxd-stage-title code {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  margin-left: 0.15rem;
+  background: color-mix(in srgb, var(--nxd-stage-color, var(--nxd-indigo)) 12%, transparent);
+  color: var(--nxd-stage-color, var(--nxd-indigo));
+  white-space: nowrap;
+  vertical-align: 0.06em;
+}
+
+.post-content .nxd-stage > p {
+  margin: 0 !important;
+  font-size: 0.94rem;
+  line-height: 1.62;
+  color: var(--content);
+}
+
+.post-content .nxd-stage-note {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.86rem;
+  color: var(--secondary);
+}
+
+.post-content .nxd-stage:nth-child(1) { --nxd-stage-color: var(--nxd-indigo); }
+.post-content .nxd-stage:nth-child(2) { --nxd-stage-color: var(--nxd-violet); }
+.post-content .nxd-stage:nth-child(3) { --nxd-stage-color: var(--nxd-amber); }
+.post-content .nxd-stage:nth-child(4) { --nxd-stage-color: var(--nxd-emerald); }
+
+/* --- Risk chips ---------------------------------------------------------- */
+
+.nxd-risk {
+  display: inline-block;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.74rem;
+  font-weight: 650;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.nxd-risk-read {
+  background: color-mix(in srgb, var(--nxd-emerald) 14%, transparent);
+  color: var(--nxd-emerald);
+}
+
+.nxd-risk-service {
+  background: color-mix(in srgb, var(--nxd-amber) 16%, transparent);
+  color: var(--nxd-amber);
+}
+
+.nxd-risk-identity {
+  background: color-mix(in srgb, var(--nxd-rose) 13%, transparent);
+  color: var(--nxd-rose);
+}
+
+/* --- Callout ------------------------------------------------------------- */
+
+.nxd-callout {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  background: var(--nxd-surface-tint);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--nxd-indigo);
+  border-radius: 0 12px 12px 0;
+  padding: 1rem 1.15rem;
+  margin: 1.8rem 0;
+}
+
+.nxd-callout-icon {
+  font-size: 1.1rem;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.nxd-callout p { margin: 0 !important; font-size: 0.95rem; }
+.nxd-callout p + p { margin-top: 0.5rem !important; }
+
+/* --- Figures ------------------------------------------------------------- */
+
+.nxd-figure {
+  margin: 2rem 0 2.4rem;
+}
+
+.nxd-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* PaperMod renders figcaption bold and centred; a caption should be quieter
+   than the body text it explains, not louder. */
+.post-content .nxd-figcaption {
+  margin-top: 0.75rem;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: var(--secondary);
+  text-align: left;
+  line-height: 1.55;
+}
+
+@media (max-width: 640px) {
+  .nxd-stage {
+    grid-template-columns: 1.9rem 1fr;
+    gap: 0 0.7rem;
+  }
+  .nxd-stage-num { width: 1.9rem; height: 1.9rem; font-size: 0.74rem; }
+  .nxd-stage:not(:last-child)::before { left: 0.94rem; top: 1.95rem; }
+  .nxd-stage-body { padding: 0.8rem 0.9rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}

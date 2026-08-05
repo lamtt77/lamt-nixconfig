@@ -131,6 +131,39 @@ return {
 			-- Fuzzy picker
 			require("mini.pick").setup()
 
+			-- Line/selection moving via mini.move
+			-- Uses <M-S-J/K> (Shift+Alt+J/K) to avoid conflicting with
+			-- the <A-h/j/k/l> window navigation shortcuts.
+			require("mini.move").setup({
+				mappings = {
+					-- Move line/selection up/down in normal and visual mode
+					line_down = "<M-J>",  -- Alt+Shift+J
+          line_up = "<M-K>",    -- Alt+Shift+K
+					line_left = "<M-H>",
+          line_right = "<M-L>",
+        up = "<M-K>",
+					down = "<M-J>",
+					-- Disable left/right to avoid any accidental conflicts
+					left = "<M-H>",
+					right = "<M-L>",
+				},
+			})
+
+			-- Highlight hex colours and TODO/FIXME/NOTE/HACK/WARN inline
+			-- (part of mini.nvim, no extra plugin required)
+			require("mini.hipatterns").setup({
+				highlighters = {
+					-- Highlight hex colors: #rrggbb
+					hex_color = require("mini.hipatterns").gen_highlighter.hex_color(),
+					-- Highlight common annotation keywords
+					todo = { pattern = "%f[%w]()TODO()%f[%W]", group = "MiniHipatternsTodo" },
+					fixme = { pattern = "%f[%w]()FIXME()%f[%W]", group = "MiniHipatternsFixme" },
+					hack = { pattern = "%f[%w]()HACK()%f[%W]", group = "MiniHipatternsHack" },
+					note = { pattern = "%f[%w]()NOTE()%f[%W]", group = "MiniHipatternsNote" },
+					warn = { pattern = "%f[%w]()WARN()%f[%W]", group = "MiniHipatternsFixme" },
+				},
+			})
+
 			-- Update keymaps to use mini.files instead of oil
 			vim.keymap.set(
 				"n",
