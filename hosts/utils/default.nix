@@ -5,12 +5,13 @@
   pkgs,
   mydefs,
   my,
+  myargs,
   ...
 }:
 {
   imports = [
     ./hardware-utils.nix
-    (import ../_disko/generic.nix {
+    (import ../../modules/disko {
       inherit inputs;
       disks = [ "/dev/sda" ];
     })
@@ -19,13 +20,19 @@
   # after resize the disk, it will grow partition automatically.
   boot.growPartition = true;
 
-  networking = my.mkStaticNetworking (
-    mydefs.networkingDefaults
+  networking =
+    my.mkStaticNetworking (
+      mydefs.networkingDefaults
+      // {
+        ip = my.hostAddress myargs.hostname;
+        interface = "ens18";
+      }
+    )
     // {
-      ip = config.deployment.targetIp;
-      interface = "ens18";
-    }
-  );
+      extraHosts = ''
+        127.0.0.1 cache.lamhub.com
+      '';
+    };
 
   virtualisation.docker.enable = true;
 

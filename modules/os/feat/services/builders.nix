@@ -3,9 +3,47 @@
   lib,
   pkgs,
   mydefs,
-  inputs,
+  my,
   ...
 }:
+let
+  # Builder endpoint is owned by infra/site.nix site.hosts.utils, not by OS options.
+  utilsTargetIp = my.hostAddress "utils";
+
+  # One line per builder for nix.conf `builders` / /etc/nix/machines.
+  # Field order (nix manual):
+  #   URI  systems  ssh-key  max-jobs  speed-factor  features  mandatory-features  ssh-public-host-key
+  # Use "-" for an empty optional field.
+  # Note: attr `or` only fills when the attribute is missing, not when it is null.
+  emptyOr = value: value == null || value == "" || value == [ ];
+  joinOrDash = values: if emptyOr values then "-" else lib.concatStringsSep "," values;
+
+  formatBuildMachine =
+    machine:
+    let
+      uri = "${machine.protocol}://${machine.sshUser}@${machine.hostName}";
+      systems =
+        if !(emptyOr (machine.systems or [ ])) then
+          lib.concatStringsSep "," machine.systems
+        else
+          machine.system;
+      features = joinOrDash (machine.supportedFeatures or [ ]);
+      mandatoryFeatures = joinOrDash (machine.mandatoryFeatures or [ ]);
+      publicHostKey = if emptyOr (machine.publicHostKey or null) then "-" else machine.publicHostKey;
+    in
+    lib.concatStringsSep " " [
+      uri
+      systems
+      machine.sshKey
+      (toString machine.maxJobs)
+      (toString machine.speedFactor)
+      features
+      mandatoryFeatures
+      publicHostKey
+    ];
+
+  machinesFileText = lib.concatMapStringsSep "\n" formatBuildMachine config.nix.buildMachines + "\n";
+in
 {
   # Define the secret for the builder key
   sops.secrets.nix_builder_key = {
@@ -17,7 +55,7 @@
 
   nix.buildMachines = [
     {
-      hostName = inputs.self.deploymentHosts.utils.deployment.targetIp;
+      hostName = utilsTargetIp;
       system = "x86_64-linux";
       protocol = "ssh-ng";
       maxJobs = 8;
@@ -35,18 +73,15 @@
 
   nix.settings.builders-use-substitutes = true;
 
-  # Workaround for nix-darwin not generating /etc/nix/machines automatically
-  # when using Determinate Systems installer or due to activation issues.
+  # nix-darwin + Determinate does not always materialize /etc/nix/machines
+  # from nix.buildMachines; write it explicitly on Darwin.
   environment.etc."nix/machines" = lib.mkIf pkgs.stdenv.isDarwin {
-    text = lib.concatMapStringsSep "\n" (
-      machine:
-      "${machine.protocol}://${machine.sshUser}@${machine.hostName} ${machine.system} ${machine.sshKey} ${toString machine.maxJobs} ${toString machine.speedFactor} ${lib.concatStringsSep "," machine.supportedFeatures} - -"
-    ) config.nix.buildMachines;
+    text = machinesFileText;
   };
 
-  # Configure global SSH to allow Nix daemon to connect to builder without host key verification
+  # Allow the Nix daemon to reach the builder without interactive host-key prompts.
   programs.ssh.extraConfig = ''
-    Host ${inputs.self.deploymentHosts.utils.deployment.targetIp}
+    Host ${utilsTargetIp}
       StrictHostKeyChecking no
       UserKnownHostsFile /dev/null
   '';

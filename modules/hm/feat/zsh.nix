@@ -6,6 +6,8 @@
   ...
 }:
 {
+  home.sessionPath = [ "${config.home.homeDirectory}/.npm-global/bin" ];
+
   home.file = {
     ".p10k.zsh".source = ../../../config/zsh/.p10k.zsh;
   };

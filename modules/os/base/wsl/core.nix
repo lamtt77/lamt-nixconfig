@@ -19,17 +19,6 @@
     # docker-desktop.enable = true;
   };
 
-  # Keep WSL 2 VM alive in the background so services (e.g. Tailscale/sshd) stay reachable.
-  systemd.services.wsl-keepalive = {
-    description = "Keep WSL 2 VM alive";
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "simple";
-      ExecStart = "${pkgs.coreutils}/bin/sleep infinity";
-      Restart = "always";
-    };
-  };
-
   # virtualisation.docker = {
   #   enable = true;
   #   enableOnBoot = true;

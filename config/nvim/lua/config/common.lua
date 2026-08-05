@@ -1,15 +1,14 @@
 -- Common utility functions shared across modules
 
---- Toggle between light and dark catppuccin themes
+--- Toggle between catppuccin and gruvbox themes
 local function toggle_theme()
-  if vim.o.background == 'dark' then
-    vim.o.background = 'light'
-    vim.cmd('colorscheme catppuccin-latte')
-    print('Switched to light theme')
+  local current = vim.g.colors_name or ""
+  if current:find("catppuccin") then
+    vim.cmd("colorscheme gruvbox")
+    print("Switched to gruvbox theme")
   else
-    vim.o.background = 'dark'
-    vim.cmd('colorscheme catppuccin-mocha')
-    print('Switched to dark theme')
+    vim.cmd("colorscheme catppuccin")
+    print("Switched to catppuccin theme")
   end
 end
 

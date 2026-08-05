@@ -8,7 +8,7 @@ return {
       require("catppuccin").setup({
         flavour = "mocha", -- latte, frappe, macchiato, mocha
         background = {
-          light = "latte",
+          light = "frappe",
           dark = "mocha",
         },
         transparent_background = false,
@@ -71,8 +71,43 @@ return {
         },
       })
 
-      -- Set the theme
+      -- Default active colorscheme (uncomment to activate)
       vim.cmd.colorscheme("catppuccin")
+    end,
+  },
+
+  -- Gruvbox theme (modern Lua version)
+  {
+    "ellisonleao/gruvbox.nvim",
+    priority = 1000,
+    config = function()
+      require("gruvbox").setup({
+        terminal_colors = true,
+        undercurl = true,
+        underline = true,
+        bold = true,
+        italic = {
+          strings = true,
+          emphasis = true,
+          comments = true,
+          operators = false,
+          folds = true,
+        },
+        strikethrough = true,
+        invert_selection = false,
+        invert_signs = false,
+        invert_tabline = false,
+        invert_intend_guides = false,
+        inverse = true, -- invert background for search, diffs, statusline and errors
+        contrast = "", -- can be "hard", "soft" or empty string
+        palette_overrides = {},
+        overrides = {},
+        dim_inactive = false,
+        transparent_mode = false,
+      })
+
+      -- Default active colorscheme (uncomment to activate)
+      -- vim.cmd.colorscheme("gruvbox")
     end,
   },
 }

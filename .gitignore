@@ -14,8 +14,13 @@ _tmp*
 blog/public/
 blog/resources/_gen/
 blog/themes/
+blog/.hugo_build.lock
 
 # Rust build artifacts
 target/
 apps/nxd/target/
+apps/pve-bootstrap-server/target/
 
+# NXD local operator workspace (plans, eval exports, bootstrap requests, known_hosts).
+# Never commit — regenerate with just plan-* / just switch / just nxd-config.
+.nxd/

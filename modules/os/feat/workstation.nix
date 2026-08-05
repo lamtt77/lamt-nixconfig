@@ -35,7 +35,6 @@ with lib;
       '';
 
       nixPath = nixPathInputs ++ [
-        "nixpkgs-overlays=${../../../overlays}"
         "nixpkgs=/etc/${config.environment.etc.nixpkgs.target}"
         "nixpkgs-unstable=/etc/${config.environment.etc.nixpkgs-unstable.target}"
         "darwin=/etc/${config.environment.etc.darwin.target}"

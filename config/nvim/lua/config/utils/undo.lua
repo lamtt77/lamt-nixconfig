@@ -6,7 +6,7 @@ return {
 		config = true,
 		keys = {
 			{
-				"<leader>ut",
+				"<leader>tu",
 				function()
 					require("undotree").toggle()
 				end,

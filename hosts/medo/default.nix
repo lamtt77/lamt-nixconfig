@@ -8,8 +8,9 @@
 {
   imports = [
     ./hardware-medo.nix
-    (import ../_disko/digitalocean.nix {
+    (import ../../modules/disko {
       inherit inputs;
+      variant = "digitalocean";
     })
   ];
 
@@ -99,6 +100,15 @@
       enable = true;
       network.enable = true;
       settings = {
+        # This host is deployed on DigitalOcean; the Proxmox disposable test
+        # inherits the configuration but has no metadata service. Restricting
+        # discovery keeps DigitalOcean cloud-init behavior while letting the
+        # test fall back immediately instead of probing EC2 for four minutes.
+        datasource_list = [
+          "DigitalOcean"
+          "None"
+        ];
+
         # SOPS decrypts with the pre-staged host SSH key. Do not let cloud-init
         # delete and regenerate it on first boot.
         ssh_deletekeys = false;
@@ -122,10 +132,29 @@
       globalConfig = ''
         skip_install_trust
       '';
+      # Cache policy: HTML must revalidate, fingerprinted assets may not.
+      #
+      # A blanket max-age=3600 on HTML meant a deploy stayed invisible for an
+      # hour, and a stale page kept referencing the asset URLs it was built
+      # with. Hugo fingerprints CSS and JS with a content hash, so those URLs
+      # change whenever their content does and are safe to cache immutably;
+      # HTML has a stable URL and must be revalidated instead.
       virtualHosts."blog.lamhub.com".extraConfig = ''
         root * ${pkgs.callPackage ../../pkgs/blog { inherit inputs; }}
-        header Cache-Control max-age=3600
         header ETag {file.etag}
+
+        @fingerprinted path_regexp \.[0-9a-f]{32,64}\.(css|js)$
+        header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+
+        @static {
+          path *.css *.js *.svg *.png *.jpg *.jpeg *.webp *.woff2 *.ico
+          not path_regexp \.[0-9a-f]{32,64}\.(css|js)$
+        }
+        header @static Cache-Control "public, max-age=86400"
+
+        @documents path *.html */ /
+        header @documents Cache-Control "public, max-age=0, must-revalidate"
+
         file_server
         encode gzip
       '';
@@ -137,6 +166,25 @@
       virtualHosts."lamhub.com".extraConfig = ''
         respond "Site Under Construction"
       '';
+      virtualHosts."nxd.lamhub.com".extraConfig = ''
+        root * ${inputs.nxd.packages.${pkgs.system}.site}
+        header ETag {file.etag}
+
+        @fingerprinted path_regexp \.[0-9a-f]{32,64}\.(css|js)$
+        header @fingerprinted Cache-Control "public, max-age=31536000, immutable"
+
+        @static {
+          path *.css *.js *.svg *.png *.jpg *.jpeg *.webp *.woff2 *.ico
+          not path_regexp \.[0-9a-f]{32,64}\.(css|js)$
+        }
+        header @static Cache-Control "public, max-age=86400"
+
+        @documents path *.html */ /
+        header @documents Cache-Control "public, max-age=0, must-revalidate"
+
+        file_server
+        encode gzip
+      '';
     };
     prometheus.exporters.node = {
       enable = true;
@@ -147,9 +195,13 @@
   systemd.services."cloud-final".serviceConfig.SuccessExitStatus = "2";
 
   environment.systemPackages = with pkgs; [
+    # corosync-qdevice
     hugo
     git
   ];
+
+  # systemd.packages = [ pkgs.corosync-qdevice ];
+  # systemd.services.corosync-qnetd.wantedBy = [ "multi-user.target" ];
 
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }

@@ -6,7 +6,7 @@
 {
   imports = [
     ./hardware-router_recovery.nix
-    (import ../_disko/generic.nix {
+    (import ../../modules/disko {
       inherit inputs;
       disks = [ "/dev/sda" ];
     })
@@ -54,13 +54,16 @@
 
   # PXE service running on isolated bridge
   modules.os.linux.services.pve-pxe = {
+    target = "pve-test";
     assets = pkgs.pve-pxe-assets.mkPvePxeAssets {
       target = "pve-test";
       bootstrapIp = "192.168.250.1";
+      autoBoot = true;
     };
     interface = "eth2";
     listenAddress = "192.168.250.1";
     dhcpBackend = "dnsmasq";
+    allowGeneratedCredential = true;
   };
 
   services.qemuGuest.enable = true;

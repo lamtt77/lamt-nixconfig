@@ -1,0 +1,7 @@
+# Reviewed LAMT state. Disabled: this repository requires a paid Proxmox subscription.
+Types: deb
+URIs: https://enterprise.proxmox.com/debian/ceph-squid
+Suites: trixie
+Components: enterprise
+Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+Enabled: no

@@ -2,6 +2,7 @@ let
   mydefs = import ../../defines.nix;
 in
 {
+  disposable = true;
   class = "nixos";
   system = "x86_64-linux";
   username = "root";
@@ -11,15 +12,16 @@ in
 
   deployment = {
     vmid = "911";
-    targetIp = "192.168.250.10";
+    diskSize = "20";
     sshProxyJump = "nixos@192.168.1.20";
     proxmox = {
-      host = mydefs.hosts.pve1.ip;
+      provider = "pve1";
       bios = "seabios";
       diskBus = "virtio";
-      cores = "2";
-      memory = "8192";
-      network = "virtio,bridge=vmbrPxe";
+      cores = "4";
+      memory = "8196";
+      discoverySubnets = [ "192.168.250.0/24" ];
+      net0 = "virtio,bridge=vmbrPxe";
       extraNetworks = [
         "virtio,bridge=vmbrPxe"
         "virtio,bridge=vmbrPxe"

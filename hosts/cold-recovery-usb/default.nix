@@ -7,7 +7,6 @@
 }:
 let
   bootstrapIp = "192.168.0.5";
-  installer = pkgs.callPackage ../../pkgs/nxd { };
   pve1Assets = pkgs.pve-pxe-assets.mkPvePxeAssets {
     target = "pve1";
     inherit bootstrapIp;
@@ -16,6 +15,28 @@ let
     target = "pve2";
     inherit bootstrapIp;
   };
+  mkBootstrapPlan =
+    target:
+    pkgs.writeText "bootstrap-plan-${target}.json" (
+      builtins.toJSON {
+        apiVersion = "nxd.dev/v1alpha1";
+        kind = "BootstrapPlan";
+        metadata.name = "${target}-cold-recovery";
+        spec = {
+          inherit target;
+          interface = "eth0";
+          listenIp = bootstrapIp;
+          dhcpRange = "192.168.0.200,192.168.0.220";
+          assetsDir = "/etc/cold-recovery/assets/${target}";
+          mode = "isolated";
+          workdir = "/run/nxd-bootstrap-${target}";
+          allowGeneratedCredential = true;
+          timeoutSeconds = 7200;
+          dnsmasqPath = "${pkgs.dnsmasq}/bin/dnsmasq";
+          ipPath = "${pkgs.iproute2}/bin/ip";
+        };
+      }
+    );
 in
 {
   imports = [
@@ -26,30 +47,28 @@ in
   nix.settings.experimental-features = "nix-command flakes";
 
   environment.systemPackages = [
-    installer
     pkgs.dnsmasq
     pkgs.git
     pkgs.iproute2
-    pkgs.pve-answer-server
+    pkgs.nxd
     pkgs.vim
   ];
 
   environment.etc = {
     "cold-recovery/assets/pve1".source = pve1Assets;
     "cold-recovery/assets/pve2".source = pve2Assets;
+    "cold-recovery/plans/pve1.json".source = mkBootstrapPlan "pve1";
+    "cold-recovery/plans/pve2.json".source = mkBootstrapPlan "pve2";
     "cold-recovery/README".text = ''
       Cold recovery bootstrap IP: ${bootstrapIp}
 
-      Example:
-        sudo pve-bootstrap-server \
-          --target pve1 \
-          --interface eth0 \
-          --listen-ip ${bootstrapIp} \
-          --dhcp-range 192.168.0.200,192.168.0.220 \
-          --assets-dir /etc/cold-recovery/assets/pve1
+      Break-glass local service adapter (normal recovery uses reviewed
+      `nxd plan ... --intent recovery` and `nxd apply`):
+        sudo nxd-provider-pve bootstrap-serve /etc/cold-recovery/plans/pve1.json
 
-      Replace pve1 with pve2 and use the matching assets directory when
-      recovering the Dell R720.
+      Use /etc/cold-recovery/plans/pve2.json when recovering pve2.
+      The generated installer password is available only in the root-readable
+      answer file path printed by NXD and is removed when NXD exits.
     '';
   };
 

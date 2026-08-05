@@ -1,0 +1,36 @@
+# Reviewed total-cluster recovery input; never restored by normal installation.
+logging {
+  debug: off
+  to_syslog: yes
+}
+
+nodelist {
+  node {
+    name: @NODE1_NAME@
+    nodeid: 1
+    quorum_votes: 1
+    ring0_addr: @NODE1_IP@
+  }
+  node {
+    name: @NODE2_NAME@
+    nodeid: 2
+    quorum_votes: 1
+    ring0_addr: @NODE2_IP@
+  }
+}
+
+quorum {
+  provider: corosync_votequorum
+}
+
+totem {
+  cluster_name: @CLUSTER_NAME@
+  config_version: @CONFIG_VERSION@
+  interface {
+    linknumber: 0
+  }
+  ip_version: ipv4-6
+  link_mode: passive
+  secauth: on
+  version: 2
+}

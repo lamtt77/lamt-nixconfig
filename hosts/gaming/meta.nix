@@ -25,10 +25,9 @@
   };
 
   deployment = {
-    targetIp = "";
     vmid = "110";
     proxmox = {
-      host = "192.168.1.15";
+      provider = "pve1";
       bios = "ovmf";
       diskBus = "scsi";
     };

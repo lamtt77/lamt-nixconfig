@@ -9,7 +9,7 @@
 {
   imports = [
     ./hardware-avon.nix
-    (import ../_disko/generic.nix {
+    (import ../../modules/disko {
       inherit inputs;
       disks = [ "/dev/sda" ];
     })
