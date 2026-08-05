@@ -5,4 +5,5 @@ return {
   { import = "config.utils.search" },
   { import = "config.utils.undo" },
   { import = "config.utils.media" },
+  { import = "config.utils.extras" },
 }

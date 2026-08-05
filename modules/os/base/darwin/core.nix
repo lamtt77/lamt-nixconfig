@@ -7,7 +7,7 @@
   ...
 }:
 let
-  settingsStr = lib.my.serializeNixSettings { inherit config options; };
+  settingsStr = lib.my.serializeNixSettings { inherit config; };
 
   nixConfText = ''
     # Generated declaratively by nix-darwin (modules/os/darwin/autorun/core.nix)

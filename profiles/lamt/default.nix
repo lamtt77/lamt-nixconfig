@@ -20,7 +20,10 @@ let
     ../../modules/hm/feat/term/kitty.nix
     ../../modules/hm/feat/git.nix
     ../../modules/hm/feat/direnv.nix
-    ../../modules/hm/feat/nxd.nix
+    # nxd CLI: use local Cargo debug binary for development (export NXD=…/target/debug/nxd).
+    # Keeping pkgs.nxd in HM forces a long nxd-0.1.0 rebuild on every switch when the nxd
+    # flake input moves. Re-enable for a stable installed CLI after release pins settle.
+    # ../../modules/hm/feat/nxd.nix
     {
       module = ../../modules/hm/feat/pass.nix;
       args = { };

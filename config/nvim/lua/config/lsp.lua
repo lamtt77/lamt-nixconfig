@@ -5,6 +5,17 @@ local function get_capabilities()
 end
 
 return {
+	-- Feeds lua_ls runtime/plugin types on demand (replaces static workspace.library).
+	{
+		"folke/lazydev.nvim",
+		ft = "lua",
+		opts = {
+			library = {
+				{ path = "${3rd}/luv/library", words = { "vim%.uv", "vim%.loop" } },
+			},
+		},
+	},
+
 	{
 		"neovim/nvim-lspconfig",
 		event = { "BufReadPre", "BufNewFile" },
@@ -79,15 +90,17 @@ return {
 					)
 					vim.keymap.set(
 						"n",
-						"<leader>D",
+						"<leader>lt",
 						vim.lsp.buf.type_definition,
 						vim.tbl_extend("force", bufopts, { desc = "Go to type definition" })
 					)
 					vim.keymap.set(
 						"n",
-						"<leader>rn",
-						vim.lsp.buf.rename,
-						vim.tbl_extend("force", bufopts, { desc = "Rename symbol" })
+						"<leader>lr",
+						function()
+							return ":IncRename " .. vim.fn.expand("<cword>")
+						end,
+						vim.tbl_extend("force", bufopts, { expr = true, desc = "Rename symbol (live preview)" })
 					)
 					vim.keymap.set(
 						"n",
@@ -97,11 +110,11 @@ return {
 					)
 					vim.keymap.set(
 						"n",
-						"<leader>lr",
+						"<leader>lR",
 						vim.lsp.buf.references,
 						vim.tbl_extend("force", bufopts, { desc = "Find references" })
 					)
-					vim.keymap.set("n", "<leader>fmt", function()
+					vim.keymap.set("n", "<leader>lf", function()
 						vim.lsp.buf.format({ async = true })
 					end, vim.tbl_extend("force", bufopts, { desc = "Format buffer" }))
 				end,
@@ -114,11 +127,13 @@ return {
 					settings = {
 						Lua = {
 							runtime = { version = "LuaJIT" },
-							diagnostics = { globals = { "vim" } },
-							-- Narrow to just the Neovim stdlib; indexing all runtime files
-							-- (nvim_get_runtime_file("", true)) is very expensive on attach.
+							diagnostics = {
+								globals = { "vim" },
+								disable = { "lowercase-global", "undefined-global" },
+							},
+							completion = { callSnippet = "Replace" },
+							-- workspace.library omitted: lazydev supplies it on demand.
 							workspace = {
-								library = { vim.fn.expand("$VIMRUNTIME/lua") },
 								checkThirdParty = false,
 							},
 							telemetry = { enable = false },
@@ -157,7 +172,7 @@ return {
 		end,
 		keys = {
 			{
-				"<leader>ld",
+				"<leader>td",
 				function()
 					if vim.diagnostic.is_enabled() then
 						vim.diagnostic.enable(false)
@@ -229,6 +244,11 @@ return {
 		ft = "rust",
 		config = function()
 			local capabilities = get_capabilities()
+			-- rustaceanvim builds its own capabilities, so repeat the opt-out here.
+			capabilities.workspace = capabilities.workspace or {}
+			capabilities.workspace.didChangeWatchedFiles = capabilities.workspace.didChangeWatchedFiles or {}
+			capabilities.workspace.didChangeWatchedFiles.dynamicRegistration = false
+
 			vim.g.rustaceanvim = {
 				server = {
 					on_attach = function(_, bufnr)
@@ -237,27 +257,30 @@ return {
 							vim.cmd.RustLsp("hover", "actions")
 						end, { buffer = bufnr, desc = "Rust hover actions" })
 						-- Code action groups
-						vim.keymap.set("n", "<Leader>a", function()
+						vim.keymap.set("n", "<leader>ca", function()
 							vim.cmd.RustLsp("codeAction")
 						end, { buffer = bufnr, desc = "Rust code action" })
 					end,
 					capabilities = capabilities,
-					settings = {
+					-- default_settings, not settings: keeps rustaceanvim's own defaults.
+					default_settings = {
 						["rust-analyzer"] = {
 							files = {
+								-- Pin explicitly; macOS client-side watching is per-directory.
+								watcher = "server",
 								excludeDirs = {
 									"target",
-									"apps/nxd/target",
 									".git",
 									".direnv",
 									".devenv",
 									"_tmp",
-									".cargo",
 								},
 							},
 							checkOnSave = true,
 							check = {
 								command = "clippy",
+								-- --no-deps: lint own crates only, not dependencies.
+								extraArgs = { "--no-deps" },
 							},
 						},
 					},

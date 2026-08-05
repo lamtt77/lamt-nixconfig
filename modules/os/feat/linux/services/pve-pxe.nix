@@ -7,9 +7,36 @@
 with lib;
 let
   cfg = config.modules.os.linux.services.pve-pxe;
+  planFile = pkgs.writeText "bootstrap-plan.json" (
+    builtins.toJSON {
+      apiVersion = "nxd.dev/v1alpha1";
+      kind = "BootstrapPlan";
+      metadata = {
+        name = "pve-bootstrap";
+      };
+      spec = {
+        target = cfg.target;
+        interface = cfg.interface;
+        listenIp = cfg.listenAddress;
+        dhcpRange = if cfg.dhcpBackend == "dnsmasq" then cfg.dhcpRange else null;
+        assetsDir = "${cfg.assets}";
+        mode = if cfg.dhcpBackend == "dnsmasq" then "isolated" else "external";
+        workdir = "/run/nxd-pve-bootstrap/session";
+        allowGeneratedCredential = cfg.allowGeneratedCredential;
+        timeoutSeconds = cfg.timeoutSeconds;
+        dnsmasqPath = "${pkgs.dnsmasq}/bin/dnsmasq";
+        ipPath = "${pkgs.iproute2}/bin/ip";
+      };
+    }
+  );
 in
 {
   options.modules.os.linux.services.pve-pxe = {
+    target = mkOption {
+      type = types.str;
+      description = "PXE target identity; must match the selected asset manifest.";
+    };
+
     assets = mkOption {
       type = types.package;
       description = "Target-specific pure PXE assets package built by mkPvePxeAssets.";
@@ -34,15 +61,33 @@ in
       default = "none";
       description = ''
         DHCP/TFTP backend to use:
-        - "none": Another DHCP daemon (e.g. Kea) owns IP leasing and PXE options; TFTP runs via atftpd.
+        - "none": Another DHCP daemon (e.g. Kea) owns IP leasing and PXE options; TFTP runs via dnsmasq (external mode).
         - "dnsmasq": dnsmasq runs on the interface, providing isolated DHCP/TFTP.
       '';
+    };
+
+    dhcpRange = mkOption {
+      type = types.str;
+      default = "192.168.250.100,192.168.250.150";
+      description = "DHCP allocation range in start,end form for isolated mode.";
     };
 
     passwordSecretName = mkOption {
       type = types.nullOr types.str;
       default = null;
       description = "SOPS secret name containing the temporary installer root password.";
+    };
+
+    allowGeneratedCredential = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Allow an ephemeral generated installer password; intended only for portable/disposable recovery.";
+    };
+
+    timeoutSeconds = mkOption {
+      type = types.ints.between 1 86400;
+      default = 7200;
+      description = "Maximum duration of one bounded bootstrap service run.";
     };
 
     vrrpControlled = mkOption {
@@ -53,11 +98,6 @@ in
   };
 
   config = mkIf (cfg.interface != null) {
-    # Clear wantedBy for atftpd if managed by keepalived (overriding upstream NixOS service)
-    systemd.services.atftpd.wantedBy = mkForce (
-      if cfg.vrrpControlled then [ ] else [ "multi-user.target" ]
-    );
-
     # Assertions to prevent invalid/unsafe runtime combinations
     assertions = [
       {
@@ -75,6 +115,10 @@ in
         assertion = cfg.listenAddress != "";
         message = "PXE bootstrap listenAddress must be specified.";
       }
+      {
+        assertion = cfg.passwordSecretName != null || cfg.allowGeneratedCredential;
+        message = "PXE bootstrap requires passwordSecretName unless generated credentials are explicitly allowed.";
+      }
     ];
 
     # SOPS secret reference for systemd credential binding
@@ -82,105 +126,44 @@ in
       "${cfg.passwordSecretName}" = { };
     };
 
-    # 1. Python Answer/Asset HTTP Server
-    systemd.services.pve-answer-server = {
-      description = "Proxmox VE Auto-Install Answer and HTTP Asset Server";
+    # Bounded PXE / Answer service via the PVE provider-owned bootstrap adapter.
+    # Implementation lives in nxd-provider-pve (not nxd-core / not the public CLI).
+    systemd.services.nxd-pve-bootstrap = {
+      description = "NXD PVE Provider PXE Bootstrap Server";
       wantedBy = if cfg.vrrpControlled then [ ] else [ "multi-user.target" ];
       requires = [ "network-online.target" ];
       after = [ "network-online.target" ];
+
+      path = [
+        pkgs.dnsmasq
+        pkgs.iproute2
+      ];
 
       # Load SOPS secret into systemd credential
       serviceConfig.LoadCredential = mkIf (cfg.passwordSecretName != null) [
         "pve_password:${config.sops.secrets."${cfg.passwordSecretName}".path}"
       ];
 
-      # Pre-start script to materialize answer file with the secret password under /run
-      preStart = ''
-        mkdir -p /run/pve-pxe
-        chmod 700 /run/pve-pxe
-
-        if [ -f "$CREDENTIALS_DIRECTORY/pve_password" ]; then
-          PASSWORD=$(cat "$CREDENTIALS_DIRECTORY/pve_password")
-        else
-          echo "Warning: PVE installer password credential not found. Using default."
-          PASSWORD="changeme"
-        fi
-
-        # Materialize TOML with root password
-        sed "s/@ROOT_PASSWORD@/$PASSWORD/g" \
-          ${cfg.assets}/pve-answer-nonsecret.toml > /run/pve-pxe/pve-answer.toml
-        chmod 600 /run/pve-pxe/pve-answer.toml
-      '';
-
       script = ''
-        exec ${pkgs.pve-answer-server}/bin/pve-answer-server \
-          --host ${cfg.listenAddress} \
-          --port 80 \
-          --static-dir ${cfg.assets} \
-          --answer-file /run/pve-pxe/pve-answer.toml
+        # Packaged NXD places provider binaries under libexec/nxd beside the nxd wrapper.
+        exec ${pkgs.nxd}/bin/nxd bootstrap serve ${planFile}
       '';
 
       serviceConfig = {
+        # Bounded serve exits 0 after timeoutSeconds. Keep the disposable
+        # router-recovery PXE path available across that exit; portable one-shot
+        # operators still stop the unit explicitly when finished.
         Restart = "always";
         RestartSec = 5;
-        RuntimeDirectory = "pve-pxe";
+        RuntimeDirectory = "nxd-pve-bootstrap";
         RuntimeDirectoryMode = "0700";
-      };
-    };
-
-    # 2. TFTP Service & Assets Population (only when external DHCP/Kea owns L2 segment)
-    services.atftpd = mkIf (cfg.dhcpBackend == "none") {
-      enable = true;
-      root = "/var/lib/tftpboot";
-    };
-
-    systemd.services.populate-pve-pxe-tftp = mkIf (cfg.dhcpBackend == "none") {
-      description = "Populate TFTP directory with PXE bootloaders";
-      wantedBy = [ "multi-user.target" ];
-      script = ''
-        mkdir -p /var/lib/tftpboot/ipxe
-        ln -sf ${cfg.assets}/ipxe/undionly.kpxe /var/lib/tftpboot/ipxe/undionly.kpxe
-        ln -sf ${cfg.assets}/ipxe/ipxe.efi /var/lib/tftpboot/ipxe/ipxe.efi
-        ln -sf ${cfg.assets}/autoexec.ipxe /var/lib/tftpboot/autoexec.ipxe
-      '';
-      serviceConfig.Type = "oneshot";
-    };
-
-    # 3. dnsmasq isolated DHCP/TFTP server (only when dnsmasq backend is selected)
-    services.dnsmasq = mkIf (cfg.dhcpBackend == "dnsmasq") {
-      enable = true;
-      settings = {
-        interface = cfg.interface;
-        bind-interfaces = true;
-        port = 0; # Disable DNS resolver
-        dhcp-range = "192.168.250.100,192.168.250.150,12h";
-        dhcp-option = [
-          "option:router,${cfg.listenAddress}"
-          "option:dns-server,${cfg.listenAddress}"
-        ];
-        enable-tftp = true;
-        # dnsmasq serves TFTP files directly from the Nix store!
-        tftp-root = "${cfg.assets}";
-        dhcp-boot = [
-          "tag:ipxe,autoexec.ipxe"
-          "tag:!ipxe,tag:efi,ipxe/ipxe.efi"
-          "tag:!ipxe,tag:pxe,ipxe/undionly.kpxe"
-        ];
-        # Architecture tag-matching (EFI vs Legacy BIOS)
-        dhcp-match = [
-          "set:ipxe,175"
-          "set:efi,option:client-arch,7"
-          "set:efi,option:client-arch,9"
-          "set:efi,option:client-arch,11"
-          "set:pxe,option:client-arch,0"
-        ];
       };
     };
 
     # Firewall configuration
     networking.firewall = {
       allowedTCPPorts = [ 80 ]; # HTTP asset serving
-      allowedUDPPorts = mkIf (cfg.dhcpBackend == "none") [ 69 ]; # TFTP port (when using atftpd)
+      allowedUDPPorts = [ 69 ] ++ (if cfg.dhcpBackend == "dnsmasq" then [ 67 ] else [ ]);
     };
   };
 }

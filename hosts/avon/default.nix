@@ -11,7 +11,7 @@
 {
   imports = [
     ./hardware-avon.nix
-    (import ../_disko/generic.nix {
+    (import ../../modules/disko {
       inherit inputs;
       disks = [ "/dev/sda" ];
       ephemeral = true;
@@ -26,7 +26,7 @@
     my.mkStaticNetworking (
       mydefs.networkingDefaults
       // {
-        ip = config.deployment.targetIp;
+        ip = my.hostAddress myargs.hostname;
         interface = "ens18";
       }
     )

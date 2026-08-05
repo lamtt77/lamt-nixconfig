@@ -38,6 +38,19 @@ require("lazy").setup({
   { import = "config.markdown" },
 }, {
   performance = {
-    rtp = { reset = false },
+    rtp = {
+      reset = false,
+      -- Disable built-in plugins that are replaced by plugins or are unused.
+      disabled_plugins = {
+        "gzip",
+        "matchit",
+        "matchparen",
+        "netrwPlugin",
+        "tarPlugin",
+        "tohtml",
+        "tutor",
+        "zipPlugin",
+      },
+    },
   },
 })

@@ -4,6 +4,7 @@
   users ? [
     "lamt"
     "cloud"
+    "fcm"
   ],
   # Must match the cert name created by the acme module (i.e. the acme domain arg)
   acmeDomain ? "lamhub.com",
@@ -11,11 +12,30 @@
 {
   config,
   lib,
+  inputs,
   pkgs,
   ...
 }:
 let
   derpPort = 3478;
+  tailnet = import ../../../base/services/tailnet.nix;
+  routers = builtins.attrValues tailnet.routers;
+  routesFor =
+    record:
+    lib.concatMap (
+      group: tailnet.routeGroups.${group}.routes or (throw "Unknown Tailnet route group '${group}'")
+    ) record.routeGroups;
+  tagOwners = lib.mapAttrs (_: records: lib.unique (map (record: "${record.owner}@") records)) (
+    lib.groupBy (record: record.tag) routers
+  );
+  routerTags = lib.unique (map (record: record.tag) routers);
+  exitNodeTags = lib.unique (map (record: record.tag) (lib.filter (record: record.exitNode) routers));
+  routeApprovals = lib.foldl' (
+    approvals: record:
+    lib.foldl' (
+      routes: route: routes // { ${route} = lib.unique ((routes.${route} or [ ]) ++ [ record.tag ]); }
+    ) approvals (routesFor record)
+  ) { } routers;
 in
 {
   services.headscale = {
@@ -60,12 +80,33 @@ in
         mode = "file";
         path = "${pkgs.writeText "policy.hujson" (
           builtins.toJSON {
-            # only 'lamt' accessing full tailnet
+            inherit tagOwners;
+            autoApprovers = {
+              exitNode = exitNodeTags;
+              routes = routeApprovals;
+            };
             acls = [
               {
                 action = "accept";
                 src = [ "lamt@" ];
                 dst = [ "*:*" ];
+              }
+              # Tagged routers are distinct from user-owned nodes in Headscale's
+              # policy compiler, so expose every declared router explicitly.
+              {
+                action = "accept";
+                src = [ "lamt@" ];
+                dst = map (tag: "${tag}:*") routerTags;
+              }
+              {
+                action = "accept";
+                src = [ "lamt@" ];
+                dst = map (route: "${route}:*") (builtins.attrNames routeApprovals);
+              }
+              {
+                action = "accept";
+                src = [ "lamt@" ];
+                dst = [ "autogroup:internet:*" ];
               }
             ];
           }

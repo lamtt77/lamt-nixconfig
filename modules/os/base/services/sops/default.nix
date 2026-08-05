@@ -35,7 +35,8 @@ in
     lib.mkForce ''
       echo "========================================================================="
       echo "WARNING: SOPS secrets file was missing during build."
-      echo "  Expected: secrets/sops/${myargs.hostname}.yaml"
+      echo "  Expected staged input: installer-secret/${myargs.hostname}.yaml"
+      echo "  Source custody is site-scoped (for this repository: bar/hosts/${myargs.hostname}/)."
       echo "Bypassing secrets installation. Active secrets in /run/secrets remain"
       echo "for now, but they WILL NOT persist across reboots!"
       echo "Please redeploy from a management host containing the secrets repository."

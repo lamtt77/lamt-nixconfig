@@ -57,8 +57,6 @@ return {
 				signature = { enabled = true },
 			})
 
-
-
 			-- Manual dictionary completion trigger
 			vim.keymap.set("i", "<A-d>", function()
 				require("blink.cmp").show({ providers = { "dictionary" } })
@@ -76,76 +74,44 @@ return {
 		"Kaiser-Yang/blink-cmp-dictionary",
 	},
 
-	-- Completion hints (mini.clue)
+	-- Keymap hints (which-key)
 	{
-		"echasnovski/mini.clue",
+		"folke/which-key.nvim",
 		event = "VeryLazy",
-		config = function()
-			require("mini.clue").setup({
-				triggers = {
-					-- Leader triggers
-					{ mode = "n", keys = "<Leader>" },
-					{ mode = "x", keys = "<Leader>" },
-
-					-- Built-in completion
-					{ mode = "i", keys = "<C-x>" },
-
-					-- `g` key
-					{ mode = "n", keys = "g" },
-					{ mode = "x", keys = "g" },
-
-					-- Marks
-					{ mode = "n", keys = "'" },
-					{ mode = "n", keys = "`" },
-					{ mode = "x", keys = "'" },
-					{ mode = "x", keys = "`" },
-
-					-- Registers
-					{ mode = "n", keys = '"' },
-					{ mode = "x", keys = '"' },
-					{ mode = "i", keys = "<C-r>" },
-					{ mode = "c", keys = "<C-r>" },
-
-					-- Window commands
-					{ mode = "n", keys = "<C-w>" },
-
-					-- `z` key
-					{ mode = "n", keys = "z" },
-					{ mode = "x", keys = "z" },
-				},
-
-				clues = {
-					-- Organized key groups (alphabetical order)
-					{ mode = "n", keys = "<leader>R", desc = "Reload" },
-					{ mode = "n", keys = "<leader>S", desc = "Search/Replace" },
-					{ mode = "n", keys = "<leader>a", desc = "AI/Avante" },
-					{ mode = "n", keys = "<leader>b", desc = "Buffer Management" },
-					{ mode = "n", keys = "<leader>c", desc = "Code Quality" },
-					{ mode = "n", keys = "<leader>d", desc = "Debug/DAP" },
-					{ mode = "n", keys = "<leader>e", desc = "Mini Files Float" },
-					{ mode = "n", keys = "<leader>f", desc = "Find/Files" },
-					{ mode = "n", keys = "<leader>g", desc = "Git" },
-					{ mode = "n", keys = "<leader>h", desc = "Hunks" },
-					{ mode = "n", keys = "<leader>i", desc = "Screenshot Images" },
-					{ mode = "n", keys = "<leader>l", desc = "LSP" },
-					{ mode = "n", keys = "<leader>m", desc = "Media/Formatting" },
-					{ mode = "n", keys = "<leader>o", desc = "OpenCode" },
-					{ mode = "n", keys = "<leader>s", desc = "Spell/Treesitter" },
-					{ mode = "n", keys = "<leader>t", desc = "Theme/Treesitter" },
-					{ mode = "n", keys = "<leader>u", desc = "Undo" },
-					{ mode = "n", keys = "<leader>w", desc = "Workspace" },
-					{ mode = "n", keys = "<leader>y", desc = "Clipboard" },
-					{ mode = "n", keys = "<leader>z", desc = "Undo/Redo" },
-
-					-- Built-in clues
-					require("mini.clue").gen_clues.builtin_completion(),
-					require("mini.clue").gen_clues.g(),
-					require("mini.clue").gen_clues.marks(),
-					require("mini.clue").gen_clues.registers(),
-					require("mini.clue").gen_clues.windows(),
-					require("mini.clue").gen_clues.z(),
-				},
-			})
-		end,
+		opts = {
+			preset = "classic",
+			delay = 300,
+			spec = {
+				{ "<leader>1", desc = "H1 Heading" },
+				{ "<leader>2", desc = "H2 Heading" },
+				{ "<leader>3", desc = "H3 Heading" },
+				{ "<leader>4", desc = "H4 Heading" },
+				{ "<leader>5", desc = "H5 Heading" },
+				{ "<leader>a", group = "AI/Avante" },
+				{ "<leader>b", group = "Buffer" },
+				{ "<leader>c", group = "Code / Directory" },
+				{ "<leader>d", group = "Debug/DAP" },
+				{ "<leader>e", desc = "Mini Files (cwd)" },
+				{ "<leader>E", desc = "Toggle Neo-tree" },
+				{ "<leader>f", group = "Find/Files" },
+				{ "<leader>fy", desc = "Yank filename" },
+				{ "<leader>fY", desc = "Yank full path" },
+				{ "<leader>g", group = "Git" },
+				{ "<leader>h", group = "Git Hunks" },
+				{ "<leader>i", group = "Screenshot/Images" },
+				{ "<leader>l", group = "LSP" },
+				{ "<leader>m", group = "Media/Formatting" },
+				{ "<leader>o", group = "AI/Opencode" },
+				{ "<leader>p", desc = "Yank history" },
+				{ "<leader>q", group = "Quit" },
+				{ "<leader>R", desc = "Restart Neovim" },
+				{ "<leader>s", group = "Search/Spell" },
+				{ "<leader>t", group = "Theme/Toggles/Treesitter" },
+				{ "<leader>w", group = "Workspace" },
+				{ "<leader>z", desc = "Undo" },
+				{ "<leader>Z", desc = "Redo" },
+				{ "<leader>`", desc = "Alternate buffer" },
+			},
+		},
 	},
 }

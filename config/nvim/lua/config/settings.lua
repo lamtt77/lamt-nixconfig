@@ -9,6 +9,41 @@ vim.opt.termguicolors = true
 vim.opt.autoread = true
 vim.opt.updatetime = 300
 
+-- System clipboard: auto-disable in SSH sessions so OSC-52 can handle it
+vim.opt.clipboard = vim.env.SSH_CONNECTION and '' or 'unnamedplus'
+
+-- Confirm before quitting unsaved buffers (prevents accidental data loss)
+vim.opt.confirm = true
+
+-- Keep N lines visible above/below cursor while scrolling
+vim.opt.scrolloff = 8
+vim.opt.sidescrolloff = 8
+
+-- Highlight the current line
+vim.opt.cursorline = true
+
+-- Show effects of :substitute and similar commands live in a split
+vim.opt.inccommand = 'nosplit'
+
+-- Show some invisible chars (tabs and trailing spaces)
+vim.opt.list = true
+vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+
+-- Max items shown in the popup-menu (0 = all)
+vim.opt.pumheight = 10
+
+-- Hide * markup for bold/italic in markdown (renders visually)
+vim.opt.conceallevel = 2
+
+-- Use ripgrep when available (much faster :grep / :vimgrep)
+if vim.fn.executable('rg') == 1 then
+	vim.opt.grepprg = 'rg --vimgrep --smart-case'
+	vim.opt.grepformat = '%f:%l:%c:%m'
+end
+
+-- Keep window layout stable when splitting
+vim.opt.splitkeep = 'screen'
+
 -- Keep legacy syntax available for filetypes without a Treesitter parser.
 -- The Treesitter setup disables it per buffer after its highlighter attaches.
 vim.cmd("syntax enable")

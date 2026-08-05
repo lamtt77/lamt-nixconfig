@@ -1,0 +1,26 @@
+[global]
+keyboard = "en-us"
+country = "us"
+fqdn = "pve2.lamhub.com"
+mailto = "lam@lamhub.com"
+timezone = "@TIMEZONE@"
+root_password = "@ROOT_PASSWORD@"
+root-ssh-keys = [ "@SSH_PUBKEY@" ]
+
+[disk-setup]
+filesystem = "zfs"
+disk-list = [ "nvme0n1" ]
+zfs.ashift = 12
+zfs.raid = "raid0"
+
+[network]
+source = "from-answer"
+cidr = "192.168.1.5/24"
+dns = "192.168.1.1"
+gateway = "192.168.1.1"
+filter.ID_NET_NAME = "*"
+
+[first-boot]
+source = "from-url"
+ordering = "network-online"
+url = "@FIRST_BOOT_URL@"

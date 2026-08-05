@@ -2,6 +2,7 @@
   config,
   lib,
   mydefs,
+  my,
   pkgs,
   ...
 }:
@@ -201,8 +202,8 @@ in
           "\"cache.lamhub.com A 192.168.1.19\""
           "\"minecraft.lamhub.com A 192.168.1.168\""
           "\"nas.lamhub.lan A ${mydefs.nasIp}\""
-          "\"pve1.lamhub.com A ${mydefs.hosts.pve1.ip}\""
-          "\"pve2.lamhub.com A ${mydefs.hosts.pve2.ip}\""
+          "\"pve1.lamhub.com A ${my.pveNodeAddress "pve1"}\""
+          "\"pve2.lamhub.com A ${my.pveNodeAddress "pve2"}\""
           "\"smtp.lamhub.lan A 192.168.1.18\""
           "\"tea.lamhub.com A 192.168.1.18\""
           "\"ts.lamhub.com A 192.168.1.18\""
@@ -360,6 +361,7 @@ in
     };
 
     modules.os.linux.services.pve-pxe = mkIf cfg.enablePxe {
+      target = cfg.pxeTarget;
       assets = pkgs.pve-pxe-assets.mkPvePxeAssets {
         target = cfg.pxeTarget;
         bootstrapIp = cfg.vipLan;
@@ -367,6 +369,7 @@ in
       interface = "eth1.10";
       listenAddress = cfg.vipLan;
       dhcpBackend = "none";
+      passwordSecretName = "pve_installer_password";
       vrrpControlled = cfg.enableHA;
     };
 
@@ -417,7 +420,7 @@ in
                 ${
                   if cfg.enablePxe then
                     ''
-                      systemctl start pve-answer-server.service atftpd.service
+                      systemctl start nxd-pve-bootstrap.service
                     ''
                   else
                     "echo 'PXE not enabled on MASTER state'"
@@ -427,7 +430,7 @@ in
                 ${
                   if cfg.enablePxe then
                     ''
-                      systemctl stop pve-answer-server.service atftpd.service
+                      systemctl stop nxd-pve-bootstrap.service
                     ''
                   else
                     "echo 'PXE not enabled on BACKUP/FAULT state'"

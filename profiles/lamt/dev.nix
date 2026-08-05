@@ -7,6 +7,7 @@
   home.packages = with pkgs; [
     cargo
     clippy
+    just
     rustc
     rustfmt
     nixfmt

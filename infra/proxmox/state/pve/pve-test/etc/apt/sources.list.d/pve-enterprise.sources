@@ -1,0 +1,6 @@
+# Reviewed LAMT state. Disabled: this repository requires a paid Proxmox VE subscription.
+Types: deb
+URIs: https://enterprise.proxmox.com/debian/pve
+Suites: trixie
+Components: pve-enterprise
+Enabled: no

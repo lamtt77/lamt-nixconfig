@@ -12,22 +12,26 @@ in
   username = "nixos";
 
   deployment = {
-    targetIp = "192.168.1.20";
+    nameservers = mydefs.networkingDefaults.nameservers ++ [ "1.1.1.1" ];
     vmid = "910";
     diskSize = "20";
+    requireSecrets = true;
     proxmox = {
-      host = "192.168.1.15";
+      provider = "pve1";
       bios = "ovmf";
       diskBus = "scsi";
-      network = "virtio,bridge=vmbr0";
+      net0 = "virtio,bridge=vmbr0";
+      cores = "2";
+      memory = "2048";
+      iso.customPath = "arthurz2-dir:iso/nixos-minimal-26.05-x86_64-linux-nxd-built.iso";
       extraNetworks = [
         "virtio,bridge=vmbr1"
         "virtio,bridge=vmbrPxe"
       ];
       bootstrap = {
         interface = "net1";
-        subnet = builtins.elemAt mydefs.defaultNetworks 0;
         vlan = 10;
+        subnet = builtins.elemAt mydefs.defaultNetworks 0;
       };
     };
   };
